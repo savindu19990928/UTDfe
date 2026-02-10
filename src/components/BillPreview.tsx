@@ -3,7 +3,7 @@ import { Bill } from '../types';
 import { Printer, ArrowLeft, CheckCircle } from 'lucide-react';
 import { formatPrice } from '../utils/format';
 import { useRentalConditions } from '../hooks/useRentalConditions';
-const LOGO_URL = "/WhatsApp_Image_2025-12-13_at_2.34.53_PM.jpg";
+const LOGO_URL = "./WhatsApp_Image_2025-12-13_at_2.34.53_PM.jpg";
 
 interface BillPreviewProps {
   bill: Bill;

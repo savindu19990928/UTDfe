@@ -48,12 +48,16 @@
       "output": "release"
     },
     "win": {
-      "icon": "electron/assets/icon.ico"
+      "icon": "electron/assets/icon.ico",
+      "target": [
+        "nsis"
+      ]
     },
     "files": [
       "dist/**/*",
-      "dist-electron/**/*"
+      "dist-electron/**/*",
+      "public/**/*"
     ],
     "asar": true
-  }
+  }  
 }
