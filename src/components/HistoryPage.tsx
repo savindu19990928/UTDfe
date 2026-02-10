@@ -1,0 +1,1753 @@
+import React, { useEffect, useMemo, useState, useRef } from 'react';
+import {
+  ShoppingCart,
+  Clock,
+  AlertTriangle,
+  CheckCircle,
+  Calendar,
+  Package,
+  Search,
+  Edit,
+  Eye,
+  Plus,
+  X,
+  Banknote,
+  RotateCcw,
+  Wallet,
+  TrendingUp,
+  Loader2,
+  AlertCircle,
+  RefreshCw,
+  Undo2 } from
+'lucide-react';
+import { Bill, CartItem, Product, CashTransaction } from '../types';
+import { useProducts } from '../hooks/useProducts';
+import { useExpenses } from '../hooks/useExpenses';
+import { useRentals } from '../hooks/useRentals';
+import { useSales } from '../hooks/useSales';
+import { formatPrice } from '../utils/format';
+import { API_URL } from '../utils/config';
+import { getAuthHeaders } from '../utils/auth';
+import { motion, AnimatePresence } from 'framer-motion';
+interface HistoryPageProps {
+  bills: Bill[];
+  cashTransactions: CashTransaction[];
+  onUpdateBill: (bill: Bill) => void;
+  onViewBill: (bill: Bill) => void;
+  onAddCashTransaction: (transaction: CashTransaction) => void;
+}
+export function HistoryPage({
+  bills,
+  cashTransactions,
+  onUpdateBill,
+  onViewBill,
+  onAddCashTransaction
+}: HistoryPageProps) {
+  const [activeTab, setActiveTab] = useState<'sales' | 'rentals'>('rentals');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [editingBillId, setEditingBillId] = useState<string | null>(null);
+  const [newDepositAmount, setNewDepositAmount] = useState('');
+  // Modal state for adding products
+  const [addItemModalBillId, setAddItemModalBillId] = useState<string | null>(
+    null
+  );
+  const [productSearch, setProductSearch] = useState('');
+  const modalSearchRef = useRef<HTMLInputElement>(null);
+  // Two-step modal: select product, then set return date
+  const [selectedProductForAdd, setSelectedProductForAdd] =
+  useState<Product | null>(null);
+  const [newItemReturnDate, setNewItemReturnDate] = useState('');
+  // Return date picker state
+  const [returnDatePickerKey, setReturnDatePickerKey] = useState<string | null>(
+    null
+  );
+  const [returnDateValue, setReturnDateValue] = useState('');
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  // Sale return modal state
+  const [returnModalBill, setReturnModalBill] = useState<Bill | null>(null);
+  const [returnQuantities, setReturnQuantities] = useState<
+    Record<number, number>>(
+    {});
+  const [returnLoading, setReturnLoading] = useState(false);
+  const [returnError, setReturnError] = useState<string | null>(null);
+  const [returnSuccess, setReturnSuccess] = useState<{
+    refundAmount: number;
+  } | null>(null);
+  // Fetch products from API
+  const { products, rentProducts } = useProducts();
+  // Fetch expenses from API
+  const { expenses } = useExpenses();
+  // Fetch rentals from API — only when rentals tab is active
+  const {
+    rentals: apiRentalBills,
+    loading: rentalsLoading,
+    error: rentalsError,
+    refetch: refetchRentals
+  } = useRentals({
+    search: activeTab === 'rentals' ? searchQuery : undefined,
+    enabled: activeTab === 'rentals'
+  });
+  // Fetch sales from API — only when sales tab is active
+  const {
+    sales: apiSaleBills,
+    loading: salesLoading,
+    error: salesError,
+    refetch: refetchSales
+  } = useSales({
+    search: activeTab === 'sales' ? searchQuery : undefined,
+    enabled: activeTab === 'sales'
+  });
+  useEffect(() => {
+    if (
+    addItemModalBillId &&
+    modalSearchRef.current &&
+    !selectedProductForAdd)
+    {
+      modalSearchRef.current.focus();
+    }
+  }, [addItemModalBillId, selectedProductForAdd]);
+  // Separate bills by type
+  const saleBills = apiSaleBills;
+  const rentalBills = apiRentalBills;
+  // Search filter
+  const filteredSaleBills = useMemo(() => {
+    if (!searchQuery.trim()) return saleBills;
+    const q = searchQuery.toLowerCase();
+    return saleBills.filter(
+      (b) =>
+      b.id.toLowerCase().includes(q) ||
+      b.customer.name.toLowerCase().includes(q) ||
+      b.items.some((i) => i.product.name.toLowerCase().includes(q))
+    );
+  }, [saleBills, searchQuery]);
+  const filteredRentalBills = useMemo(() => {
+    if (!searchQuery.trim()) return rentalBills;
+    const q = searchQuery.toLowerCase();
+    return rentalBills.filter(
+      (b) =>
+      b.id.toLowerCase().includes(q) ||
+      b.customer.name.toLowerCase().includes(q) ||
+      b.items.some((i) => i.product.name.toLowerCase().includes(q))
+    );
+  }, [rentalBills, searchQuery]);
+  // Cash register calculation
+  const cashRegister = useMemo(() => {
+    let saleIncome = 0;
+    let depositsReceived = 0;
+    let refundsGiven = 0;
+    let rentalProfit = 0;
+    saleBills.forEach((b) => {
+      saleIncome += b.total;
+    });
+    rentalBills.forEach((b) => {
+      const totalDeposit =
+      b.depositHistory?.reduce((sum, d) => sum + d.amount, 0) ||
+      b.deposit ||
+      0;
+      depositsReceived += totalDeposit;
+      if (b.rentalStatus === 'closed') {
+        rentalProfit += b.total;
+        if (totalDeposit > b.total) {
+          refundsGiven += totalDeposit - b.total;
+        } else if (b.total > totalDeposit) {
+          saleIncome += b.total - totalDeposit;
+        }
+      }
+    });
+    const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+    const totalProfit = saleIncome + rentalProfit - totalExpenses - refundsGiven;
+    const totalInRegister = saleIncome + depositsReceived - refundsGiven;
+    return {
+      saleIncome,
+      depositsReceived,
+      refundsGiven,
+      rentalProfit,
+      totalExpenses,
+      totalProfit,
+      totalInRegister
+    };
+  }, [saleBills, rentalBills, expenses]);
+  // Rental stats
+  const rentalStats = useMemo(
+    () => ({
+      open: rentalBills.filter((b) => b.rentalStatus === 'open').length,
+      partial: rentalBills.filter((b) => b.rentalStatus === 'partially_closed').
+      length,
+      closed: rentalBills.filter((b) => b.rentalStatus === 'closed').length
+    }),
+    [rentalBills]
+  );
+  // Edit handlers
+  const handleReturnItem = async (
+  bill: Bill,
+  itemIndex: number,
+  returnDate: string) =>
+  {
+    const item = bill.items[itemIndex];
+    if (
+    item.type !== 'rent' ||
+    item.status !== 'active' ||
+    !item.apiItemId ||
+    !bill.apiId)
+
+    return;
+    setActionLoading(`return-${bill.id}-${itemIndex}`);
+    setActionError(null);
+    try {
+      const res = await fetch(`${API_URL}rentals/${bill.apiId}/return_items/`, {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          items_to_return: [
+          {
+            item_id: item.apiItemId,
+            actual_return_date: returnDate
+          }]
+
+        })
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        const msg = errData ?
+        typeof errData === 'string' ?
+        errData :
+        errData.detail || errData.message || JSON.stringify(errData) :
+        `Failed to return item (${res.status})`;
+        throw new Error(msg);
+      }
+      setReturnDatePickerKey(null);
+      setReturnDateValue('');
+      // Refetch rentals to get updated data
+      refetchRentals();
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to return item');
+      console.error('Return item error:', err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+  const handleAddDeposit = async (bill: Bill) => {
+    const amount = parseFloat(newDepositAmount);
+    if (isNaN(amount) || amount <= 0 || !bill.apiId) return;
+    setActionLoading(`deposit-${bill.id}`);
+    setActionError(null);
+    const today = new Date().toISOString().split('T')[0];
+    try {
+      const res = await fetch(`${API_URL}rentals/${bill.apiId}/add_deposit/`, {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          amount: amount.toFixed(2),
+          payment_method: 'cash',
+          transaction_date: today,
+          notes: 'Additional Deposit'
+        })
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        const msg = errData ?
+        typeof errData === 'string' ?
+        errData :
+        errData.detail || errData.message || JSON.stringify(errData) :
+        `Failed to add deposit (${res.status})`;
+        throw new Error(msg);
+      }
+      setNewDepositAmount('');
+      // Refetch rentals to get updated data
+      refetchRentals();
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to add deposit');
+      console.error('Add deposit error:', err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+  const handleAddItem = (bill: Bill, product: Product) => {
+    const today = new Date();
+    const returnDate = newItemReturnDate ?
+    new Date(newItemReturnDate) :
+    new Date(today.getTime() + 86400000);
+    const diffTime = Math.abs(returnDate.getTime() - today.getTime());
+    const rentalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    const newItem: CartItem = {
+      product,
+      quantity: 1,
+      type: 'rent',
+      rentalDays,
+      borrowedDate: today.toLocaleDateString(),
+      expectedReturnDate: returnDate.toLocaleDateString(),
+      status: 'active'
+    };
+    const updatedItems = [...bill.items, newItem];
+    recalcAndUpdate(bill, updatedItems, bill.depositHistory || []);
+    setAddItemModalBillId(null);
+    setProductSearch('');
+    setSelectedProductForAdd(null);
+    setNewItemReturnDate('');
+  };
+  const handleCashTransaction = () => {
+    const amount = parseFloat(cashAmount);
+    if (!isNaN(amount) && amount > 0 && showCashModal) {
+      onAddCashTransaction({
+        id: `CT-${Date.now()}`,
+        type: showCashModal,
+        amount,
+        note:
+        cashNote || (showCashModal === 'cash_in' ? 'Cash In' : 'Cash Out'),
+        date: new Date().toLocaleDateString()
+      });
+      setCashAmount('');
+      setCashNote('');
+      setShowCashModal(null);
+    }
+  };
+  const recalcAndUpdate = (
+  bill: Bill,
+  items: CartItem[],
+  depositHistory: Bill['depositHistory']) =>
+  {
+    let newSubtotal = 0;
+    let allReturned = true;
+    let anyReturned = false;
+    items.forEach((item) => {
+      if (item.type === 'rent') {
+        const price = item.product.rentPricePerDay || 0;
+        let days = item.rentalDays || 1;
+        if (
+        item.status === 'returned' &&
+        item.actualReturnDate &&
+        item.borrowedDate)
+        {
+          const start = new Date(item.borrowedDate);
+          const end = new Date(item.actualReturnDate);
+          const diffTime = Math.abs(end.getTime() - start.getTime());
+          days = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+        } else if (item.status === 'active' && item.borrowedDate) {
+          const start = new Date(item.borrowedDate);
+          const now = new Date();
+          const diffTime = Math.abs(now.getTime() - start.getTime());
+          days = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+        }
+        newSubtotal += price * days * item.quantity;
+        if (item.status === 'active') allReturned = false;
+        if (item.status === 'returned') anyReturned = true;
+      } else {
+        newSubtotal += item.product.salePrice * item.quantity;
+      }
+    });
+    const discountAmount = newSubtotal * (bill.discount / 100);
+    const afterDiscount = newSubtotal - discountAmount;
+    const taxAmount = afterDiscount * 0.08;
+    const newTotal = afterDiscount + taxAmount;
+    const totalDeposit =
+    depositHistory?.reduce((sum, entry) => sum + entry.amount, 0) || 0;
+    let newStatus: Bill['rentalStatus'] = 'open';
+    if (allReturned && items.length > 0) newStatus = 'closed';else
+    if (anyReturned) newStatus = 'partially_closed';
+    onUpdateBill({
+      ...bill,
+      items,
+      subtotal: newSubtotal,
+      discountAmount,
+      tax: taxAmount,
+      total: newTotal,
+      deposit: totalDeposit,
+      depositHistory,
+      rentalStatus: newStatus
+    });
+  };
+  const filteredProducts = rentProducts.filter(
+    (p) =>
+    p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+    p.itemCode?.toLowerCase().includes(productSearch.toLowerCase())
+  );
+  const getStatusBadge = (status?: string) => {
+    switch (status) {
+      case 'open':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
+            <Clock className="w-3 h-3 mr-1" />
+            Open
+          </span>);
+
+      case 'partially_closed':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+            <AlertTriangle className="w-3 h-3 mr-1" />
+            Partial
+          </span>);
+
+      case 'closed':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800">
+            <CheckCircle className="w-3 h-3 mr-1" />
+            Closed
+          </span>);
+
+      default:
+        return null;
+    }
+  };
+  // Get the bill for the modal
+  const modalBill = addItemModalBillId ?
+  bills.find((b) => b.id === addItemModalBillId) :
+  null;
+  // Handle sale item return
+  const handleSaleReturn = async () => {
+    if (!returnModalBill || !returnModalBill.apiId) return;
+    const itemsToReturn = Object.entries(returnQuantities).
+    filter(([_, qty]) => qty > 0).
+    map(([itemId, quantity]) => ({
+      item_id: Number(itemId),
+      quantity
+    }));
+    if (itemsToReturn.length === 0) return;
+    setReturnLoading(true);
+    setReturnError(null);
+    setReturnSuccess(null);
+    try {
+      const res = await fetch(
+        `${API_URL}sales/${returnModalBill.apiId}/return_items/`,
+        {
+          method: 'POST',
+          headers: {
+            ...getAuthHeaders(),
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            items_to_return: itemsToReturn
+          })
+        }
+      );
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        const msg = errData ?
+        typeof errData === 'string' ?
+        errData :
+        errData.detail || errData.message || JSON.stringify(errData) :
+        `Failed to return items (${res.status})`;
+        throw new Error(msg);
+      }
+      const data = await res.json();
+      setReturnSuccess({
+        refundAmount: parseFloat(data.refund_amount ?? 0)
+      });
+      refetchSales();
+    } catch (err: any) {
+      setReturnError(err.message || 'Failed to return items');
+      console.error('Sale return error:', err);
+    } finally {
+      setReturnLoading(false);
+    }
+  };
+  const openReturnModal = (bill: Bill) => {
+    setReturnModalBill(bill);
+    setReturnQuantities({});
+    setReturnError(null);
+    setReturnSuccess(null);
+  };
+  const closeReturnModal = () => {
+    setReturnModalBill(null);
+    setReturnQuantities({});
+    setReturnError(null);
+    setReturnSuccess(null);
+  };
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-[#1a1a2e] mb-2">History</h1>
+        <p className="text-gray-600">
+          View and manage sales and rental records.
+        </p>
+      </div>
+
+      {/* Cash Register Card */}
+      <div className="bg-gradient-to-r from-[#1a1a2e] to-[#2d4059] rounded-xl p-6 mb-8 text-white">
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <div className="bg-white/10 p-2 rounded-lg">
+              <Wallet className="w-6 h-6 text-[#f5a623]" />
+            </div>
+            <h2 className="text-lg font-bold">Cash Register</h2>
+          </div>
+        </div>
+
+        {/* Top row - Income sources */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-3">
+          <div className="bg-white/5 rounded-lg p-3">
+            <p className="text-[10px] text-gray-400 mb-1">Sale Income</p>
+            <p className="text-lg font-bold text-green-400">
+              {formatPrice(cashRegister.saleIncome)}
+            </p>
+          </div>
+          <div className="bg-white/5 rounded-lg p-3">
+            <p className="text-[10px] text-gray-400 mb-1">Rental Profit</p>
+            <p className="text-lg font-bold text-amber-400">
+              {formatPrice(cashRegister.rentalProfit)}
+            </p>
+          </div>
+          <div className="bg-white/5 rounded-lg p-3">
+            <p className="text-[10px] text-gray-400 mb-1">Deposits</p>
+            <p className="text-lg font-bold text-blue-400">
+              {formatPrice(cashRegister.depositsReceived)}
+            </p>
+          </div>
+          <div className="bg-white/5 rounded-lg p-3">
+            <p className="text-[10px] text-gray-400 mb-1">Expenses</p>
+            <p className="text-lg font-bold text-red-400">
+              -{formatPrice(cashRegister.totalExpenses)}
+            </p>
+          </div>
+          <div className="bg-white/5 rounded-lg p-3">
+            <p className="text-[10px] text-gray-400 mb-1">Refunds</p>
+            <p className="text-lg font-bold text-red-400">
+              -{formatPrice(cashRegister.refundsGiven)}
+            </p>
+          </div>
+        </div>
+
+        {/* Bottom row - Totals */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="bg-emerald-500/15 rounded-lg p-3 border border-emerald-500/20">
+            <p className="text-[10px] text-emerald-300 mb-1 flex items-center gap-1">
+              <TrendingUp className="w-3 h-3" />
+              Total Profit
+            </p>
+            <p className="text-xl font-bold text-emerald-400">
+              {formatPrice(cashRegister.totalProfit)}
+            </p>
+          </div>
+          <div className="bg-[#f5a623]/15 rounded-lg p-3 border border-[#f5a623]/30">
+            <p className="text-[10px] text-[#f5a623] mb-1 flex items-center gap-1">
+              <Wallet className="w-3 h-3" />
+              Total in Register
+            </p>
+            <p className="text-xl font-bold text-[#f5a623]">
+              {formatPrice(cashRegister.totalInRegister)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs + Search */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setActiveTab('rentals');
+              setSearchQuery('');
+              setEditingBillId(null);
+            }}
+            className={`relative flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-colors ${activeTab === 'rentals' ? 'bg-[#2d4059] text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}>
+
+            <Clock className="w-4 h-4" />
+            Rentals
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('sales');
+              setSearchQuery('');
+              setEditingBillId(null);
+            }}
+            className={`relative flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-colors ${activeTab === 'sales' ? 'bg-[#f5a623] text-[#1a1a2e] shadow-md' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}>
+
+            <ShoppingCart className="w-4 h-4" />
+            Sales
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          {activeTab === 'rentals' &&
+          <button
+            onClick={refetchRentals}
+            className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors">
+
+              <RefreshCw
+              className={`w-4 h-4 ${rentalsLoading ? 'animate-spin' : ''}`} />
+
+            </button>
+          }
+          {activeTab === 'sales' &&
+          <button
+            onClick={refetchSales}
+            className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors">
+
+              <RefreshCw
+              className={`w-4 h-4 ${salesLoading ? 'animate-spin' : ''}`} />
+
+            </button>
+          }
+          <div className="relative w-full md:w-80">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by bill number..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#f5a623] text-sm" />
+
+          </div>
+        </div>
+      </div>
+
+      {/* Rental History Tab */}
+      {activeTab === 'rentals' &&
+      <div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-500">Active</p>
+                <p className="text-2xl font-bold text-blue-600">
+                  {rentalStats.open}
+                </p>
+              </div>
+              <div className="bg-blue-100 p-2.5 rounded-full">
+                <Clock className="w-5 h-5 text-blue-600" />
+              </div>
+            </div>
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-500">Partial</p>
+                <p className="text-2xl font-bold text-amber-600">
+                  {rentalStats.partial}
+                </p>
+              </div>
+              <div className="bg-amber-100 p-2.5 rounded-full">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+              </div>
+            </div>
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-500">Returned</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {rentalStats.closed}
+                </p>
+              </div>
+              <div className="bg-green-100 p-2.5 rounded-full">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+              </div>
+            </div>
+          </div>
+
+          {/* Loading */}
+          {rentalsLoading && rentalBills.length === 0 &&
+        <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-8 h-8 text-[#f5a623] animate-spin" />
+              <span className="ml-3 text-gray-500 font-medium">
+                Loading rentals...
+              </span>
+            </div>
+        }
+
+          {/* Error */}
+          {rentalsError && !rentalsLoading &&
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 mb-8 text-center">
+              <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+              <p className="text-red-700 font-medium mb-3">{rentalsError}</p>
+              <button
+            onClick={refetchRentals}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors">
+
+                Retry
+              </button>
+            </div>
+        }
+
+          {!rentalsLoading && !rentalsError && rentalBills.length === 0 ?
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+              <Clock className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500 font-medium">No rental bills found</p>
+              <p className="text-gray-400 text-sm mt-1">
+                Create a rental order from the catalog to see it here.
+              </p>
+            </div> :
+
+        !rentalsLoading &&
+        !rentalsError &&
+        <div className="space-y-4">
+                {rentalBills.map((bill) => {
+            const isEditing = editingBillId === bill.id;
+            const returnedCount = bill.items.filter(
+              (i) => i.status === 'returned'
+            ).length;
+            const totalDeposit =
+            bill.depositHistory?.reduce((s, d) => s + d.amount, 0) ||
+            bill.deposit ||
+            0;
+            return (
+              <div
+                key={bill.id}
+                className={`bg-white rounded-xl shadow-sm border ${isEditing ? 'border-blue-300 ring-2 ring-blue-100' : 'border-gray-200'}`}>
+
+                      {/* Bill Header */}
+                      <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-mono font-bold text-[#1a1a2e]">
+                              {bill.id}
+                            </span>
+                            {getStatusBadge(bill.rentalStatus)}
+                          </div>
+                          <p className="text-sm text-gray-600">
+                            {bill.customer.name} · {bill.customer.phone}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {bill.date} · {returnedCount}/{bill.items.length}{' '}
+                            items returned
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="text-right mr-4">
+                            <p className="text-xs text-gray-500">Total</p>
+                            <p className="font-bold text-[#1a1a2e]">
+                              {formatPrice(bill.total)}
+                            </p>
+                          </div>
+                          <div className="text-right mr-4">
+                            <p className="text-xs text-gray-500">Deposit</p>
+                            <p className="font-bold text-blue-600">
+                              {formatPrice(totalDeposit)}
+                            </p>
+                          </div>
+                          {bill.rentalStatus !== 'closed' &&
+                    <button
+                      onClick={() => {
+                        setEditingBillId(isEditing ? null : bill.id);
+                        setAddItemModalBillId(null);
+                      }}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold transition-colors ${isEditing ? 'bg-gray-200 text-gray-700' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+
+                              {isEditing ?
+                      <>
+                                  <X className="w-4 h-4" />
+                                  Close
+                                </> :
+
+                      <>
+                                  <Edit className="w-4 h-4" />
+                                  Edit
+                                </>
+                      }
+                            </button>
+                    }
+                          <button
+                      onClick={() => onViewBill(bill)}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-[#1a1a2e] text-white rounded-lg text-sm font-bold hover:bg-[#2d4059] transition-colors">
+
+                            <Eye className="w-4 h-4" />
+                            Invoice
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Items Table */}
+                      <div className="border-t border-gray-100 overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50 text-gray-500 text-xs font-medium">
+                            <tr>
+                              <th className="px-4 py-2 text-left">Item</th>
+                              <th className="px-4 py-2 text-center">Start</th>
+                              <th className="px-4 py-2 text-center">Return</th>
+                              <th className="px-4 py-2 text-center">Days</th>
+                              <th className="px-4 py-2 text-right">Rate/Day</th>
+                              <th className="px-4 py-2 text-right">Total</th>
+                              <th className="px-4 py-2 text-center">Status</th>
+                              {isEditing &&
+                        <th className="px-4 py-2 text-center">
+                                  Action
+                                </th>
+                        }
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-50">
+                            {bill.items.map((item, idx) => {
+                        const unitPrice =
+                        item.product.rentPricePerDay || 0;
+                        let days = item.rentalDays || 1;
+                        if (
+                        item.status === 'returned' &&
+                        item.actualReturnDate &&
+                        item.borrowedDate)
+                        {
+                          const start = new Date(item.borrowedDate);
+                          const end = new Date(item.actualReturnDate);
+                          days = Math.max(
+                            1,
+                            Math.ceil(
+                              Math.abs(end.getTime() - start.getTime()) / (
+                              1000 * 60 * 60 * 24)
+                            )
+                          );
+                        } else if (
+                        item.status === 'active' &&
+                        item.borrowedDate)
+                        {
+                          const start = new Date(item.borrowedDate);
+                          const now = new Date();
+                          days = Math.max(
+                            1,
+                            Math.ceil(
+                              Math.abs(now.getTime() - start.getTime()) / (
+                              1000 * 60 * 60 * 24)
+                            )
+                          );
+                        }
+                        const lineTotal = unitPrice * item.quantity * days;
+                        return (
+                          <tr
+                            key={idx}
+                            className={
+                            item.status === 'returned' ?
+                            'bg-green-50/50' :
+                            ''
+                            }>
+
+                                  <td className="px-4 py-2.5">
+                                    <div className="flex items-center gap-2">
+                                      <span
+                                  className={`w-2 h-2 rounded-full flex-shrink-0 ${item.status === 'returned' ? 'bg-green-500' : 'bg-blue-500'}`} />
+
+                                      <span className="font-medium text-[#1a1a2e]">
+                                        {item.product.name}
+                                      </span>
+                                      <span className="text-[10px] font-mono text-gray-400">
+                                        {item.product.itemCode ||
+                                  item.product.barcode ||
+                                  ''}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2.5 text-center text-xs text-gray-600">
+                                    {item.borrowedDate || bill.date}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-center text-xs">
+                                    {item.status === 'returned' ?
+                              <span className="text-green-600 font-medium">
+                                        {item.actualReturnDate}
+                                      </span> :
+
+                              <span className="text-gray-500">
+                                        {item.expectedReturnDate || '-'}
+                                      </span>
+                              }
+                                  </td>
+                                  <td className="px-4 py-2.5 text-center font-medium">
+                                    {days}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-right text-gray-600">
+                                    {formatPrice(unitPrice)}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-right font-bold text-[#1a1a2e]">
+                                    {formatPrice(lineTotal)}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-center text-xs">
+                                    {item.status === 'returned' ?
+                              <span className="text-green-600 font-medium">
+                                        Returned
+                                      </span> :
+
+                              <span className="text-blue-600 font-medium">
+                                        Active
+                                      </span>
+                              }
+                                  </td>
+                                  {isEditing &&
+                            <td className="px-4 py-2.5 text-center">
+                                      {item.status === 'active' &&
+                              <>
+                                          {returnDatePickerKey ===
+                                `${bill.id}-${idx}` ?
+                                <div className="flex items-center gap-1.5">
+                                              <input
+                                    type="date"
+                                    value={returnDateValue}
+                                    onChange={(e) =>
+                                    setReturnDateValue(
+                                      e.target.value
+                                    )
+                                    }
+                                    className="px-2 py-1 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-blue-400 outline-none w-32"
+                                    autoFocus />
+
+                                              <button
+                                    onClick={() => {
+                                      if (returnDateValue) {
+                                        handleReturnItem(
+                                          bill,
+                                          idx,
+                                          returnDateValue
+                                        );
+                                      }
+                                    }}
+                                    disabled={
+                                    !returnDateValue ||
+                                    actionLoading ===
+                                    `return-${bill.id}-${idx}`
+                                    }
+                                    className="px-2 py-1 bg-blue-600 text-white text-xs font-bold rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+
+                                                {actionLoading ===
+                                    `return-${bill.id}-${idx}` ?
+                                    <Loader2 className="w-3 h-3 animate-spin" /> :
+
+                                    <CheckCircle className="w-3 h-3" />
+                                    }
+                                              </button>
+                                              <button
+                                    onClick={() => {
+                                      setReturnDatePickerKey(null);
+                                      setReturnDateValue('');
+                                    }}
+                                    className="px-1.5 py-1 text-gray-400 hover:text-gray-600 text-xs rounded-md hover:bg-gray-100 transition-colors">
+
+                                                <X className="w-3 h-3" />
+                                              </button>
+                                            </div> :
+
+                                <button
+                                  onClick={() => {
+                                    const today = new Date().
+                                    toISOString().
+                                    split('T')[0];
+                                    setReturnDatePickerKey(
+                                      `${bill.id}-${idx}`
+                                    );
+                                    setReturnDateValue(today);
+                                  }}
+                                  className="px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-md hover:bg-blue-200 transition-colors">
+
+                                              <RotateCcw className="w-3 h-3 inline mr-1" />
+                                              Return
+                                            </button>
+                                }
+                                        </>
+                              }
+                                    </td>
+                            }
+                                </tr>);
+
+                      })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Edit Controls */}
+                      <AnimatePresence>
+                        {isEditing &&
+                  <motion.div
+                    initial={{
+                      height: 0,
+                      opacity: 0
+                    }}
+                    animate={{
+                      height: 'auto',
+                      opacity: 1
+                    }}
+                    exit={{
+                      height: 0,
+                      opacity: 0
+                    }}
+                    className="overflow-hidden">
+
+                            <div className="p-4 border-t border-blue-100 bg-blue-50/30">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Add Deposit */}
+                                <div className="bg-white p-3 rounded-lg border border-gray-200">
+                                  <h4 className="font-bold text-xs text-gray-700 mb-2 flex items-center gap-1.5">
+                                    <Banknote className="w-4 h-4 text-green-600" />
+                                    Add Deposit
+                                  </h4>
+                                  {actionError && editingBillId === bill.id &&
+                          <div className="mb-2 bg-red-50 border border-red-200 rounded p-2 flex items-start gap-1.5 text-xs text-red-700">
+                                      <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                                      <span>{actionError}</span>
+                                    </div>
+                          }
+                                  <div className="flex gap-2">
+                                    <input
+                              type="number"
+                              value={newDepositAmount}
+                              onChange={(e) =>
+                              setNewDepositAmount(e.target.value)
+                              }
+                              placeholder="Amount"
+                              className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-[#f5a623] outline-none" />
+
+                                    <button
+                              onClick={() => handleAddDeposit(bill)}
+                              disabled={
+                              actionLoading === `deposit-${bill.id}`
+                              }
+                              className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-bold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5">
+
+                                      {actionLoading ===
+                              `deposit-${bill.id}` &&
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              }
+                                      {actionLoading === `deposit-${bill.id}` ?
+                              'Adding...' :
+                              'Add'}
+                                    </button>
+                                  </div>
+                                  {bill.depositHistory &&
+                          bill.depositHistory.length > 0 &&
+                          <div className="mt-2 space-y-1">
+                                        {bill.depositHistory.map((d, i) =>
+                            <div
+                              key={i}
+                              className="flex justify-between text-xs text-gray-500">
+
+                                            <span>
+                                              {d.date} {d.note && `· ${d.note}`}
+                                            </span>
+                                            <span className="font-mono font-medium">
+                                              {formatPrice(d.amount)}
+                                            </span>
+                                          </div>
+                            )}
+                                      </div>
+                          }
+                                </div>
+
+                                {/* Add Item - opens modal */}
+                                <div className="bg-white p-3 rounded-lg border border-gray-200">
+                                  <h4 className="font-bold text-xs text-gray-700 mb-2 flex items-center gap-1.5">
+                                    <Plus className="w-4 h-4 text-blue-600" />
+                                    Add Rental Item
+                                  </h4>
+                                  <button
+                            onClick={() => {
+                              setAddItemModalBillId(bill.id);
+                              setProductSearch('');
+                            }}
+                            className="w-full px-3 py-2 bg-blue-600 text-white rounded-md text-sm font-bold hover:bg-blue-700 flex items-center justify-center gap-2 transition-colors">
+
+                                    <Plus className="w-4 h-4" />
+                                    Select Product
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </motion.div>
+                  }
+                      </AnimatePresence>
+                    </div>);
+
+          })}
+              </div>
+
+        }
+        </div>
+      }
+
+      {/* Sale History Tab */}
+      {activeTab === 'sales' &&
+      <div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-500">Total Sales</p>
+                <p className="text-2xl font-bold text-[#2d4059]">
+                  {saleBills.length}
+                </p>
+              </div>
+              <div className="bg-orange-100 p-2.5 rounded-full">
+                <Package className="w-5 h-5 text-orange-600" />
+              </div>
+            </div>
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-500">Items Sold</p>
+                <p className="text-2xl font-bold text-[#2d4059]">
+                  {saleBills.reduce(
+                  (s, b) => s + b.items.reduce((a, i) => a + i.quantity, 0),
+                  0
+                )}
+                </p>
+              </div>
+              <div className="bg-blue-100 p-2.5 rounded-full">
+                <ShoppingCart className="w-5 h-5 text-blue-600" />
+              </div>
+            </div>
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-500">
+                  Total Revenue
+                </p>
+                <p className="text-2xl font-bold text-green-600">
+                  {formatPrice(saleBills.reduce((sum, b) => sum + b.total, 0))}
+                </p>
+              </div>
+              <div className="bg-green-100 p-2.5 rounded-full">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+              </div>
+            </div>
+          </div>
+
+          {/* Loading */}
+          {salesLoading && saleBills.length === 0 &&
+        <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-8 h-8 text-[#f5a623] animate-spin" />
+              <span className="ml-3 text-gray-500 font-medium">
+                Loading sales...
+              </span>
+            </div>
+        }
+
+          {/* Error */}
+          {salesError && !salesLoading &&
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 mb-8 text-center">
+              <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+              <p className="text-red-700 font-medium mb-3">{salesError}</p>
+              <button
+            onClick={refetchSales}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors">
+
+                Retry
+              </button>
+            </div>
+        }
+
+          {!salesLoading && !salesError && saleBills.length === 0 ?
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+              <ShoppingCart className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500 font-medium">No sale bills found</p>
+              <p className="text-gray-400 text-sm mt-1">
+                Create a sale order from the catalog to see it here.
+              </p>
+            </div> :
+
+        !salesLoading &&
+        !salesError &&
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200">
+                      <tr>
+                        <th className="px-6 py-3">Invoice</th>
+                        <th className="px-6 py-3">Items</th>
+                        <th className="px-6 py-3">Date</th>
+                        <th className="px-6 py-3">Payment</th>
+                        <th className="px-6 py-3 text-right">Total</th>
+                        <th className="px-6 py-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {saleBills.map((bill) => {
+                  const hasReturnableItems = bill.items.some(
+                    (item) =>
+                    item.quantity - (item.returnedQuantity || 0) > 0
+                  );
+                  return (
+                    <tr
+                      key={bill.id}
+                      className="hover:bg-gray-50 transition-colors">
+
+                            <td className="px-6 py-4 font-mono text-sm font-bold text-[#1a1a2e]">
+                              {bill.id}
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex flex-col gap-0.5">
+                                {bill.items.slice(0, 2).map((item, i) =>
+                          <span
+                            key={i}
+                            className="text-xs text-gray-600">
+
+                                    {item.product.name} ×{item.quantity}
+                                    {(item.returnedQuantity || 0) > 0 &&
+                            <span className="ml-1 text-orange-500 font-medium">
+                                        ({item.returnedQuantity} returned)
+                                      </span>
+                            }
+                                  </span>
+                          )}
+                                {bill.items.length > 2 &&
+                          <span className="text-xs text-gray-400">
+                                    +{bill.items.length - 2} more
+                                  </span>
+                          }
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center text-gray-600 text-sm">
+                                <Calendar className="w-4 h-4 mr-2 text-gray-400" />
+                                {bill.date}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="text-xs font-bold px-2 py-1 rounded bg-gray-100 text-gray-700 uppercase">
+                                {bill.paymentMethod === 'card' ?
+                          'Card' :
+                          bill.paymentMethod === 'bank_transfer' ?
+                          'Transfer' :
+                          'Cash'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-right font-bold text-[#1a1a2e]">
+                              {formatPrice(bill.total)}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <div className="flex items-center gap-2 justify-end">
+                                {hasReturnableItems &&
+                          <button
+                            onClick={() => openReturnModal(bill)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg text-xs font-bold hover:bg-orange-200 transition-colors">
+
+                                    <Undo2 className="w-3.5 h-3.5" />
+                                    Return
+                                  </button>
+                          }
+                                <button
+                            onClick={() => onViewBill(bill)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1a2e] text-white rounded-lg text-xs font-bold hover:bg-[#2d4059] transition-colors">
+
+                                  <Eye className="w-3.5 h-3.5" />
+                                  View
+                                </button>
+                              </div>
+                            </td>
+                          </tr>);
+
+                })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+        }
+        </div>
+      }
+
+      {/* Add Product Modal */}
+      <AnimatePresence>
+        {addItemModalBillId && modalBill &&
+        <motion.div
+          initial={{
+            opacity: 0
+          }}
+          animate={{
+            opacity: 1
+          }}
+          exit={{
+            opacity: 0
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => {
+            setAddItemModalBillId(null);
+            setProductSearch('');
+            setSelectedProductForAdd(null);
+            setNewItemReturnDate('');
+          }}>
+
+            <motion.div
+            initial={{
+              scale: 0.95,
+              opacity: 0
+            }}
+            animate={{
+              scale: 1,
+              opacity: 1
+            }}
+            exit={{
+              scale: 0.95,
+              opacity: 0
+            }}
+            transition={{
+              duration: 0.15
+            }}
+            className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}>
+
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                <div>
+                  <h3 className="font-bold text-lg text-[#1a1a2e]">
+                    {selectedProductForAdd ?
+                  'Set Return Date' :
+                  'Add Rental Item'}
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    Bill: {modalBill.id} · {modalBill.customer.name}
+                  </p>
+                </div>
+                <button
+                onClick={() => {
+                  setAddItemModalBillId(null);
+                  setProductSearch('');
+                  setSelectedProductForAdd(null);
+                  setNewItemReturnDate('');
+                }}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Step 2: Set return date for selected product */}
+              {selectedProductForAdd ?
+            <div className="p-5 space-y-5">
+                  {/* Selected product info */}
+                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <p className="font-bold text-[#1a1a2e] text-base">
+                      {selectedProductForAdd.name}
+                    </p>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                      <span className="font-mono">
+                        {selectedProductForAdd.itemCode}
+                      </span>
+                      <span>·</span>
+                      <span>{selectedProductForAdd.category}</span>
+                      <span>·</span>
+                      <span className="font-bold text-[#1a1a2e]">
+                        {formatPrice(
+                      selectedProductForAdd.rentPricePerDay || 0
+                    )}
+                        /day
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Date fields */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                        Start Date
+                      </label>
+                      <input
+                    type="date"
+                    value={new Date().toISOString().split('T')[0]}
+                    disabled
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500" />
+
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        Today (auto)
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                        Expected Return Date
+                      </label>
+                      <input
+                    type="date"
+                    value={newItemReturnDate}
+                    onChange={(e) => setNewItemReturnDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#f5a623] outline-none"
+                    autoFocus />
+
+                    </div>
+                  </div>
+
+                  {/* Days preview */}
+                  {newItemReturnDate &&
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-blue-700 font-medium">
+                          Rental Days:
+                        </span>
+                        <span className="font-bold text-blue-800">
+                          {Math.max(
+                      1,
+                      Math.ceil(
+                        Math.abs(
+                          new Date(newItemReturnDate).getTime() -
+                          new Date().getTime()
+                        ) / (
+                        1000 * 60 * 60 * 24)
+                      )
+                    )}{' '}
+                          days
+                        </span>
+                      </div>
+                      <div className="flex justify-between mt-1">
+                        <span className="text-blue-700 font-medium">
+                          Estimated Cost:
+                        </span>
+                        <span className="font-bold text-blue-800">
+                          {formatPrice(
+                      (selectedProductForAdd.rentPricePerDay || 0) *
+                      Math.max(
+                        1,
+                        Math.ceil(
+                          Math.abs(
+                            new Date(newItemReturnDate).getTime() -
+                            new Date().getTime()
+                          ) / (
+                          1000 * 60 * 60 * 24)
+                        )
+                      )
+                    )}
+                        </span>
+                      </div>
+                    </div>
+              }
+
+                  {/* Actions */}
+                  <div className="flex gap-3">
+                    <button
+                  onClick={() => {
+                    setSelectedProductForAdd(null);
+                    setNewItemReturnDate('');
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors">
+
+                      Back
+                    </button>
+                    <button
+                  onClick={() => {
+                    if (newItemReturnDate) {
+                      handleAddItem(modalBill, selectedProductForAdd);
+                    }
+                  }}
+                  disabled={!newItemReturnDate}
+                  className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
+
+                      <Plus className="w-4 h-4" />
+                      Add to Bill
+                    </button>
+                  </div>
+                </div> :
+
+            <>
+                  {/* Step 1: Search and select product */}
+                  <div className="p-4 border-b border-gray-100">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                    ref={modalSearchRef}
+                    type="text"
+                    placeholder="Search by name or item code..."
+                    value={productSearch}
+                    onChange={(e) => setProductSearch(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#f5a623] outline-none" />
+
+                    </div>
+                  </div>
+
+                  <div className="overflow-y-auto flex-1">
+                    {filteredProducts.length === 0 ?
+                <div className="p-8 text-center text-gray-400">
+                        <p className="font-medium">No rental products found</p>
+                      </div> :
+
+                filteredProducts.map((p) =>
+                <button
+                  key={p.id}
+                  onClick={() => {
+                    setSelectedProductForAdd(p);
+                    // Default to tomorrow
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    setNewItemReturnDate(
+                      tomorrow.toISOString().split('T')[0]
+                    );
+                  }}
+                  className="w-full text-left px-4 py-3 hover:bg-[#f5a623]/10 border-b border-gray-50 last:border-0 flex items-center justify-between transition-colors">
+
+                          <div>
+                            <p className="font-bold text-[#1a1a2e]">{p.name}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-xs font-mono text-gray-400">
+                                {p.itemCode}
+                              </span>
+                              <span className="text-xs text-gray-400">·</span>
+                              <span className="text-xs text-gray-500">
+                                {p.category}
+                              </span>
+                              <span className="text-xs text-gray-400">·</span>
+                              <span className="text-xs text-gray-500">
+                                Stock: {p.stock}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-right flex-shrink-0 ml-4">
+                            <p className="font-bold text-[#1a1a2e]">
+                              {formatPrice(p.rentPricePerDay || 0)}
+                            </p>
+                            <p className="text-[10px] text-gray-400">per day</p>
+                          </div>
+                        </button>
+                )
+                }
+                  </div>
+                </>
+            }
+            </motion.div>
+          </motion.div>
+        }
+      </AnimatePresence>
+
+      {/* Sale Return Modal */}
+      <AnimatePresence>
+        {returnModalBill &&
+        <motion.div
+          initial={{
+            opacity: 0
+          }}
+          animate={{
+            opacity: 1
+          }}
+          exit={{
+            opacity: 0
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={closeReturnModal}>
+
+            <motion.div
+            initial={{
+              scale: 0.95,
+              opacity: 0
+            }}
+            animate={{
+              scale: 1,
+              opacity: 1
+            }}
+            exit={{
+              scale: 0.95,
+              opacity: 0
+            }}
+            transition={{
+              duration: 0.15
+            }}
+            className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}>
+
+              {/* Modal Header */}
+              <div className="p-4 border-b border-gray-200 bg-orange-50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="bg-orange-100 p-1.5 rounded-lg">
+                      <Undo2 className="w-5 h-5 text-orange-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-lg text-[#1a1a2e]">
+                        Return Items
+                      </h3>
+                      <p className="text-xs text-gray-500">
+                        {returnModalBill.id} · {returnModalBill.date}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                  onClick={closeReturnModal}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Success State */}
+              {returnSuccess ?
+            <div className="p-6 text-center">
+                  <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle className="w-8 h-8 text-green-600" />
+                  </div>
+                  <h4 className="text-lg font-bold text-[#1a1a2e] mb-2">
+                    Items Returned Successfully
+                  </h4>
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 inline-block">
+                    <p className="text-sm text-green-700 font-medium">
+                      Refund Amount
+                    </p>
+                    <p className="text-2xl font-bold text-green-700">
+                      {formatPrice(returnSuccess.refundAmount)}
+                    </p>
+                  </div>
+                  <div>
+                    <button
+                  onClick={closeReturnModal}
+                  className="px-6 py-2.5 bg-[#1a1a2e] text-white rounded-lg font-bold hover:bg-[#2d4059] transition-colors">
+
+                      Done
+                    </button>
+                  </div>
+                </div> :
+
+            <>
+                  {/* Items List */}
+                  <div className="overflow-y-auto flex-1 p-4 space-y-3">
+                    {returnError &&
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2 text-sm text-red-700">
+                        <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                        <span>{returnError}</span>
+                      </div>
+                }
+
+                    {returnModalBill.items.map((item) => {
+                  const remaining =
+                  item.quantity - (item.returnedQuantity || 0);
+                  const itemId = item.apiItemId;
+                  if (!itemId || remaining <= 0) return null;
+                  const currentReturnQty = returnQuantities[itemId] || 0;
+                  return (
+                    <div
+                      key={itemId}
+                      className={`border rounded-lg p-4 transition-colors ${currentReturnQty > 0 ? 'border-orange-300 bg-orange-50/50' : 'border-gray-200 bg-white'}`}>
+
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-bold text-[#1a1a2e] text-sm">
+                                {item.product.name}
+                              </p>
+                              <p className="text-xs text-gray-400 font-mono mt-0.5">
+                                {item.product.itemCode || '—'}
+                              </p>
+                              <div className="flex items-center gap-3 mt-2 text-xs">
+                                <span className="text-gray-500">
+                                  Purchased:{' '}
+                                  <span className="font-bold text-[#1a1a2e]">
+                                    {item.quantity}
+                                  </span>
+                                </span>
+                                {(item.returnedQuantity || 0) > 0 &&
+                            <span className="text-orange-600">
+                                    Already returned:{' '}
+                                    <span className="font-bold">
+                                      {item.returnedQuantity}
+                                    </span>
+                                  </span>
+                            }
+                                <span className="text-blue-600">
+                                  Remaining:{' '}
+                                  <span className="font-bold">{remaining}</span>
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-500 mt-1">
+                                Unit price:{' '}
+                                {formatPrice(item.product.salePrice)}
+                              </p>
+                            </div>
+                            <div className="flex-shrink-0">
+                              <label className="block text-[10px] font-bold text-gray-500 mb-1 text-center">
+                                Return Qty
+                              </label>
+                              <div className="flex items-center gap-1">
+                                <button
+                              onClick={() => {
+                                setReturnQuantities((prev) => ({
+                                  ...prev,
+                                  [itemId]: Math.max(
+                                    0,
+                                    (prev[itemId] || 0) - 1
+                                  )
+                                }));
+                              }}
+                              disabled={currentReturnQty <= 0}
+                              className="w-8 h-8 flex items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-bold">
+
+                                  −
+                                </button>
+                                <input
+                              type="number"
+                              min="0"
+                              max={remaining}
+                              value={currentReturnQty}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value);
+                                setReturnQuantities((prev) => ({
+                                  ...prev,
+                                  [itemId]: isNaN(val) ?
+                                  0 :
+                                  Math.min(remaining, Math.max(0, val))
+                                }));
+                              }}
+                              className="w-12 h-8 text-center border border-gray-300 rounded-md text-sm font-bold focus:ring-2 focus:ring-orange-400 outline-none" />
+
+                                <button
+                              onClick={() => {
+                                setReturnQuantities((prev) => ({
+                                  ...prev,
+                                  [itemId]: Math.min(
+                                    remaining,
+                                    (prev[itemId] || 0) + 1
+                                  )
+                                }));
+                              }}
+                              disabled={currentReturnQty >= remaining}
+                              className="w-8 h-8 flex items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-bold">
+
+                                  +
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>);
+
+                })}
+
+                    {/* Show message if all items already returned */}
+                    {returnModalBill.items.every(
+                  (item) =>
+                  item.quantity - (item.returnedQuantity || 0) <= 0 ||
+                  !item.apiItemId
+                ) &&
+                <div className="text-center py-8 text-gray-400">
+                        <Undo2 className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                        <p className="font-medium">
+                          All items have been returned
+                        </p>
+                      </div>
+                }
+                  </div>
+
+                  {/* Footer */}
+                  <div className="p-4 border-t border-gray-200 bg-gray-50">
+                    {(() => {
+                  const totalReturning = Object.values(
+                    returnQuantities
+                  ).reduce((sum, qty) => sum + qty, 0);
+                  return (
+                    <>
+                          <div className="flex items-center justify-between mb-3 text-sm">
+                            <span className="text-gray-600">
+                              Items to return:{' '}
+                              <span className="font-bold text-[#1a1a2e]">
+                                {totalReturning}
+                              </span>
+                            </span>
+                          </div>
+                          <div className="flex gap-3">
+                            <button
+                          onClick={closeReturnModal}
+                          className="flex-1 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-100 transition-colors">
+
+                              Cancel
+                            </button>
+                            <button
+                          onClick={handleSaleReturn}
+                          disabled={totalReturning === 0 || returnLoading}
+                          className="flex-1 px-4 py-2.5 bg-orange-500 text-white rounded-lg text-sm font-bold hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
+
+                              {returnLoading ?
+                          <>
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  Processing...
+                                </> :
+
+                          <>
+                                  <Undo2 className="w-4 h-4" />
+                                  Return Items
+                                </>
+                          }
+                            </button>
+                          </div>
+                        </>);
+
+                })()}
+                  </div>
+                </>
+            }
+            </motion.div>
+          </motion.div>
+        }
+      </AnimatePresence>
+    </div>);
+
+}
