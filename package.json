@@ -3,20 +3,14 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "main": "dist-electron/main.js",
   "scripts": {
-    "dev": "vite --port 3000",
-    "build": "vite build",
+    "dev": "npx vite --port 3000",
+    "build": "npx vite build",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
-    "preview": "vite preview --port 8080 --host",
-    "electron:start": "electron .",
-    "electron:build": "tsc -p electron",
-    "electron:dev": "concurrently \"vite --port 3000\" \"wait-on http://localhost:3000 && npm run electron:start\"",
-    "electron:dist": "npm run build && npm run electron:build && electron-builder"
+    "preview": "vite preview --port 8080 --host"
   },
   "dependencies": {
     "@emotion/react": "^11.13.3",
-    "express": "^5.2.1",
     "framer-motion": "^11.5.4",
     "lucide-react": "0.522.0",
     "react": "^18.3.1",
@@ -41,24 +35,5 @@
     "typescript": "^5.5.4",
     "vite": "^7.3.1",
     "wait-on": "^9.0.3"
-  },
-  "build": {
-    "appId": "com.utd.pos",
-    "productName": "UTD POS",
-    "directories": {
-      "output": "release"
-    },
-    "win": {
-      "icon": "electron/assets/icon.ico",
-      "target": [
-        "nsis"
-      ]
-    },
-    "files": [
-      "dist/**/*",
-      "dist-electron/**/*",
-      "public/**/*"
-    ],
-    "asar": true
   }
 }
