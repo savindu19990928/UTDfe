@@ -65,8 +65,19 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
   const deposit = bill.deposit || 0;
   const refund = deposit > total ? deposit - total : 0;
   const owing = deposit < total ? total - deposit : 0;
-  const printedBy = 'savindu';
+  const isOpen = bill.rentalStatus !== 'closed';
+  const hasDiscount = discountPercent > 0;
   const printedTime = new Date().toLocaleString('en-GB');
+  // Helper to split a number into rupees and cents
+  const splitPrice = (amount: number) => {
+    const abs = Math.abs(amount);
+    const rupees = Math.floor(abs);
+    const cents = Math.round((abs - rupees) * 100);
+    return {
+      rupees: rupees.toLocaleString(),
+      cents: cents.toString().padStart(2, '0')
+    };
+  };
   return (
     <div className="p-8 text-black font-sans text-sm h-full flex flex-col relative">
       {/* Header Section */}
@@ -82,7 +93,7 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
           දුරකථන: (123) 456-7890
         </p>
         <div className="mt-4 font-bold text-sm border-y-2 border-dotted border-gray-400 py-1 inline-block px-4 uppercase">
-          *** කුලී බිල්පත ***
+          උපකරණ නිකුත් කිරීමේ කුවිතාන්සිය
         </div>
       </div>
 
@@ -141,7 +152,9 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
 
       {/* Conditions */}
       <div className="mb-4 border-t border-dashed border-gray-400 pt-2">
-        <h3 className="font-bold text-sm mb-1 underline">කුලී කොන්දේසි:</h3>
+        <h3 className="font-bold text-sm mb-1 underline">
+          පහත සඳහන් කොන්දේසි වලට එකඟ නම් පමණක් උපකරණ ලබාගන්න
+        </h3>
         {conditions.length > 0 ?
         <ol className="list-decimal list-inside text-[10px] space-y-0.5 text-gray-700">
             {conditions.map((c) =>
@@ -176,22 +189,31 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
                 භාණ්ඩ අංකය
               </th>
               <th className="border border-black px-2 py-1 text-left font-bold">
-                නම
-              </th>
-              <th className="border border-black px-2 py-1 text-center font-bold">
-                ආරම්භය
-              </th>
-              <th className="border border-black px-2 py-1 text-center font-bold">
-                ආපසු දිනය
-              </th>
-              <th className="border border-black px-2 py-1 text-center font-bold">
-                දින
+                ලබාගත් උපකරණය
               </th>
               <th className="border border-black px-2 py-1 text-right font-bold">
-                දිනකට මුදල
+                එකක මිල
               </th>
-              <th className="border border-black px-2 py-1 text-right font-bold">
-                එකතුව
+              <th className="border border-black px-2 py-1 text-center font-bold">
+                ඒකක ප්‍රමාණය
+              </th>
+              <th className="border border-black px-2 py-1 text-center font-bold">
+                ලබාගත් දිනය
+              </th>
+              <th className="border border-black px-2 py-1 text-center font-bold">
+                ආපසු ලබාදුන් දිනය
+              </th>
+              <th className="border border-black px-2 py-1 text-center font-bold">
+                තබාගත් දින ගණන
+              </th>
+              <th className="border border-black px-2 py-1 text-center font-bold">
+                ලබාදුන් වේලාව
+              </th>
+              <th className="border border-black px-2 py-1 text-center font-bold">
+                රුපියල්
+              </th>
+              <th className="border border-black px-2 py-1 text-center font-bold">
+                ශත
               </th>
             </tr>
           </thead>
@@ -214,6 +236,7 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
                 days = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
               }
               const lineTotal = unitPrice * item.quantity * days;
+              const { rupees, cents } = splitPrice(lineTotal);
               return (
                 <tr
                   key={index}
@@ -230,22 +253,31 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
                       </span>
                     }
                   </td>
+                  <td className="border border-black px-2 py-1 text-right font-bold">
+                    {formatPrice(unitPrice).replace('Rs. ', '')}
+                  </td>
+                  <td className="border border-black px-2 py-1 text-center font-bold">
+                    {item.quantity}
+                  </td>
                   <td className="border border-black px-2 py-1 text-center text-[10px]">
                     {item.borrowedDate || bill.date}
                   </td>
                   <td className="border border-black px-2 py-1 text-center text-[10px]">
-                    {item.status === 'returned' ?
-                    item.actualReturnDate :
-                    item.expectedReturnDate || 'Active'}
+                    {item.status === 'returned' ? item.actualReturnDate : ''}
                   </td>
                   <td className="border border-black px-2 py-1 text-center font-bold">
-                    {days}
+                    {item.status === 'returned' ? days : ''}
+                  </td>
+                  <td className="border border-black px-2 py-1 text-center text-[10px]">
+                    {item.status === 'returned' && item.actualReturnTime ?
+                    item.actualReturnTime.slice(0, 5) :
+                    ''}
                   </td>
                   <td className="border border-black px-2 py-1 text-right font-bold">
-                    {formatPrice(unitPrice).replace('Rs. ', '')}
+                    {rupees}
                   </td>
                   <td className="border border-black px-2 py-1 text-right font-bold">
-                    {formatPrice(lineTotal).replace('Rs. ', '')}
+                    {cents}
                   </td>
                 </tr>);
 
@@ -254,6 +286,9 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
               length: Math.max(0, 6 - bill.items.length)
             }).map((_, i) =>
             <tr key={`empty-${i}`} className="h-6">
+                <td className="border border-black px-2 py-1"></td>
+                <td className="border border-black px-2 py-1"></td>
+                <td className="border border-black px-2 py-1"></td>
                 <td className="border border-black px-2 py-1"></td>
                 <td className="border border-black px-2 py-1"></td>
                 <td className="border border-black px-2 py-1"></td>
@@ -277,9 +312,7 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
             key={i}
             className="flex justify-between border-b border-gray-200 pb-1 mb-1">
 
-                <span>
-                  {entry.date} {entry.note && `- ${entry.note}`}
-                </span>
+                <span>{entry.date}</span>
                 <span className="font-mono">
                   {formatPrice(entry.amount).replace('Rs. ', '')}
                 </span>
@@ -292,12 +325,12 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
       {/* Totals */}
       <div className="flex justify-end mb-8">
         <div className="w-72 text-right space-y-1 text-sm">
-          <div className="flex justify-between font-bold">
-            <span>උප එකතුව</span>
-            <span>{formatPrice(subtotal).replace('Rs. ', '')}</span>
-          </div>
-          {discountPercent > 0 &&
+          {hasDiscount &&
           <>
+              <div className="flex justify-between font-bold">
+                <span>එකතුව</span>
+                <span>{formatPrice(subtotal).replace('Rs. ', '')}</span>
+              </div>
               <div className="flex justify-between">
                 <span>වට්ටම ({discountPercent}%)</span>
                 <span>-{formatPrice(discountAmount).replace('Rs. ', '')}</span>
@@ -305,35 +338,38 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
             </>
           }
           <div className="flex justify-between font-bold text-base border-t border-black pt-1 mt-1">
-            <span>මුළු එකතුව</span>
+            <span>එකතුව</span>
             <span>{formatPrice(total).replace('Rs. ', '')}</span>
           </div>
           <div className="flex justify-between font-bold mt-2 pt-2 border-t border-dashed border-gray-400">
-            <span>තැන්පතු එකතු කළ මුදල</span>
+            <span>ඇප තැම්පතු මුදල</span>
             <span>{formatPrice(deposit).replace('Rs. ', '')}</span>
           </div>
-          {refund > 0 ?
-          <div className="flex justify-between font-bold text-base text-green-700">
-              <span>ප්‍රතිපුර්ණ මුදල</span>
-              <span>{formatPrice(refund).replace('Rs. ', '')}</span>
-            </div> :
-          owing > 0 ?
-          <div className="flex justify-between font-bold text-base text-red-600">
-              <span>ගෙවිය යුතු මුදල</span>
-              <span>{formatPrice(owing).replace('Rs. ', '')}</span>
-            </div> :
+          {!isOpen &&
+          <>
+              {refund > 0 ?
+            <div className="flex justify-between font-bold text-base text-green-700">
+                  <span>ප්‍රතිපුර්ණ මුදල</span>
+                  <span>{formatPrice(refund).replace('Rs. ', '')}</span>
+                </div> :
+            owing > 0 ?
+            <div className="flex justify-between font-bold text-base text-red-600">
+                  <span>ගෙවිය යුතු මුදල</span>
+                  <span>{formatPrice(owing).replace('Rs. ', '')}</span>
+                </div> :
 
-          <div className="flex justify-between font-bold text-base text-green-700">
-              <span>ප්‍රතිපුර්ණ මුදල</span>
-              <span>0.00</span>
-            </div>
+            <div className="flex justify-between font-bold text-base text-green-700">
+                  <span>ප්‍රතිපුර්ණ මුදල</span>
+                  <span>0.00</span>
+                </div>
+            }
+            </>
           }
         </div>
       </div>
 
       {/* Footer */}
       <div className="text-[10px] text-gray-600 mb-12">
-        <p>මුද්‍රණය කළේ: {printedBy}</p>
         <p>මුද්‍රණය කළ වේලාව: {printedTime}</p>
       </div>
 
@@ -346,22 +382,15 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
           </div>
           <div className="text-center">
             <div className="border-t border-black w-40 mb-1"></div>
-            <p className="text-xs">නිකුත් කලේ {printedBy}</p>
+            <p className="text-xs">ආයතන නිළධාරී</p>
           </div>
         </div>
         {bill.rentalStatus === 'closed' &&
         <div className="text-center mt-6">
-            <p className="text-xs mb-2">
-              ඔබගේ ව්‍යාපාරයට ස්තූතියි! සියලුම භාණ්ඩ ආපසු ගෙන්වා ඇත.
-            </p>
+            <p className="text-xs mb-2">සියලුම භාණ්ඩ ආපසු ගෙන්වා ඇත.</p>
             <div className="inline-block border-2 border-green-600 text-green-600 font-bold text-2xl px-6 py-2 rounded-lg transform -rotate-2">
               ගෙවා ඇත
             </div>
-          </div>
-        }
-        {bill.rentalStatus !== 'closed' &&
-        <div className="text-center mt-6">
-            <p className="text-xs mb-2">ඔබගේ ව්‍යාපාරයට ස්තූතියි!</p>
           </div>
         }
       </div>

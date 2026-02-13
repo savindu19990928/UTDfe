@@ -5,6 +5,7 @@ import { CatalogPage } from './components/CatalogPage';
 import { Cart } from './components/Cart';
 import { BillPreview } from './components/BillPreview';
 import { HistoryPage } from './components/HistoryPage';
+import { QuickRental } from './components/QuickRental';
 import { LoginPage } from './components/LoginPage';
 import { DamageTracker } from './components/DamageTracker';
 import { ExpenseTracker } from './components/ExpenseTracker';
@@ -18,7 +19,8 @@ type Page =
 'bill' |
 'damages' |
 'expenses' |
-'customers';
+'customers' |
+'quick-rental';
 const initialCustomers: CustomerRecord[] = [
 {
   id: 'CUST-1',
@@ -155,6 +157,14 @@ function AppContent() {
 
 
   }
+  if (currentPage === 'quick-rental') {
+    return (
+      <QuickRental
+        onGenerateBill={handleGenerateBill}
+        onCancel={() => setCurrentPage('catalog')} />);
+
+
+  }
   return (
     <div className="min-h-screen bg-[#faf8f5] flex flex-col">
       <Header
@@ -164,7 +174,9 @@ function AppContent() {
 
 
       <main className="flex-grow">
-        {currentPage === 'catalog' && <CatalogPage />}
+        {currentPage === 'catalog' &&
+        <CatalogPage onNavigate={handleNavigate} />
+        }
 
         {currentPage === 'history' &&
         <HistoryPage

@@ -6,14 +6,18 @@ import {
   Check,
   AlertCircle,
   X,
-  Loader2 } from
+  Loader2,
+  Zap } from
 'lucide-react';
 import { useProducts } from '../hooks/useProducts';
 import { useCategories } from '../hooks/useCategories';
 import { ProductList } from './ProductList';
 import { useCart } from '../hooks/useCart';
 import { motion, AnimatePresence } from 'framer-motion';
-export function CatalogPage() {
+interface CatalogPageProps {
+  onNavigate?: (page: 'quick-rental') => void;
+}
+export function CatalogPage({ onNavigate }: CatalogPageProps) {
   const [activeTab, setActiveTab] = useState<'sale' | 'rent'>('sale');
   const [salePage, setSalePage] = useState(1);
   const [rentPage, setRentPage] = useState(1);
@@ -143,17 +147,28 @@ export function CatalogPage() {
             Browse items available for purchase or rent.
           </p>
         </div>
-        <button
-          onClick={() => {
-            setScanMode(!scanMode);
-            bufferRef.current = '';
-            setScanBuffer('');
-          }}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all ${scanMode ? 'bg-[#f5a623] text-[#1a1a2e] shadow-md ring-2 ring-[#f5a623]/30' : 'bg-[#1a1a2e] text-white hover:bg-[#2d4059]'}`}>
+        <div className="flex gap-3">
+          {onNavigate &&
+          <button
+            onClick={() => onNavigate('quick-rental')}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm">
 
-          <ScanBarcode className="w-5 h-5" />
-          {scanMode ? 'Scanning...' : 'Scan Barcode'}
-        </button>
+              <Zap className="w-5 h-5" />
+              Quick Rental
+            </button>
+          }
+          <button
+            onClick={() => {
+              setScanMode(!scanMode);
+              bufferRef.current = '';
+              setScanBuffer('');
+            }}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all ${scanMode ? 'bg-[#f5a623] text-[#1a1a2e] shadow-md ring-2 ring-[#f5a623]/30' : 'bg-[#1a1a2e] text-white hover:bg-[#2d4059]'}`}>
+
+            <ScanBarcode className="w-5 h-5" />
+            {scanMode ? 'Scanning...' : 'Scan Barcode'}
+          </button>
+        </div>
       </div>
 
       {/* Scan Mode Banner */}
@@ -294,7 +309,7 @@ export function CatalogPage() {
           <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
           <p className="text-red-700 font-medium mb-3">{error}</p>
           <button
-          onClick={refetch}
+          onClick={() => window.location.reload()}
           className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors">
 
             Retry

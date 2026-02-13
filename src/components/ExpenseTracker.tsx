@@ -36,7 +36,7 @@ export function ExpenseTracker() {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={refetch}
+            onClick={() => window.location.reload()}
             className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors">
 
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -157,7 +157,7 @@ export function ExpenseTracker() {
           <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
           <p className="text-red-700 font-medium mb-3">{error}</p>
           <button
-          onClick={refetch}
+          onClick={() => window.location.reload()}
           className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors">
 
             Retry

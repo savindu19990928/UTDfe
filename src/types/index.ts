@@ -37,6 +37,7 @@ export type CartItem = {
   borrowedDate?: string;
   expectedReturnDate?: string;
   actualReturnDate?: string;
+  actualReturnTime?: string;
   status?: RentalItemStatus;
   apiItemId?: number;
   returnedQuantity?: number;

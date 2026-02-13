@@ -49,6 +49,7 @@ function mapRentalItem(raw: any): CartItem {
     borrowedDate: raw.rental_start_date || '',
     expectedReturnDate: raw.rental_end_date || '',
     actualReturnDate: raw.returned_date || undefined,
+    actualReturnTime: raw.returned_time || undefined,
     status: raw.is_returned ? 'returned' : 'active',
     apiItemId: raw.id || undefined
   };
@@ -84,6 +85,16 @@ function mapApiRental(raw: any): Bill {
     address: raw.customer_address || ''
   };
 
+  // Determine rental status from actual item statuses
+  const totalItems = items.length;
+  const returnedItems = items.filter((i) => i.status === 'returned').length;
+  let rentalStatus: Bill['rentalStatus'] = 'open';
+  if (totalItems > 0 && returnedItems === totalItems) {
+    rentalStatus = 'closed';
+  } else if (returnedItems > 0) {
+    rentalStatus = 'partially_closed';
+  }
+
   return {
     id: raw.bill_number || String(raw.id),
     apiId: raw.id || undefined,
@@ -102,7 +113,7 @@ function mapApiRental(raw: any): Bill {
     depositHistory: deposits,
     customerPhotoUrl: getPhotoUrl(raw.customer_photo),
     customerNic: raw.customer_nic || undefined,
-    rentalStatus: mapApiStatus(raw.status || 'active')
+    rentalStatus
   };
 }
 

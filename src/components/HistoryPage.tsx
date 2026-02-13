@@ -29,6 +29,7 @@ import { formatPrice } from '../utils/format';
 import { API_URL } from '../utils/config';
 import { getAuthHeaders } from '../utils/auth';
 import { motion, AnimatePresence } from 'framer-motion';
+import { clearCache } from '../utils/apiCache';
 interface HistoryPageProps {
   bills: Bill[];
   cashTransactions: CashTransaction[];
@@ -57,6 +58,7 @@ export function HistoryPage({
   const [selectedProductForAdd, setSelectedProductForAdd] =
   useState<Product | null>(null);
   const [newItemReturnDate, setNewItemReturnDate] = useState('');
+  const [returnTimeValue, setReturnTimeValue] = useState('');
   // Return date picker state
   const [returnDatePickerKey, setReturnDatePickerKey] = useState<string | null>(
     null
@@ -171,18 +173,21 @@ export function HistoryPage({
   // Rental stats
   const rentalStats = useMemo(
     () => ({
-      open: rentalBills.filter((b) => b.rentalStatus === 'open').length,
-      partial: rentalBills.filter((b) => b.rentalStatus === 'partially_closed').
-      length,
-      closed: rentalBills.filter((b) => b.rentalStatus === 'closed').length
+      open: filteredRentalBills.filter((b) => b.rentalStatus === 'open').length,
+      partial: filteredRentalBills.filter(
+        (b) => b.rentalStatus === 'partially_closed'
+      ).length,
+      closed: filteredRentalBills.filter((b) => b.rentalStatus === 'closed').
+      length
     }),
-    [rentalBills]
+    [filteredRentalBills]
   );
   // Edit handlers
   const handleReturnItem = async (
   bill: Bill,
   itemIndex: number,
-  returnDate: string) =>
+  returnDate: string,
+  returnTime: string) =>
   {
     const item = bill.items[itemIndex];
     if (
@@ -195,6 +200,14 @@ export function HistoryPage({
     setActionLoading(`return-${bill.id}-${itemIndex}`);
     setActionError(null);
     try {
+      const returnPayload: any = {
+        item_id: item.apiItemId,
+        actual_return_date: returnDate
+      };
+      if (returnTime) {
+        returnPayload.actual_return_time =
+        returnTime.length === 5 ? `${returnTime}:00` : returnTime;
+      }
       const res = await fetch(`${API_URL}rentals/${bill.apiId}/return_items/`, {
         method: 'POST',
         headers: {
@@ -202,12 +215,7 @@ export function HistoryPage({
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          items_to_return: [
-          {
-            item_id: item.apiItemId,
-            actual_return_date: returnDate
-          }]
-
+          items_to_return: [returnPayload]
         })
       });
       if (!res.ok) {
@@ -221,7 +229,9 @@ export function HistoryPage({
       }
       setReturnDatePickerKey(null);
       setReturnDateValue('');
-      // Refetch rentals to get updated data
+      setReturnTimeValue('');
+      // Clear cache and refetch rentals to get updated data
+      clearCache('rentals:');
       refetchRentals();
     } catch (err: any) {
       setActionError(err.message || 'Failed to return item');
@@ -260,7 +270,8 @@ export function HistoryPage({
         throw new Error(msg);
       }
       setNewDepositAmount('');
-      // Refetch rentals to get updated data
+      // Clear cache and refetch rentals to get updated data
+      clearCache('rentals:');
       refetchRentals();
     } catch (err: any) {
       setActionError(err.message || 'Failed to add deposit');
@@ -439,6 +450,7 @@ export function HistoryPage({
       setReturnSuccess({
         refundAmount: parseFloat(data.refund_amount ?? 0)
       });
+      clearCache('sales:');
       refetchSales();
     } catch (err: any) {
       setReturnError(err.message || 'Failed to return items');
@@ -565,7 +577,10 @@ export function HistoryPage({
         <div className="flex items-center gap-2">
           {activeTab === 'rentals' &&
           <button
-            onClick={refetchRentals}
+            onClick={() => {
+              clearCache('rentals:');
+              refetchRentals();
+            }}
             className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors">
 
               <RefreshCw
@@ -575,7 +590,10 @@ export function HistoryPage({
           }
           {activeTab === 'sales' &&
           <button
-            onClick={refetchSales}
+            onClick={() => {
+              clearCache('sales:');
+              refetchSales();
+            }}
             className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors">
 
               <RefreshCw
@@ -651,7 +669,7 @@ export function HistoryPage({
               <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
               <p className="text-red-700 font-medium mb-3">{rentalsError}</p>
               <button
-            onClick={refetchRentals}
+            onClick={() => refetchRentals()}
             className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors">
 
                 Retry
@@ -875,13 +893,24 @@ export function HistoryPage({
                                     className="px-2 py-1 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-blue-400 outline-none w-32"
                                     autoFocus />
 
+                                              <input
+                                    type="time"
+                                    value={returnTimeValue}
+                                    onChange={(e) =>
+                                    setReturnTimeValue(
+                                      e.target.value
+                                    )
+                                    }
+                                    className="px-2 py-1 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-blue-400 outline-none w-24" />
+
                                               <button
                                     onClick={() => {
                                       if (returnDateValue) {
                                         handleReturnItem(
                                           bill,
                                           idx,
-                                          returnDateValue
+                                          returnDateValue,
+                                          returnTimeValue
                                         );
                                       }
                                     }}
@@ -903,6 +932,7 @@ export function HistoryPage({
                                     onClick={() => {
                                       setReturnDatePickerKey(null);
                                       setReturnDateValue('');
+                                      setReturnTimeValue('');
                                     }}
                                     className="px-1.5 py-1 text-gray-400 hover:text-gray-600 text-xs rounded-md hover:bg-gray-100 transition-colors">
 
@@ -912,13 +942,18 @@ export function HistoryPage({
 
                                 <button
                                   onClick={() => {
-                                    const today = new Date().
+                                    const now = new Date();
+                                    const today = now.
                                     toISOString().
                                     split('T')[0];
+                                    const currentTime = now.
+                                    toTimeString().
+                                    slice(0, 5);
                                     setReturnDatePickerKey(
                                       `${bill.id}-${idx}`
                                     );
                                     setReturnDateValue(today);
+                                    setReturnTimeValue(currentTime);
                                   }}
                                   className="px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-md hover:bg-blue-200 transition-colors">
 
@@ -1054,7 +1089,7 @@ export function HistoryPage({
               <div>
                 <p className="text-xs font-medium text-gray-500">Total Sales</p>
                 <p className="text-2xl font-bold text-[#2d4059]">
-                  {saleBills.length}
+                  {filteredSaleBills.length}
                 </p>
               </div>
               <div className="bg-orange-100 p-2.5 rounded-full">
@@ -1065,7 +1100,7 @@ export function HistoryPage({
               <div>
                 <p className="text-xs font-medium text-gray-500">Items Sold</p>
                 <p className="text-2xl font-bold text-[#2d4059]">
-                  {saleBills.reduce(
+                  {filteredSaleBills.reduce(
                   (s, b) => s + b.items.reduce((a, i) => a + i.quantity, 0),
                   0
                 )}
@@ -1081,7 +1116,9 @@ export function HistoryPage({
                   Total Revenue
                 </p>
                 <p className="text-2xl font-bold text-green-600">
-                  {formatPrice(saleBills.reduce((sum, b) => sum + b.total, 0))}
+                  {formatPrice(
+                  filteredSaleBills.reduce((sum, b) => sum + b.total, 0)
+                )}
                 </p>
               </div>
               <div className="bg-green-100 p-2.5 rounded-full">
@@ -1106,7 +1143,7 @@ export function HistoryPage({
               <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
               <p className="text-red-700 font-medium mb-3">{salesError}</p>
               <button
-            onClick={refetchSales}
+            onClick={() => refetchSales()}
             className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors">
 
                 Retry
