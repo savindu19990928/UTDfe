@@ -162,6 +162,8 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
         product: parseInt(item.product.id),
         quantity: item.quantity
       })),
+      total_amount: subtotal.toFixed(2),
+      final_amount: total.toFixed(2),
       payment_method: paymentMethod,
       discount: parseFloat(discount) || 0,
       customer_name: customerName.trim() || undefined

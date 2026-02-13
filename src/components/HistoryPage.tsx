@@ -601,7 +601,28 @@ export function HistoryPage({
     p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
     p.itemCode?.toLowerCase().includes(productSearch.toLowerCase())
   );
-  const getStatusBadge = (status?: string) => {
+  const getStatusBadge = (status?: string, bill?: Bill) => {
+    // Check if all items returned but balance outstanding (unpaid)
+    if (bill && status === 'partially_closed') {
+      const returnedCount = bill.items.filter(
+        (i) => i.status === 'returned'
+      ).length;
+      const allReturned =
+      returnedCount === bill.items.length && bill.items.length > 0;
+      const totalDeposit =
+      bill.depositHistory?.reduce((s, d) => s + d.amount, 0) ||
+      bill.deposit ||
+      0;
+      const owes = bill.total > totalDeposit;
+      if (allReturned && owes) {
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800">
+            <Ban className="w-3 h-3 mr-1" />
+            Unpaid
+          </span>);
+
+      }
+    }
     switch (status) {
       case 'open':
         return (
@@ -1021,11 +1042,11 @@ export function HistoryPage({
                               <span className="font-mono font-bold text-[#1a1a2e]">
                                 {bill.id}
                               </span>
-                              {getStatusBadge(bill.rentalStatus)}
+                              {getStatusBadge(bill.rentalStatus, bill)}
                               {needsPayment &&
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">
-                                  <AlertTriangle className="w-3 h-3 mr-1" />
-                                  Payment Due
+                                  <Banknote className="w-3 h-3 mr-1" />
+                                  {formatPrice(Math.abs(balance))} due
                                 </span>
                       }
                             </div>
