@@ -1,36 +1,14 @@
-import { useRentals } from './useRentals';
-import { useSales } from './useSales';
-import { useProducts } from './useProducts';
-import { useExpenses } from './useExpenses';
-import { useCustomers } from './useCustomers';
-import { useCategories } from './useCategories';
-import { useRentalConditions } from './useRentalConditions';
-
 /**
- * Preloads ALL app data in the background on app startup / after login.
- * This warms the apiCache so that every page (HistoryPage, CatalogPage,
- * QuickSale, QuickRental, ExpenseTracker, CustomerManager, BillPreview)
- * can serve data instantly from cache instead of waiting for fresh fetches.
+ * Data preloader — intentionally empty.
+ *
+ * Data is loaded lazily by each page when needed.
+ * Once loaded, the apiCache makes it available to other pages
+ * via stale-while-revalidate, so e.g. if CatalogPage loads
+ * sale products, QuickSale can reuse them from cache.
  */
 export function useDataPreloader() {
-  // Preload rentals and sales for History page & CatalogPage counts
-  useRentals({ enabled: true });
-  useSales({ enabled: true });
 
-  // Preload products by category type for QuickSale, QuickRental, CatalogPage
-  useProducts({ categoryType: 'sell', enabled: true });
-  useProducts({ categoryType: 'rent', enabled: true });
 
-  // Preload expenses for HistoryPage cash register & ExpenseTracker
-  useExpenses();
-
-  // Preload customers for CustomerManager & QuickRental/QuickSale customer selection
-  useCustomers();
-
-  // Preload categories for CatalogPage tab filters
-  useCategories('sell');
-  useCategories('rent');
-
-  // Preload rental conditions for BillPreview rental invoices
-  useRentalConditions();
+  // No-op: each page fetches its own data on demand.
+  // The shared apiCache ensures cross-page data reuse.
 }

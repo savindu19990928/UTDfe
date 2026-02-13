@@ -13,8 +13,6 @@ import {
   X,
   Banknote,
   RotateCcw,
-  Wallet,
-  TrendingUp,
   Loader2,
   AlertCircle,
   RefreshCw,
@@ -23,7 +21,6 @@ import {
 'lucide-react';
 import { Bill, CartItem, Product, CashTransaction } from '../types';
 import { useProducts } from '../hooks/useProducts';
-import { useExpenses } from '../hooks/useExpenses';
 import { useRentals } from '../hooks/useRentals';
 import { useSales } from '../hooks/useSales';
 import { formatPrice } from '../utils/format';
@@ -102,8 +99,6 @@ export function HistoryPage({
     'all');
   // Fetch products from API
   const { products, rentProducts } = useProducts();
-  // Fetch expenses from API
-  const { expenses } = useExpenses();
   // Fetch rentals from API — always enabled, loads in background
   const {
     rentals: apiRentalBills,
@@ -218,43 +213,6 @@ export function HistoryPage({
       b.items.some((i) => i.product.name.toLowerCase().includes(q))
     );
   }, [rentalBills, searchQuery]);
-  // Cash register calculation
-  const cashRegister = useMemo(() => {
-    let saleIncome = 0;
-    let depositsReceived = 0;
-    let refundsGiven = 0;
-    let rentalProfit = 0;
-    saleBills.forEach((b) => {
-      saleIncome += b.total;
-    });
-    rentalBills.forEach((b) => {
-      const totalDeposit =
-      b.depositHistory?.reduce((sum, d) => sum + d.amount, 0) ||
-      b.deposit ||
-      0;
-      depositsReceived += totalDeposit;
-      if (b.rentalStatus === 'closed') {
-        rentalProfit += b.total;
-        if (totalDeposit > b.total) {
-          refundsGiven += totalDeposit - b.total;
-        } else if (b.total > totalDeposit) {
-          saleIncome += b.total - totalDeposit;
-        }
-      }
-    });
-    const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
-    const totalProfit = saleIncome + rentalProfit - totalExpenses - refundsGiven;
-    const totalInRegister = saleIncome + depositsReceived - refundsGiven;
-    return {
-      saleIncome,
-      depositsReceived,
-      refundsGiven,
-      rentalProfit,
-      totalExpenses,
-      totalProfit,
-      totalInRegister
-    };
-  }, [saleBills, rentalBills, expenses]);
   // Rental stats
   const rentalStats = useMemo(() => {
     const helper = (bills: Bill[]) => {
@@ -721,74 +679,6 @@ export function HistoryPage({
         <p className="text-gray-600">
           View and manage sales and rental records.
         </p>
-      </div>
-
-      {/* Cash Register Card */}
-      <div className="bg-gradient-to-r from-[#1a1a2e] to-[#2d4059] rounded-xl p-6 mb-8 text-white">
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-3">
-            <div className="bg-white/10 p-2 rounded-lg">
-              <Wallet className="w-6 h-6 text-[#f5a623]" />
-            </div>
-            <h2 className="text-lg font-bold">Cash Register</h2>
-          </div>
-        </div>
-
-        {/* Top row - Income sources */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-3">
-          <div className="bg-white/5 rounded-lg p-3">
-            <p className="text-[10px] text-gray-400 mb-1">Sale Income</p>
-            <p className="text-lg font-bold text-green-400">
-              {formatPrice(cashRegister.saleIncome)}
-            </p>
-          </div>
-          <div className="bg-white/5 rounded-lg p-3">
-            <p className="text-[10px] text-gray-400 mb-1">Rental Profit</p>
-            <p className="text-lg font-bold text-amber-400">
-              {formatPrice(cashRegister.rentalProfit)}
-            </p>
-          </div>
-          <div className="bg-white/5 rounded-lg p-3">
-            <p className="text-[10px] text-gray-400 mb-1">Deposits</p>
-            <p className="text-lg font-bold text-blue-400">
-              {formatPrice(cashRegister.depositsReceived)}
-            </p>
-          </div>
-          <div className="bg-white/5 rounded-lg p-3">
-            <p className="text-[10px] text-gray-400 mb-1">Expenses</p>
-            <p className="text-lg font-bold text-red-400">
-              -{formatPrice(cashRegister.totalExpenses)}
-            </p>
-          </div>
-          <div className="bg-white/5 rounded-lg p-3">
-            <p className="text-[10px] text-gray-400 mb-1">Deposit Refunds</p>
-            <p className="text-lg font-bold text-red-400">
-              -{formatPrice(cashRegister.refundsGiven)}
-            </p>
-          </div>
-        </div>
-
-        {/* Bottom row - Totals */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="bg-emerald-500/15 rounded-lg p-3 border border-emerald-500/20">
-            <p className="text-[10px] text-emerald-300 mb-1 flex items-center gap-1">
-              <TrendingUp className="w-3 h-3" />
-              Total Profit
-            </p>
-            <p className="text-xl font-bold text-emerald-400">
-              {formatPrice(cashRegister.totalProfit)}
-            </p>
-          </div>
-          <div className="bg-[#f5a623]/15 rounded-lg p-3 border border-[#f5a623]/30">
-            <p className="text-[10px] text-[#f5a623] mb-1 flex items-center gap-1">
-              <Wallet className="w-3 h-3" />
-              Total in Register
-            </p>
-            <p className="text-xl font-bold text-[#f5a623]">
-              {formatPrice(cashRegister.totalInRegister)}
-            </p>
-          </div>
-        </div>
       </div>
 
       {/* Tabs + Search */}
