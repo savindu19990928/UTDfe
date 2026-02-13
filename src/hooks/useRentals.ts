@@ -85,13 +85,21 @@ function mapApiRental(raw: any): Bill {
     address: raw.customer_address || ''
   };
 
-  // Determine rental status from actual item statuses
+  // Determine rental status from item statuses AND balance
   const totalItems = items.length;
   const returnedItems = items.filter((i) => i.status === 'returned').length;
+  const allReturned = totalItems > 0 && returnedItems === totalItems;
+  const balanceSettled = totalDeposit >= totalRentalFee;
+
   let rentalStatus: Bill['rentalStatus'] = 'open';
-  if (totalItems > 0 && returnedItems === totalItems) {
+  if (allReturned && balanceSettled) {
+    // All items returned AND deposit covers the total — fully closed
     rentalStatus = 'closed';
+  } else if (allReturned && !balanceSettled) {
+    // All items returned but balance not settled — awaiting payment
+    rentalStatus = 'partially_closed';
   } else if (returnedItems > 0) {
+    // Some items returned
     rentalStatus = 'partially_closed';
   }
 

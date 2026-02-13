@@ -3,7 +3,7 @@ import { Bill } from '../types';
 import { Printer, ArrowLeft, CheckCircle } from 'lucide-react';
 import { formatPrice } from '../utils/format';
 import { useRentalConditions } from '../hooks/useRentalConditions';
-const LOGO_URL = "./WhatsApp_Image_2025-12-13_at_2.34.53_PM.jpg";
+const LOGO_URL = "/WhatsApp_Image_2025-12-13_at_2.34.53_PM.jpg";
 
 interface BillPreviewProps {
   bill: Bill;
@@ -345,25 +345,32 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
             <span>ඇප තැම්පතු මුදල</span>
             <span>{formatPrice(deposit).replace('Rs. ', '')}</span>
           </div>
-          {!isOpen &&
-          <>
-              {refund > 0 ?
-            <div className="flex justify-between font-bold text-base text-green-700">
-                  <span>ප්‍රතිපුර්ණ මුදල</span>
-                  <span>{formatPrice(refund).replace('Rs. ', '')}</span>
-                </div> :
-            owing > 0 ?
-            <div className="flex justify-between font-bold text-base text-red-600">
-                  <span>ගෙවිය යුතු මුදල</span>
-                  <span>{formatPrice(owing).replace('Rs. ', '')}</span>
-                </div> :
+          {refund > 0 ?
+          <div
+            className={`flex justify-between font-bold text-base ${isOpen ? 'text-green-600' : 'text-green-700'}`}>
 
-            <div className="flex justify-between font-bold text-base text-green-700">
-                  <span>ප්‍රතිපුර්ණ මුදල</span>
-                  <span>0.00</span>
-                </div>
-            }
-            </>
+              <span>ප්‍රතිපුර්ණ මුදල</span>
+              <span>{formatPrice(refund).replace('Rs. ', '')}</span>
+            </div> :
+          owing > 0 ?
+          <div
+            className={`flex justify-between font-bold text-base ${isOpen ? 'text-red-500' : 'text-red-600'}`}>
+
+              <span>ගෙවිය යුතු මුදල</span>
+              <span>{formatPrice(owing).replace('Rs. ', '')}</span>
+            </div> :
+
+          <div className="flex justify-between font-bold text-base text-green-700">
+              <span>ශේෂය</span>
+              <span>0.00</span>
+            </div>
+          }
+          {isOpen && owing > 0 &&
+          <div className="mt-2 pt-2 border-t border-dashed border-gray-400">
+              <p className="text-[10px] text-red-500 font-bold text-left">
+                * ගෙවීම් ඉතිරිව ඇත. බිල්පත ක්‍රියාකාරීව පවතී.
+              </p>
+            </div>
           }
         </div>
       </div>

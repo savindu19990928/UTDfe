@@ -13,7 +13,7 @@ import {
 'lucide-react';
 import { useCart } from '../hooks/useCart';
 import { motion, AnimatePresence } from 'framer-motion';
-const LOGO_URL = "./WhatsApp_Image_2025-12-13_at_2.34.53_PM.jpg";
+const LOGO_URL = "/WhatsApp_Image_2025-12-13_at_2.34.53_PM.jpg";
 
 interface HeaderProps {
   currentPage:
@@ -23,7 +23,9 @@ interface HeaderProps {
   'bill' |
   'damages' |
   'expenses' |
-  'customers';
+  'customers' |
+  'quick-rental' |
+  'quick-sale';
   onNavigate: (
   page:
   'catalog' |

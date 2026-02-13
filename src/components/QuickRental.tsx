@@ -32,9 +32,9 @@ type RentalItem = {
   quantity: number;
   days: number;
 };
-type Stage = 'items' | 'deposit' | 'customer';
+type Stage = 'customer' | 'items' | 'deposit';
 export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
-  const [stage, setStage] = useState<Stage>('items');
+  const [stage, setStage] = useState<Stage>('customer');
   const [items, setItems] = useState<RentalItem[]>([]);
   const [productSearch, setProductSearch] = useState('');
   const [showProductDropdown, setShowProductDropdown] = useState(false);
@@ -45,6 +45,9 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Custom bill number state
+  const [customBillNumber, setCustomBillNumber] = useState('');
+  const [billNumberError, setBillNumberError] = useState<string | null>(null);
   // New customer form state
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
   const [newName, setNewName] = useState('');
@@ -87,6 +90,15 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
     ).
     slice(0, 10);
   }, [productSearch, rentProducts]);
+  // Helper: get total quantity already in cart for a given product
+  const getUsedQty = (productId: string, excludeIndex?: number) => {
+    return items.reduce((sum, item, idx) => {
+      if (item.product.id === productId && idx !== excludeIndex) {
+        return sum + item.quantity;
+      }
+      return sum;
+    }, 0);
+  };
   // Calculations
   const subtotal = items.reduce(
     (sum, item) =>
@@ -97,16 +109,16 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
   const total = subtotal + tax;
   // Focus management
   useEffect(() => {
-    if (stage === 'items') {
-      setTimeout(() => productSearchRef.current?.focus(), 100);
-    } else if (stage === 'deposit') {
-      setTimeout(() => depositInputRef.current?.focus(), 100);
-    } else if (stage === 'customer') {
+    if (stage === 'customer') {
       if (showNewCustomerForm) {
         setTimeout(() => newNameRef.current?.focus(), 150);
       } else if (!selectedCustomer) {
         setTimeout(() => customerSearchRef.current?.focus(), 100);
       }
+    } else if (stage === 'items') {
+      setTimeout(() => productSearchRef.current?.focus(), 100);
+    } else if (stage === 'deposit') {
+      setTimeout(() => depositInputRef.current?.focus(), 100);
     }
   }, [stage, showNewCustomerForm, selectedCustomer]);
   // Also focus name field specifically when form toggles on
@@ -118,6 +130,16 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
     }
   }, [showNewCustomerForm]);
   const handleAddProduct = (product: Product) => {
+    // Check stock availability (stock > 0 means limited stock)
+    if (product.stock != null && product.stock > 0) {
+      const usedQty = getUsedQty(product.id);
+      if (usedQty >= product.stock) {
+        setError(`"${product.name}" is currently unavailable`);
+        setProductSearch('');
+        setShowProductDropdown(false);
+        return;
+      }
+    }
     const newItem: RentalItem = {
       product,
       quantity: 1,
@@ -126,6 +148,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
     setItems((prev) => [...prev, newItem]);
     setProductSearch('');
     setShowProductDropdown(false);
+    setError(null);
     // Focus the quantity input of the new item after render
     setTimeout(() => {
       const index = items.length; // Index of the new item
@@ -141,7 +164,19 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
   field: 'quantity' | 'days',
   value: string) =>
   {
-    const num = parseInt(value) || 0;
+    let num = parseInt(value) || 0;
+    // Enforce stock limit for quantity changes
+    if (field === 'quantity') {
+      const product = items[index]?.product;
+      if (product && product.stock != null && product.stock > 0) {
+        const usedByOthers = getUsedQty(product.id, index);
+        const maxAllowed = product.stock - usedByOthers;
+        if (num > maxAllowed) {
+          num = maxAllowed;
+        }
+      }
+      if (num < 0) num = 0;
+    }
     setItems((prev) => {
       const newItems = [...prev];
       newItems[index] = {
@@ -154,9 +189,9 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'End') {
       e.preventDefault();
+      if (stage === 'customer' && selectedCustomer) setStage('items');else
       if (stage === 'items' && items.length > 0) setStage('deposit');else
-      if (stage === 'customer' && selectedCustomer)
-      handleSubmitWithCustomer(selectedCustomer);
+      if (stage === 'deposit') handleFinalSubmit();
     }
     if (e.key === 'Insert' && stage === 'customer' && !selectedCustomer) {
       e.preventDefault();
@@ -172,10 +207,19 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
       setError(`Deposit must be at least ${formatPrice(total)}`);
       return;
     }
+    // Validate custom bill number if provided
+    if (customBillNumber.trim()) {
+      const numPart = customBillNumber.trim();
+      if (!/^\d{1,5}$/.test(numPart)) {
+        setBillNumberError('Enter 1-5 digits (e.g. 00001)');
+        return;
+      }
+      setBillNumberError(null);
+    }
     setSubmitting(true);
     setError(null);
     const today = new Date().toISOString().split('T')[0];
-    const apiBody = {
+    const apiBody: any = {
       customer: parseInt(customer.id),
       initial_deposit: depositVal.toFixed(2),
       initial_deposit_date: today,
@@ -194,6 +238,11 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
       payment_method: 'cash',
       discount: 0
     };
+    // Only send bill_number if user entered one
+    if (customBillNumber.trim()) {
+      const padded = customBillNumber.trim().padStart(5, '0');
+      apiBody.bill_number = `RENT-${padded}`;
+    }
     try {
       const res = await fetch(`${API_URL}rentals/`, {
         method: 'POST',
@@ -269,14 +318,24 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
     if (!selectedCustomer) return;
     handleSubmitWithCustomer(selectedCustomer);
   };
-  // Select existing customer and immediately generate rental
+  // Final submit from deposit stage
+  const handleFinalSubmit = () => {
+    if (!selectedCustomer || items.length === 0) return;
+    const depositVal = parseFloat(depositAmount) || 0;
+    if (depositVal < total) {
+      setError(`Deposit must be at least ${formatPrice(total)}`);
+      return;
+    }
+    handleSubmitWithCustomer(selectedCustomer);
+  };
+  // Select existing customer and move to items stage
   const handleSelectAndSubmit = (customer: CustomerRecord) => {
     setSelectedCustomer(customer);
     setCustomerSearch('');
     setShowCustomerDropdown(false);
-    handleSubmitWithCustomer(customer);
+    setStage('items');
   };
-  // Add new customer via API, then auto-submit rental
+  // Add new customer via API, then move to items stage
   const handleAddNewCustomer = async () => {
     if (!newName.trim() || !newPhone.trim()) {
       setError('Name and phone number are required');
@@ -323,8 +382,8 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
       setSelectedCustomer(newCustomer);
       setShowNewCustomerForm(false);
       setAddingCustomer(false);
-      // Auto-submit rental with the new customer
-      handleSubmitWithCustomer(newCustomer);
+      // Move to items stage
+      setStage('items');
     } catch (err: any) {
       setError(err.message);
       setAddingCustomer(false);
@@ -370,10 +429,19 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
         {/* Progress Steps */}
         <div className="flex items-center gap-2 text-sm">
           <div
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${stage === 'items' ? 'bg-blue-100 text-blue-700 font-bold' : 'text-gray-400'}`}>
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${stage === 'customer' ? 'bg-blue-100 text-blue-700 font-bold' : 'text-gray-400'}`}>
 
             <span className="w-5 h-5 rounded-full bg-current text-white flex items-center justify-center text-xs">
               1
+            </span>
+            Customer
+          </div>
+          <ChevronRight className="w-4 h-4 text-gray-300" />
+          <div
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${stage === 'items' ? 'bg-blue-100 text-blue-700 font-bold' : 'text-gray-400'}`}>
+
+            <span className="w-5 h-5 rounded-full bg-current text-white flex items-center justify-center text-xs">
+              2
             </span>
             Items
           </div>
@@ -382,309 +450,16 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
             className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${stage === 'deposit' ? 'bg-blue-100 text-blue-700 font-bold' : 'text-gray-400'}`}>
 
             <span className="w-5 h-5 rounded-full bg-current text-white flex items-center justify-center text-xs">
-              2
-            </span>
-            Deposit
-          </div>
-          <ChevronRight className="w-4 h-4 text-gray-300" />
-          <div
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${stage === 'customer' ? 'bg-blue-100 text-blue-700 font-bold' : 'text-gray-400'}`}>
-
-            <span className="w-5 h-5 rounded-full bg-current text-white flex items-center justify-center text-xs">
               3
             </span>
-            Customer
+            Deposit
           </div>
         </div>
       </div>
 
       <div className="flex-1 max-w-5xl mx-auto w-full p-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden min-h-[600px] flex flex-col">
-          {/* STAGE 1: ITEMS */}
-          {stage === 'items' &&
-          <div className="flex flex-col h-full">
-              <div className="p-4 border-b border-gray-100 bg-gray-50">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                  ref={productSearchRef}
-                  type="text"
-                  placeholder="Search product by name or code..."
-                  value={productSearch}
-                  onChange={(e) => {
-                    setProductSearch(e.target.value);
-                    setShowProductDropdown(true);
-                  }}
-                  onFocus={() => setShowProductDropdown(true)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && filteredProducts.length > 0) {
-                      e.preventDefault();
-                      handleAddProduct(filteredProducts[0]);
-                    }
-                  }}
-                  className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-lg" />
-
-
-                  {/* Product Dropdown */}
-                  <AnimatePresence>
-                    {showProductDropdown && productSearch &&
-                  <motion.div
-                    initial={{
-                      opacity: 0,
-                      y: 10
-                    }}
-                    animate={{
-                      opacity: 1,
-                      y: 0
-                    }}
-                    exit={{
-                      opacity: 0,
-                      y: 10
-                    }}
-                    className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 max-h-80 overflow-y-auto z-30">
-
-                        {filteredProducts.length > 0 ?
-                    filteredProducts.map((product) =>
-                    <button
-                      key={product.id}
-                      onClick={() => handleAddProduct(product)}
-                      className="w-full text-left px-4 py-3 hover:bg-blue-50 flex items-center justify-between border-b border-gray-50 last:border-0">
-
-                              <div>
-                                <p className="font-bold text-[#1a1a2e]">
-                                  {product.name}
-                                </p>
-                                <p className="text-xs text-gray-500 font-mono">
-                                  {product.itemCode}
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                <p className="font-bold text-blue-600">
-                                  {formatPrice(product.rentPricePerDay || 0)}
-                                </p>
-                                <p className="text-xs text-gray-400">/day</p>
-                              </div>
-                            </button>
-                    ) :
-
-                    <div className="p-4 text-center text-gray-500">
-                            No rental products found
-                          </div>
-                    }
-                      </motion.div>
-                  }
-                  </AnimatePresence>
-                </div>
-              </div>
-
-              {/* Items Table */}
-              <div className="flex-1 overflow-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200 sticky top-0">
-                    <tr>
-                      <th className="px-4 py-3 text-left w-32">Code</th>
-                      <th className="px-4 py-3 text-left">Product</th>
-                      <th className="px-4 py-3 text-right w-32">Rate/Day</th>
-                      <th className="px-4 py-3 text-center w-24">Qty</th>
-                      <th className="px-4 py-3 text-center w-24">Days</th>
-                      <th className="px-4 py-3 text-right w-32">Total</th>
-                      <th className="px-4 py-3 w-10"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {items.map((item, index) =>
-                  <tr key={index} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 font-mono text-gray-600">
-                          {item.product.itemCode || '-'}
-                        </td>
-                        <td className="px-4 py-3 font-medium text-[#1a1a2e]">
-                          {item.product.name}
-                        </td>
-                        <td className="px-4 py-3 text-right text-gray-600">
-                          {formatPrice(item.product.rentPricePerDay || 0)}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <input
-                        ref={(el) => qtyRefs.current[index] = el}
-                        type="number"
-                        min="1"
-                        value={item.quantity}
-                        onChange={(e) =>
-                        handleItemChange(
-                          index,
-                          'quantity',
-                          e.target.value
-                        )
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === 'Tab') {
-                            e.preventDefault();
-                            daysRefs.current[index]?.focus();
-                            daysRefs.current[index]?.select();
-                          }
-                        }}
-                        className="w-16 text-center border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none" />
-
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <input
-                        ref={(el) => daysRefs.current[index] = el}
-                        type="number"
-                        min="1"
-                        value={item.days}
-                        onChange={(e) =>
-                        handleItemChange(index, 'days', e.target.value)
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === 'Tab') {
-                            e.preventDefault();
-                            productSearchRef.current?.focus();
-                          }
-                        }}
-                        className="w-16 text-center border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none" />
-
-                        </td>
-                        <td className="px-4 py-3 text-right font-bold text-[#1a1a2e]">
-                          {formatPrice(
-                        (item.product.rentPricePerDay || 0) *
-                        item.days *
-                        item.quantity
-                      )}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <button
-                        onClick={() => handleRemoveItem(index)}
-                        className="text-gray-400 hover:text-red-500 transition-colors">
-
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                  )}
-                    {/* Empty Rows */}
-                    {Array.from({
-                    length: Math.max(0, 8 - items.length)
-                  }).map((_, i) =>
-                  <tr key={`empty-${i}`} className="h-12">
-                        <td className="border-b border-gray-50 border-dashed"></td>
-                        <td className="border-b border-gray-50 border-dashed"></td>
-                        <td className="border-b border-gray-50 border-dashed"></td>
-                        <td className="border-b border-gray-50 border-dashed"></td>
-                        <td className="border-b border-gray-50 border-dashed"></td>
-                        <td className="border-b border-gray-50 border-dashed"></td>
-                        <td className="border-b border-gray-50 border-dashed"></td>
-                      </tr>
-                  )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Footer */}
-              <div className="p-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
-                <div className="text-sm text-gray-500">
-                  <span className="font-bold text-gray-700">
-                    {items.length}
-                  </span>{' '}
-                  items added
-                </div>
-                <div className="flex items-center gap-6">
-                  <div className="text-right">
-                    <p className="text-xs text-gray-500">Total Amount</p>
-                    <p className="text-2xl font-bold text-[#1a1a2e]">
-                      {formatPrice(total)}
-                    </p>
-                  </div>
-                  <button
-                  onClick={() => items.length > 0 && setStage('deposit')}
-                  disabled={items.length === 0}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
-
-                    Set Deposit <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          }
-
-          {/* STAGE 2: DEPOSIT */}
-          {stage === 'deposit' &&
-          <div className="flex flex-col items-center justify-center h-full p-12">
-              <div className="w-full max-w-md space-y-8">
-                <div className="text-center">
-                  <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <CreditCard className="w-8 h-8 text-blue-600" />
-                  </div>
-                  <h2 className="text-2xl font-bold text-[#1a1a2e]">
-                    Security Deposit
-                  </h2>
-                  <p className="text-gray-500 mt-1">
-                    Enter the initial deposit amount collected.
-                  </p>
-                </div>
-
-                <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 space-y-4">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Total Rental Fee</span>
-                    <span className="font-bold text-[#1a1a2e]">
-                      {formatPrice(total)}
-                    </span>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">
-                      Deposit Amount
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">
-                        Rs.
-                      </span>
-                      <input
-                      ref={depositInputRef}
-                      type="number"
-                      value={depositAmount}
-                      onChange={(e) => setDepositAmount(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          const val = parseFloat(depositAmount) || 0;
-                          if (val >= total) setStage('customer');
-                        }
-                      }}
-                      className="w-full pl-12 pr-4 py-4 text-2xl font-bold text-right border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                      placeholder="0.00" />
-
-                    </div>
-                    {(parseFloat(depositAmount) || 0) < total &&
-                  <p className="text-xs text-red-500 mt-2 flex items-center gap-1 font-medium">
-                        <AlertTriangle className="w-3 h-3" />
-                        Minimum required: {formatPrice(total)}
-                      </p>
-                  }
-                  </div>
-                </div>
-
-                <div className="flex gap-3">
-                  <button
-                  onClick={() => setStage('items')}
-                  className="flex-1 px-4 py-3 bg-white border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-50">
-
-                    Back
-                  </button>
-                  <button
-                  onClick={() => {
-                    const val = parseFloat(depositAmount) || 0;
-                    if (val >= total) setStage('customer');
-                  }}
-                  disabled={(parseFloat(depositAmount) || 0) < total}
-                  className="flex-1 px-4 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed">
-
-                    Select Customer
-                  </button>
-                </div>
-              </div>
-            </div>
-          }
-
-          {/* STAGE 3: CUSTOMER */}
+          {/* STAGE 1: CUSTOMER */}
           {stage === 'customer' &&
           <div className="flex flex-col items-center justify-center h-full p-12">
               <div className="w-full max-w-md space-y-6">
@@ -850,13 +625,13 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                   className="space-y-4">
 
                       <div className="bg-gray-50 rounded-xl border border-gray-200 p-5 space-y-4">
-                        {/* Name */}
                         <div>
                           <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
                             Name *
                           </label>
                           <input
                         ref={newNameRef}
+                        autoFocus
                         type="text"
                         value={newName}
                         onChange={(e) => setNewName(e.target.value)}
@@ -870,8 +645,6 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                         className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
 
                         </div>
-
-                        {/* NIC */}
                         <div>
                           <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
                             NIC Number
@@ -891,8 +664,6 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                         className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
 
                         </div>
-
-                        {/* Phone */}
                         <div>
                           <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
                             Phone *
@@ -912,8 +683,6 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                         className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
 
                         </div>
-
-                        {/* Address */}
                         <div>
                           <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
                             Address
@@ -933,10 +702,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                         className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
 
                         </div>
-
-                        {/* Optional: Photo & Phone Verified (mouse-only) */}
                         <div className="flex items-center gap-4 pt-2 border-t border-gray-200">
-                          {/* Photo Upload */}
                           <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-500 hover:text-blue-600 transition-colors">
                             <input
                           type="file"
@@ -959,8 +725,6 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                               {newPhoto ? 'Change Photo' : 'Add Photo'}
                             </span>
                           </label>
-
-                          {/* Phone Verified Toggle */}
                           <button
                         type="button"
                         onClick={() =>
@@ -1050,71 +814,453 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                   </div>
               }
 
-                {(submitting || addingCustomer) &&
+                {addingCustomer &&
               <div className="flex items-center justify-center gap-3 py-4 text-blue-600">
                     <Loader2 className="w-5 h-5 animate-spin" />
                     <span className="font-medium text-sm">
-                      {addingCustomer ?
-                  'Creating customer & generating rental...' :
-                  'Generating rental...'}
+                      Creating customer...
                     </span>
                   </div>
               }
 
                 <div className="flex gap-3 pt-2">
+                  {showNewCustomerForm && !selectedCustomer ?
+                <>
+                      <button
+                    onClick={() => resetNewCustomerForm()}
+                    className="flex-1 px-4 py-3 bg-white border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-50">
+
+                        Back
+                      </button>
+                      <button
+                    onClick={handleAddNewCustomer}
+                    disabled={
+                    !newName.trim() || !newPhone.trim() || addingCustomer
+                    }
+                    className="flex-1 px-4 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+
+                        {addingCustomer ?
+                    <>
+                            <Loader2 className="w-5 h-5 animate-spin" />{' '}
+                            Creating...
+                          </> :
+
+                    <>
+                            <CheckCircle className="w-5 h-5" /> Create &
+                            Continue
+                          </>
+                    }
+                      </button>
+                    </> :
+                selectedCustomer ?
+                <button
+                  onClick={() => setStage('items')}
+                  className="w-full px-4 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2">
+
+                      Add Items <ArrowRight className="w-4 h-4" />
+                    </button> :
+                null}
+                </div>
+              </div>
+            </div>
+          }
+
+          {/* STAGE 2: ITEMS */}
+          {stage === 'items' &&
+          <div className="flex flex-col h-full">
+              {/* Selected customer banner */}
+              {selectedCustomer &&
+            <div className="px-4 py-2 bg-blue-50 border-b border-blue-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm">
+                    <User className="w-4 h-4 text-blue-600" />
+                    <span className="font-bold text-[#1a1a2e]">
+                      {selectedCustomer.name}
+                    </span>
+                    <span className="text-gray-400">·</span>
+                    <span className="text-gray-500">
+                      {selectedCustomer.phone}
+                    </span>
+                  </div>
                   <button
-                  onClick={() => {
-                    if (showNewCustomerForm) {
-                      resetNewCustomerForm();
-                    } else {
-                      setStage('deposit');
+                onClick={() => setStage('customer')}
+                className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+
+                    Change
+                  </button>
+                </div>
+            }
+
+              <div className="p-4 border-b border-gray-100 bg-gray-50">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                  ref={productSearchRef}
+                  type="text"
+                  placeholder="Search product by name or code..."
+                  value={productSearch}
+                  onChange={(e) => {
+                    setProductSearch(e.target.value);
+                    setShowProductDropdown(true);
+                  }}
+                  onFocus={() => setShowProductDropdown(true)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && filteredProducts.length > 0) {
+                      e.preventDefault();
+                      handleAddProduct(filteredProducts[0]);
                     }
                   }}
+                  className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-lg" />
+
+                  <AnimatePresence>
+                    {showProductDropdown && productSearch &&
+                  <motion.div
+                    initial={{
+                      opacity: 0,
+                      y: 10
+                    }}
+                    animate={{
+                      opacity: 1,
+                      y: 0
+                    }}
+                    exit={{
+                      opacity: 0,
+                      y: 10
+                    }}
+                    className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 max-h-80 overflow-y-auto z-30">
+
+                        {filteredProducts.length > 0 ?
+                    filteredProducts.map((product) =>
+                    <button
+                      key={product.id}
+                      onClick={() => handleAddProduct(product)}
+                      disabled={
+                      product.stock != null &&
+                      product.stock > 0 &&
+                      getUsedQty(product.id) >= product.stock
+                      }
+                      className={`w-full text-left px-4 py-3 hover:bg-blue-50 flex items-center justify-between border-b border-gray-50 last:border-0 ${product.stock != null && product.stock > 0 && getUsedQty(product.id) >= product.stock ? 'opacity-40 cursor-not-allowed hover:bg-white' : ''}`}>
+
+                              <div>
+                                <p className="font-bold text-[#1a1a2e]">
+                                  {product.name}
+                                </p>
+                                <p className="text-xs text-gray-500 font-mono">
+                                  {product.itemCode}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-bold text-blue-600">
+                                  {formatPrice(product.rentPricePerDay || 0)}
+                                </p>
+                                <p className="text-xs text-gray-400">/day</p>
+                              </div>
+                            </button>
+                    ) :
+
+                    <div className="p-4 text-center text-gray-500">
+                            No rental products found
+                          </div>
+                    }
+                      </motion.div>
+                  }
+                  </AnimatePresence>
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <div className="flex-1 overflow-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200 sticky top-0">
+                    <tr>
+                      <th className="px-4 py-3 text-left w-32">Code</th>
+                      <th className="px-4 py-3 text-left">Product</th>
+                      <th className="px-4 py-3 text-right w-32">Rate/Day</th>
+                      <th className="px-4 py-3 text-center w-44">Qty / Days</th>
+                      <th className="px-4 py-3 text-right w-32">Total</th>
+                      <th className="px-4 py-3 w-10"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {items.map((item, index) =>
+                  <tr key={index} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-mono text-gray-600">
+                          {item.product.itemCode || '-'}
+                        </td>
+                        <td className="px-4 py-3 font-medium text-[#1a1a2e]">
+                          {item.product.name}
+                        </td>
+                        <td className="px-4 py-3 text-right text-gray-600">
+                          {formatPrice(item.product.rentPricePerDay || 0)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <div className="flex flex-col items-center">
+                              <input
+                            ref={(el) => qtyRefs.current[index] = el}
+                            type="number"
+                            min="1"
+                            max={
+                            item.product.stock != null &&
+                            item.product.stock > 0 ?
+                            item.product.stock -
+                            getUsedQty(item.product.id, index) :
+                            undefined
+                            }
+                            value={item.quantity}
+                            onChange={(e) =>
+                            handleItemChange(
+                              index,
+                              'quantity',
+                              e.target.value
+                            )
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === 'Tab') {
+                                e.preventDefault();
+                                daysRefs.current[index]?.focus();
+                                daysRefs.current[index]?.select();
+                              }
+                            }}
+                            className="w-14 text-center border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none" />
+
+                            </div>
+                            <span className="text-gray-400 text-xs font-bold">
+                              ×
+                            </span>
+                            <input
+                          ref={(el) => daysRefs.current[index] = el}
+                          type="number"
+                          min="1"
+                          value={item.days}
+                          onChange={(e) =>
+                          handleItemChange(index, 'days', e.target.value)
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === 'Tab') {
+                              e.preventDefault();
+                              productSearchRef.current?.focus();
+                            }
+                          }}
+                          className="w-14 text-center border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none" />
+
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold text-[#1a1a2e]">
+                          {formatPrice(
+                        (item.product.rentPricePerDay || 0) *
+                        item.days *
+                        item.quantity
+                      )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                        onClick={() => handleRemoveItem(index)}
+                        className="text-gray-400 hover:text-red-500 transition-colors">
+
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                  )}
+                    {Array.from({
+                    length: Math.max(0, 8 - items.length)
+                  }).map((_, i) =>
+                  <tr key={`empty-${i}`} className="h-12">
+                        <td className="border-b border-gray-50 border-dashed"></td>
+                        <td className="border-b border-gray-50 border-dashed"></td>
+                        <td className="border-b border-gray-50 border-dashed"></td>
+                        <td className="border-b border-gray-50 border-dashed"></td>
+                        <td className="border-b border-gray-50 border-dashed"></td>
+                        <td className="border-b border-gray-50 border-dashed"></td>
+                      </tr>
+                  )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <button
+                  onClick={() => setStage('customer')}
+                  className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-50 text-sm">
+
+                    Back
+                  </button>
+                  <div className="text-sm text-gray-500">
+                    <span className="font-bold text-gray-700">
+                      {items.length}
+                    </span>{' '}
+                    items added
+                  </div>
+                </div>
+                <div className="flex items-center gap-6">
+                  <div className="text-right">
+                    <p className="text-xs text-gray-500">Total Amount</p>
+                    <p className="text-2xl font-bold text-[#1a1a2e]">
+                      {formatPrice(total)}
+                    </p>
+                  </div>
+                  <button
+                  onClick={() => items.length > 0 && setStage('deposit')}
+                  disabled={items.length === 0}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
+
+                    Set Deposit <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          }
+
+          {/* STAGE 3: DEPOSIT */}
+          {stage === 'deposit' &&
+          <div className="flex flex-col items-center justify-center h-full p-12">
+              <div className="w-full max-w-md space-y-8">
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CreditCard className="w-8 h-8 text-blue-600" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-[#1a1a2e]">
+                    Security Deposit
+                  </h2>
+                  <p className="text-gray-500 mt-1">
+                    Enter the initial deposit amount collected.
+                  </p>
+                </div>
+
+                <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 space-y-4">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Customer</span>
+                    <span className="font-bold text-[#1a1a2e]">
+                      {selectedCustomer?.name}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Items</span>
+                    <span className="font-bold text-[#1a1a2e]">
+                      {items.length} items
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Total Rental Fee</span>
+                    <span className="font-bold text-[#1a1a2e]">
+                      {formatPrice(total)}
+                    </span>
+                  </div>
+
+                  {/* Custom Bill Number */}
+                  <div className="pt-3 border-t border-gray-200">
+                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                      Bill Number{' '}
+                      <span className="text-gray-400 font-normal text-xs">
+                        (optional)
+                      </span>
+                    </label>
+                    <div className="flex items-center gap-0">
+                      <span className="px-3 py-2.5 bg-gray-200 border border-r-0 border-gray-300 rounded-l-lg text-sm font-mono font-bold text-gray-600 select-none">
+                        RENT-
+                      </span>
+                      <input
+                      type="text"
+                      value={customBillNumber}
+                      onChange={(e) => {
+                        const val = e.target.value.
+                        replace(/\D/g, '').
+                        slice(0, 5);
+                        setCustomBillNumber(val);
+                        setBillNumberError(null);
+                      }}
+                      placeholder="00001"
+                      maxLength={5}
+                      className={`flex-1 px-3 py-2.5 border rounded-r-lg text-sm font-mono font-bold focus:ring-2 outline-none ${billNumberError ? 'border-red-400 focus:ring-red-300 bg-red-50' : 'border-gray-300 focus:ring-blue-500'}`} />
+
+                    </div>
+                    {billNumberError &&
+                  <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" />
+                        {billNumberError}
+                      </p>
+                  }
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Leave empty for auto-generated number. Enter digits only
+                      (e.g. 00005).
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                      Deposit Amount
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">
+                        Rs.
+                      </span>
+                      <input
+                      ref={depositInputRef}
+                      type="number"
+                      value={depositAmount}
+                      onChange={(e) => setDepositAmount(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const val = parseFloat(depositAmount) || 0;
+                          if (val >= total) handleFinalSubmit();
+                        }
+                      }}
+                      className="w-full pl-12 pr-4 py-4 text-2xl font-bold text-right border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      placeholder="0.00" />
+
+                    </div>
+                    {(parseFloat(depositAmount) || 0) < total &&
+                  <p className="text-xs text-red-500 mt-2 flex items-center gap-1 font-medium">
+                        <AlertTriangle className="w-3 h-3" />
+                        Minimum required: {formatPrice(total)}
+                      </p>
+                  }
+                  </div>
+                </div>
+
+                {error &&
+              <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    {error}
+                  </div>
+              }
+
+                {submitting &&
+              <div className="flex items-center justify-center gap-3 py-4 text-blue-600">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span className="font-medium text-sm">
+                      Generating rental...
+                    </span>
+                  </div>
+              }
+
+                <div className="flex gap-3">
+                  <button
+                  onClick={() => setStage('items')}
                   className="flex-1 px-4 py-3 bg-white border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-50">
 
                     Back
                   </button>
-
-                  {showNewCustomerForm && !selectedCustomer ?
-                <button
-                  onClick={handleAddNewCustomer}
+                  <button
+                  onClick={handleFinalSubmit}
                   disabled={
-                  !newName.trim() ||
-                  !newPhone.trim() ||
-                  addingCustomer ||
-                  submitting
+                  (parseFloat(depositAmount) || 0) < total || submitting
                   }
                   className="flex-1 px-4 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2">
 
-                      {addingCustomer ?
+                    {submitting ?
                   <>
-                          <Loader2 className="w-5 h-5 animate-spin" />{' '}
-                          Creating...
-                        </> :
+                        <Loader2 className="w-5 h-5 animate-spin" />{' '}
+                        Processing...
+                      </> :
 
                   <>
-                          <CheckCircle className="w-5 h-5" /> Create & Generate
-                        </>
+                        <CheckCircle className="w-5 h-5" /> Generate Rental
+                      </>
                   }
-                    </button> :
-
-                <button
-                  onClick={handleSubmit}
-                  disabled={!selectedCustomer || submitting}
-                  className="flex-1 px-4 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-
-                      {submitting ?
-                  <>
-                          <Loader2 className="w-5 h-5 animate-spin" />{' '}
-                          Processing...
-                        </> :
-
-                  <>
-                          <CheckCircle className="w-5 h-5" /> Generate Rental
-                        </>
-                  }
-                    </button>
-                }
+                  </button>
                 </div>
               </div>
             </div>

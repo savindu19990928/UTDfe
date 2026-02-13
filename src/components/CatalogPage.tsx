@@ -11,11 +11,13 @@ import {
 'lucide-react';
 import { useProducts } from '../hooks/useProducts';
 import { useCategories } from '../hooks/useCategories';
+import { useRentals } from '../hooks/useRentals';
+import { useSales } from '../hooks/useSales';
 import { ProductList } from './ProductList';
 import { useCart } from '../hooks/useCart';
 import { motion, AnimatePresence } from 'framer-motion';
 interface CatalogPageProps {
-  onNavigate?: (page: 'quick-rental') => void;
+  onNavigate?: (page: 'quick-rental' | 'quick-sale') => void;
 }
 export function CatalogPage({ onNavigate }: CatalogPageProps) {
   const [activeTab, setActiveTab] = useState<'sale' | 'rent'>('sale');
@@ -55,6 +57,28 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
   const { products: allProducts } = useProducts({
     enabled: scanMode
   });
+  // Preloaded counts for both product types (from cache)
+  const { totalCount: saleProductCount } = useProducts({
+    categoryType: 'sell',
+    enabled: true
+  });
+  const { totalCount: rentProductCount } = useProducts({
+    categoryType: 'rent',
+    enabled: true
+  });
+  // Preloaded rental & sale bill counts (from cache via useDataPreloader)
+  const { rentals, loading: rentalsLoading } = useRentals({
+    enabled: true
+  });
+  const { sales, loading: salesLoading } = useSales({
+    enabled: true
+  });
+  // Compute active rental count (non-closed)
+  const activeRentalCount = rentals.filter(
+    (b) => b.rentalStatus !== 'closed'
+  ).length;
+  const totalRentalCount = rentals.length;
+  const totalSaleCount = sales.length;
   const handlePageChange = (newPage: number) => {
     if (activeTab === 'sale') setSalePage(newPage);else
     setRentPage(newPage);
@@ -149,13 +173,22 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
         </div>
         <div className="flex gap-3">
           {onNavigate &&
-          <button
-            onClick={() => onNavigate('quick-rental')}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm">
+          <>
+              <button
+              onClick={() => onNavigate('quick-sale')}
+              className="flex items-center gap-2 px-4 py-2.5 bg-orange-600 text-white rounded-lg text-sm font-bold hover:bg-orange-700 transition-colors shadow-sm">
 
-              <Zap className="w-5 h-5" />
-              Quick Rental
-            </button>
+                <ShoppingCart className="w-5 h-5" />
+                Quick Sale
+              </button>
+              <button
+              onClick={() => onNavigate('quick-rental')}
+              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm">
+
+                <Zap className="w-5 h-5" />
+                Quick Rental
+              </button>
+            </>
           }
           <button
             onClick={() => {
@@ -273,11 +306,11 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
 
           <ShoppingCart className="w-4 h-4" />
           Sale Items
-          {!loading && activeTab === 'sale' &&
-          <span className="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-white/20">
-              {totalCount}
-            </span>
-          }
+          <span
+            className={`ml-1 text-xs px-1.5 py-0.5 rounded-full ${activeTab === 'sale' ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>
+
+            {saleProductCount}
+          </span>
         </button>
         <button
           onClick={() => handleTabChange('rent')}
@@ -285,12 +318,51 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
 
           <Clock className="w-4 h-4" />
           Rent Items
-          {!loading && activeTab === 'rent' &&
-          <span className="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-white/20">
-              {totalCount}
-            </span>
-          }
+          <span
+            className={`ml-1 text-xs px-1.5 py-0.5 rounded-full ${activeTab === 'rent' ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>
+
+            {rentProductCount}
+          </span>
         </button>
+
+        {/* Bill counts from preloaded data */}
+        <div className="ml-auto flex items-center gap-3">
+          <div className="flex items-center gap-1.5 text-xs text-gray-500">
+            <div
+              className={`w-2 h-2 rounded-full ${activeRentalCount > 0 ? 'bg-blue-500' : 'bg-gray-300'}`} />
+
+            <span className="font-medium">
+              {rentalsLoading ?
+              '…' :
+
+              <>
+                  <span className="font-bold text-[#2d4059]">
+                    {activeRentalCount}
+                  </span>{' '}
+                  active rentals
+                </>
+              }
+            </span>
+          </div>
+          <div className="w-px h-4 bg-gray-200" />
+          <div className="flex items-center gap-1.5 text-xs text-gray-500">
+            <div
+              className={`w-2 h-2 rounded-full ${totalSaleCount > 0 ? 'bg-[#f5a623]' : 'bg-gray-300'}`} />
+
+            <span className="font-medium">
+              {salesLoading ?
+              '…' :
+
+              <>
+                  <span className="font-bold text-[#2d4059]">
+                    {totalSaleCount}
+                  </span>{' '}
+                  sales
+                </>
+              }
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Loading */}

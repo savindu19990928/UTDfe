@@ -6,12 +6,14 @@ import { Cart } from './components/Cart';
 import { BillPreview } from './components/BillPreview';
 import { HistoryPage } from './components/HistoryPage';
 import { QuickRental } from './components/QuickRental';
+import { QuickSale } from './components/QuickSale';
 import { LoginPage } from './components/LoginPage';
 import { DamageTracker } from './components/DamageTracker';
 import { ExpenseTracker } from './components/ExpenseTracker';
 import { CustomerManager } from './components/CustomerManager';
 import { Bill, DamageRecord, CashTransaction } from './types';
 import { getToken, clearToken } from './utils/auth';
+import { useDataPreloader } from './hooks/useDataPreloader';
 type Page =
 'catalog' |
 'history' |
@@ -20,7 +22,8 @@ type Page =
 'damages' |
 'expenses' |
 'customers' |
-'quick-rental';
+'quick-rental' |
+'quick-sale';
 const initialCustomers: CustomerRecord[] = [
 {
   id: 'CUST-1',
@@ -79,6 +82,8 @@ function AppContent() {
     []
   );
   const { clearCart } = useCart();
+  // Preload sales, rentals, and product data in background once logged in
+  useDataPreloader();
   const handleNavigate = (page: Page) => {
     setCurrentPage(page);
     window.scrollTo(0, 0);
@@ -160,6 +165,14 @@ function AppContent() {
   if (currentPage === 'quick-rental') {
     return (
       <QuickRental
+        onGenerateBill={handleGenerateBill}
+        onCancel={() => setCurrentPage('catalog')} />);
+
+
+  }
+  if (currentPage === 'quick-sale') {
+    return (
+      <QuickSale
         onGenerateBill={handleGenerateBill}
         onCancel={() => setCurrentPage('catalog')} />);
 

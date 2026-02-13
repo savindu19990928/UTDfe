@@ -1,55 +1,48 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
 @layer base {
   body {
     @apply bg-[#faf8f5] text-[#1a1a2e] font-sans antialiased;
   }
-  
   h1, h2, h3, h4, h5, h6 {
     @apply font-bold tracking-tight;
   }
 }
-
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
-
 ::-webkit-scrollbar-track {
   @apply bg-[#e8e4e0];
 }
-
 ::-webkit-scrollbar-thumb {
   @apply bg-[#2d4059] rounded-full;
 }
-
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-[#1a1a2e];
 }
-
 /* Print Styles */
 @media print {
   @page {
     margin: 0.5cm;
     size: A4;
   }
-
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
-
   body {
     background: white !important;
     color: black !important;
     margin: 0 !important;
     padding: 0 !important;
   }
-
   /* Hide everything that is NOT the print area */
   .no-print,
   header,
@@ -57,19 +50,16 @@
   nav {
     display: none !important;
   }
-
   /* The parent wrapper of BillPreview — hide its background/padding */
   body > #root > * {
     background: white !important;
     padding: 0 !important;
     margin: 0 !important;
   }
-
   /* Hide action buttons above the bill */
   button {
     display: none !important;
   }
-
   /* But keep the print area fully visible */
   #print-area {
     display: block !important;
@@ -84,104 +74,82 @@
     box-shadow: none !important;
     border: none !important;
   }
-
   /* Ensure all children inside print area are visible with correct display */
   #print-area * {
     visibility: visible !important;
   }
-
   /* Preserve proper display types for table elements */
   #print-area table {
     display: table !important;
   }
-
   #print-area thead {
     display: table-header-group !important;
   }
-
   #print-area tbody {
     display: table-row-group !important;
   }
-
   #print-area tr {
     display: table-row !important;
   }
-
   #print-area th,
   #print-area td {
     display: table-cell !important;
   }
-
   /* Preserve flex and grid layouts */
   #print-area .flex,
   #print-area [class*="flex"] {
     display: flex !important;
   }
-
   #print-area .grid,
   #print-area [class*="grid"] {
     display: grid !important;
   }
-
   #print-area .inline-flex,
   #print-area [class*="inline-flex"] {
     display: inline-flex !important;
   }
-
   #print-area .inline,
   #print-area [class*="inline"] {
     display: inline !important;
   }
-
   /* Preserve block elements */
   #print-area div {
     display: block !important;
   }
-
   /* But override div display for flex/grid parents */
   #print-area div[class*="flex"] {
     display: flex !important;
   }
-
   #print-area div[class*="grid"] {
     display: grid !important;
   }
-
   /* Images should be inline */
   #print-area img {
     display: inline-block !important;
   }
-
   /* Spans inline */
   #print-area span {
     display: inline !important;
   }
-
   #print-area p {
     display: block !important;
   }
-
   #print-area address {
     display: block !important;
   }
-
   #print-area ol {
     display: block !important;
   }
-
   #print-area li {
     display: list-item !important;
   }
-
   #print-area h1, #print-area h2, #print-area h3, #print-area h4 {
     display: block !important;
   }
-
   /* Remove shadows and decorative borders for print */
   .no-print-shadow {
     box-shadow: none !important;
   }
-
   /* Force black text where needed */
   .print-black-text {
     color: black !important;

@@ -39,6 +39,8 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
   const [paymentMethod, setPaymentMethod] = useState<
     'cash' | 'card' | 'bank_transfer'>(
     'cash');
+  const [customBillNumber, setCustomBillNumber] = useState('');
+  const [billNumberError, setBillNumberError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   // Fetch customers from API with search
   const { customers, loading: customersLoading } = useCustomers({
@@ -104,10 +106,19 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
     if (hasRentals) {
       // POST to rentals/ API
       if (!selectedCustomerData) return;
+      // Validate custom bill number if provided
+      if (customBillNumber.trim()) {
+        const numPart = customBillNumber.trim();
+        if (!/^\d{1,5}$/.test(numPart)) {
+          setBillNumberError('Enter 1-5 digits (e.g. 00001)');
+          return;
+        }
+        setBillNumberError(null);
+      }
       setSubmitting(true);
       setSubmitError(null);
       const today = new Date().toISOString().split('T')[0];
-      const apiBody = {
+      const apiBody: any = {
         customer: parseInt(selectedCustomerId),
         initial_deposit: depositAmount.toFixed(2),
         initial_deposit_date: today,
@@ -128,6 +139,11 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
         payment_method: 'cash',
         discount: discountPercent.toFixed(2)
       };
+      // Only send bill_number if user entered one
+      if (customBillNumber.trim()) {
+        const padded = customBillNumber.trim().padStart(5, '0');
+        apiBody.bill_number = `RENT-${padded}`;
+      }
       try {
         const res = await fetch(`${API_URL}rentals/`, {
           method: 'POST',
@@ -446,6 +462,46 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
                 <span>Total</span>
                 <span>{formatPrice(grandTotal)}</span>
               </div>
+
+              {/* Custom Bill Number — Only for Rentals */}
+              {hasRentals &&
+              <div className="pt-4 mt-4 border-t border-gray-200 space-y-2">
+                  <label className="text-sm font-medium text-gray-600 flex items-center justify-between">
+                    <span>Bill Number</span>
+                    <span className="text-[10px] text-gray-400 font-normal">
+                      Optional
+                    </span>
+                  </label>
+                  <div className="flex items-center gap-0">
+                    <span className="px-2.5 py-1.5 bg-gray-200 border border-r-0 border-gray-300 rounded-l-md text-xs font-mono font-bold text-gray-600 select-none">
+                      RENT-
+                    </span>
+                    <input
+                    type="text"
+                    value={customBillNumber}
+                    onChange={(e) => {
+                      const val = e.target.value.
+                      replace(/\D/g, '').
+                      slice(0, 5);
+                      setCustomBillNumber(val);
+                      setBillNumberError(null);
+                    }}
+                    placeholder="00001"
+                    maxLength={5}
+                    className={`flex-1 px-2.5 py-1.5 border rounded-r-md text-xs font-mono font-bold focus:ring-2 outline-none ${billNumberError ? 'border-red-400 focus:ring-red-300 bg-red-50' : 'border-gray-300 focus:ring-[#f5a623]'}`} />
+
+                  </div>
+                  {billNumberError &&
+                <p className="text-[10px] text-red-500 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      {billNumberError}
+                    </p>
+                }
+                  <p className="text-[10px] text-gray-400">
+                    Leave empty for auto-generated number.
+                  </p>
+                </div>
+              }
 
               {/* Deposit Input — Only for Rentals */}
               {hasRentals &&

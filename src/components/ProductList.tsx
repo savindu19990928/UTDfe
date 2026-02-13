@@ -189,7 +189,6 @@ export function ProductList({
                   {listingType === 'sale' ? 'Barcode' : 'Item Code'}
                 </th>
                 <th className="px-6 py-4 text-right">Price</th>
-                <th className="px-6 py-4 text-center">Stock</th>
                 <th className="px-6 py-4 text-right">Action</th>
               </tr>
             </thead>
@@ -235,28 +234,6 @@ export function ProductList({
                         formatPrice(product.salePrice) :
                         `${formatPrice(product.rentPricePerDay || 0)} / day`}
                         </td>
-                        <td className="px-6 py-4 text-center">
-                          {product.listingType === 'sale' ?
-                        product.stock > 0 ?
-                        <span className="text-sm font-medium text-gray-700">
-                                {product.stock}
-                              </span> :
-
-                        <span className="text-xs font-medium text-gray-400">
-                                —
-                              </span> :
-
-                        isOutOfStock ?
-                        <span className="inline-flex items-center gap-1 text-red-500 text-xs font-bold">
-                              <AlertTriangle className="w-3 h-3" />
-                              Out
-                            </span> :
-
-                        <span className="text-sm font-medium text-gray-700">
-                              {product.stock}
-                            </span>
-                        }
-                        </td>
                         <td className="px-6 py-4 text-right">
                           <button
                           onClick={() => handleAddToCart(product)}
@@ -268,7 +245,11 @@ export function ProductList({
 
                           <Clock className="w-4 h-4" />
                           }
-                            {listingType === 'sale' ? 'Add' : 'Rent'}
+                            {isOutOfStock ?
+                          'Unavailable' :
+                          listingType === 'sale' ?
+                          'Add' :
+                          'Rent'}
                           </button>
                         </td>
                       </motion.tr>);
@@ -276,7 +257,7 @@ export function ProductList({
                 }) :
 
                 <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center">
+                    <td colSpan={5} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center justify-center">
                         <div className="bg-gray-100 p-4 rounded-full mb-3">
                           <PackageOpen className="h-8 w-8 text-gray-400" />
