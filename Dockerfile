@@ -12,16 +12,17 @@ COPY --from=deps /app/node_modules ./node_modules
 RUN npm run build
 
 # 3. Production image
-FROM node:20-alpine AS runner
+FROM node:20-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
 
-RUN npm install -g serve
+RUN npm install express
+
+COPY server.js ./
 
 EXPOSE 8080
+CMD ["node", "server.js"]
 
-CMD ["sh", "-c", "serve -s dist -l 8080"]
