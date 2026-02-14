@@ -89,8 +89,10 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
           Universal Tool Depot
         </h1>
         <p className="text-xs text-gray-600">
-          123 ප්‍රධාන වීදිය, නගරය <br />
-          දුරකථන: (123) 456-7890
+          No. 200 Old Kottawa Road, Navinna, Maharagama <br />
+          Tel: 011 4294 939 &nbsp;|&nbsp; Mobile: 077 917 7134 <br />
+          E-mail: universaltooldepot@gmail.com <br />
+          නො. 200, පරණ කොට්ටව පාර, නාවින්න, මහරගම
         </p>
         <div className="mt-4 font-bold text-sm border-y-2 border-dotted border-gray-400 py-1 inline-block px-4 uppercase">
           උපකරණ නිකුත් කිරීමේ කුවිතාන්සිය
@@ -424,9 +426,9 @@ function SaleBillTemplate({ bill }: {bill: Bill;}) {
 
           </div>
           <address className="not-italic text-sm text-gray-600 space-y-1 print-black-text">
-            <p>123 Industrial Ave</p>
-            <p>Construction City, CC 10001</p>
-            <p>(555) 123-4567</p>
+            <p>No. 200 Old Kottawa Road, Navinna, Maharagama</p>
+            <p>Tel: 011 4294 939 | Mobile: 077 917 7134</p>
+            <p>universaltooldepot@gmail.com</p>
           </address>
         </div>
         <div className="text-right">
