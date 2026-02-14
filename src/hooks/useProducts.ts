@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Product } from '../types';
 import { API_URL } from '../utils/config';
 import { getAuthHeaders } from '../utils/auth';
-import { getCached, setCache, isFresh } from '../utils/apiCache';
+import { getCached, setCache, isFresh, clearCache } from '../utils/apiCache';
 
 interface UseProductsOptions {
   categoryType?: 'sell' | 'rent';
@@ -26,6 +26,7 @@ interface UseProductsReturn {
 }
 
 const PER_PAGE = 20;
+const CACHE_KEY = 'products:all';
 
 function mapApiProduct(raw: any): Product {
   const categoryType =
@@ -59,79 +60,86 @@ function mapApiProduct(raw: any): Product {
 }
 
 export function useProducts(options?: UseProductsOptions): UseProductsReturn {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [totalCount, setTotalCount] = useState(0);
 
   const categoryType = options?.categoryType;
   const categoryId = options?.categoryId;
   const page = options?.page;
   const enabled = options?.enabled !== false; // default true
 
-  const fetchProducts = useCallback(async () => {
+  // Fetch ALL products once — no filters sent to API
+  const fetchAllProducts = useCallback(async () => {
     if (!enabled) return;
 
-    let url = `${API_URL}products/`;
-    const params: string[] = [];
+    const url = `${API_URL}products/`;
 
-    if (categoryId) {
-      params.push(`category=${categoryId}`);
-    } else if (categoryType) {
-      params.push(`category__category_type=${categoryType}`);
-    }
-    if (page != null) {
-      params.push(`page=${page}`);
-    }
-    if (params.length > 0) {
-      url += '?' + params.join('&');
-    }
-
-    const cacheKey = `products:${url}`;
-
-    // Use cached data immediately if available (stale-while-revalidate)
-    const cached = getCached<{products: Product[];totalCount: number;}>(
-      cacheKey,
-      60_000
-    );
+    // Stale-while-revalidate from cache
+    const cached = getCached<Product[]>(CACHE_KEY, 5 * 60_000);
     if (cached) {
-      setProducts(cached.products);
-      setTotalCount(cached.totalCount);
+      setAllProducts(cached);
       setLoading(false);
-      // If cache is still fresh, skip network request
-      if (isFresh(cacheKey, 30_000)) return;
+      // If still fresh, skip network entirely
+      if (isFresh(CACHE_KEY, 60_000)) return;
     } else {
       setLoading(true);
     }
 
     setError(null);
     try {
-      const res = await fetch(url, {
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'application/json'
-        }
-      });
-      if (!res.ok) throw new Error(`Failed to fetch products (${res.status})`);
-      const data = await res.json();
+      const headers = {
+        ...getAuthHeaders(),
+        'Content-Type': 'application/json'
+      };
 
-      let mapped: Product[];
-      let count: number;
+      // Fetch first page
+      const firstRes = await fetch(url, { headers });
+      if (!firstRes.ok)
+      throw new Error(`Failed to fetch products (${firstRes.status})`);
+      const firstData = await firstRes.json();
 
-      if (Array.isArray(data)) {
-        mapped = data.map(mapApiProduct);
-        count = data.length;
+      let allResults: any[];
+
+      if (Array.isArray(firstData)) {
+        allResults = firstData;
       } else {
-        const rawList = data.results || [];
-        mapped = rawList.map(mapApiProduct);
-        count = data.count ?? rawList.length;
+        allResults = [...(firstData.results || [])];
+        const total = firstData.count ?? allResults.length;
+
+        // Fetch remaining pages in PARALLEL if paginated
+        if (firstData.next) {
+          const pageSize = firstData.results?.length || 20;
+          const totalPages = Math.ceil(total / pageSize);
+          const pageUrls: string[] = [];
+          for (let p = 2; p <= totalPages; p++) {
+            pageUrls.push(`${url}?page=${p}`);
+          }
+
+          if (pageUrls.length > 0) {
+            const pageResults = await Promise.all(
+              pageUrls.map(async (pageUrl) => {
+                try {
+                  const res = await fetch(pageUrl, { headers });
+                  if (!res.ok) return [];
+                  const data = await res.json();
+                  return data.results || [];
+                } catch {
+                  return [];
+                }
+              })
+            );
+            for (const results of pageResults) {
+              allResults = [...allResults, ...results];
+            }
+          }
+        }
       }
 
-      setProducts(mapped);
-      setTotalCount(count);
-      setCache(cacheKey, { products: mapped, totalCount: count });
+      const mapped = allResults.map(mapApiProduct);
+      setAllProducts(mapped);
+      setCache(CACHE_KEY, mapped);
     } catch (err: any) {
-      // Only set error if we don't have cached data to show
       if (!cached) {
         setError(err.message || 'Failed to load products');
       }
@@ -139,17 +147,47 @@ export function useProducts(options?: UseProductsOptions): UseProductsReturn {
     } finally {
       setLoading(false);
     }
-  }, [categoryType, categoryId, page, enabled]);
+  }, [enabled]);
 
   useEffect(() => {
     if (enabled) {
-      fetchProducts();
+      fetchAllProducts();
     }
-  }, [fetchProducts, enabled]);
+  }, [fetchAllProducts, enabled]);
 
-  const saleProducts = products.filter((p) => p.listingType === 'sale');
-  const rentProducts = products.filter((p) => p.listingType === 'rent');
+  // Filter locally based on categoryType and categoryId — instant, no API call
+  const filteredProducts = useMemo(() => {
+    let result = allProducts;
+    if (categoryId) {
+      result = result.filter(
+        (p) =>
+        p.categoryId != null && String(p.categoryId) === String(categoryId)
+      );
+    } else if (categoryType) {
+      const targetType = categoryType === 'sell' ? 'sale' : 'rent';
+      result = result.filter((p) => p.listingType === targetType);
+    }
+    return result;
+  }, [allProducts, categoryType, categoryId]);
 
+  // Apply local pagination if page is specified
+  const paginatedProducts = useMemo(() => {
+    if (page == null) return filteredProducts;
+    const start = (page - 1) * PER_PAGE;
+    return filteredProducts.slice(start, start + PER_PAGE);
+  }, [filteredProducts, page]);
+
+  const products = page != null ? paginatedProducts : filteredProducts;
+  const saleProducts = useMemo(
+    () => allProducts.filter((p) => p.listingType === 'sale'),
+    [allProducts]
+  );
+  const rentProducts = useMemo(
+    () => allProducts.filter((p) => p.listingType === 'rent'),
+    [allProducts]
+  );
+
+  const totalCount = filteredProducts.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / PER_PAGE));
   const currentPage = page ?? 1;
 
@@ -164,6 +202,9 @@ export function useProducts(options?: UseProductsOptions): UseProductsReturn {
     currentPage,
     hasNext: currentPage < totalPages,
     hasPrev: currentPage > 1,
-    refetch: fetchProducts
+    refetch: () => {
+      clearCache('products');
+      fetchAllProducts();
+    }
   };
 }

@@ -12,8 +12,11 @@ import { DamageTracker } from './components/DamageTracker';
 import { ExpenseTracker } from './components/ExpenseTracker';
 import { CustomerManager } from './components/CustomerManager';
 import { Bill, DamageRecord, CashTransaction } from './types';
-import { getToken, clearToken } from './utils/auth';
+import { getToken, clearToken, getAuthHeaders } from './utils/auth';
 import { useDataPreloader } from './hooks/useDataPreloader';
+import { API_URL } from './utils/config';
+import { AlertTriangle, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 type Page =
 'catalog' |
 'history' |
@@ -81,9 +84,32 @@ function AppContent() {
   const [cashTransactions, setCashTransactions] = useState<CashTransaction[]>(
     []
   );
+  const [overdueMessage, setOverdueMessage] = useState<string | null>(null);
   const { clearCart } = useCart();
   // Preload sales, rentals, and product data in background once logged in
   useDataPreloader();
+  // Check for overdue rentals after login
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const checkOverdue = async () => {
+      try {
+        const res = await fetch(`${API_URL}rentals/check_overdue/`, {
+          headers: {
+            ...getAuthHeaders(),
+            'Content-Type': 'application/json'
+          }
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.message) {
+          setOverdueMessage(data.message);
+        }
+      } catch {
+
+        // Silent fail — non-critical
+      }};
+    checkOverdue();
+  }, [isLoggedIn]);
   const handleNavigate = (page: Page) => {
     setCurrentPage(page);
     window.scrollTo(0, 0);
@@ -185,6 +211,47 @@ function AppContent() {
         onNavigate={handleNavigate}
         onLogout={handleLogout} />
 
+
+      {/* Overdue Rentals Banner */}
+      <AnimatePresence>
+        {overdueMessage &&
+        <motion.div
+          initial={{
+            height: 0,
+            opacity: 0
+          }}
+          animate={{
+            height: 'auto',
+            opacity: 1
+          }}
+          exit={{
+            height: 0,
+            opacity: 0
+          }}
+          transition={{
+            duration: 0.25
+          }}
+          className="overflow-hidden">
+
+            <div className="bg-amber-50 border-b border-amber-200">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                  <p className="text-sm font-medium text-amber-800 truncate">
+                    {overdueMessage}
+                  </p>
+                </div>
+                <button
+                onClick={() => setOverdueMessage(null)}
+                className="p-1 text-amber-500 hover:text-amber-700 hover:bg-amber-100 rounded transition-colors flex-shrink-0">
+
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        }
+      </AnimatePresence>
 
       <main className="flex-grow">
         {currentPage === 'catalog' &&

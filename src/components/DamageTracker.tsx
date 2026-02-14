@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { DamageRecord, Product } from '../types';
 import {
   AlertTriangle,
@@ -6,13 +6,27 @@ import {
   Search,
   Trash2,
   AlertCircle,
-  Loader2 } from
+  Loader2,
+  RefreshCw,
+  User,
+  Hash } from
 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useProducts } from '../hooks/useProducts';
 import { formatPrice } from '../utils/format';
 import { API_URL } from '../utils/config';
 import { getAuthHeaders } from '../utils/auth';
+interface ApiDamageRecord {
+  id: number;
+  product_name: string;
+  reported_by_name: string;
+  quantity: number;
+  reason: string;
+  identifier: string;
+  reported_at: string;
+  product: number;
+  reported_by: number;
+}
 interface DamageTrackerProps {
   damages: DamageRecord[];
   onAddDamage: (damage: DamageRecord) => void;
@@ -29,7 +43,33 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // API fetch state
+  const [apiDamages, setApiDamages] = useState<ApiDamageRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const { products } = useProducts();
+  // Fetch damaged products from API
+  const fetchDamages = useCallback(async () => {
+    setLoading(true);
+    setFetchError(null);
+    try {
+      const res = await fetch(`${API_URL}damaged-products/`, {
+        headers: getAuthHeaders()
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to fetch damage reports (${res.status})`);
+      }
+      const data = await res.json();
+      setApiDamages(data.results || []);
+    } catch (err: any) {
+      setFetchError(err.message || 'Failed to load damage reports');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    fetchDamages();
+  }, [fetchDamages]);
   // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -94,6 +134,8 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
         throw new Error(
           errData?.detail ||
           errData?.message ||
+          errData?.error || (
+          typeof errData === 'object' ? JSON.stringify(errData) : null) ||
           `Failed to report damage (${res.status})`
         );
       }
@@ -114,6 +156,8 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
       onAddDamage(newDamage);
       setIsFormOpen(false);
       resetForm();
+      // Refetch from API to get the latest list
+      fetchDamages();
     } catch (err: any) {
       setSubmitError(err.message || 'Failed to submit damage report');
     } finally {
@@ -128,8 +172,20 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
     setNotes('');
   };
   const stats = {
-    totalReports: damages.length,
-    totalItems: damages.reduce((acc, curr) => acc + curr.damagedQty, 0)
+    totalReports: apiDamages.length,
+    totalItems: apiDamages.reduce((acc, curr) => acc + curr.quantity, 0)
+  };
+  const formatDate = (isoString: string) => {
+    try {
+      const d = new Date(isoString);
+      return d.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch {
+      return isoString;
+    }
   };
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -140,28 +196,20 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
           </h1>
           <p className="text-gray-600">Track damaged inventory.</p>
         </div>
-        <button
-          onClick={() => setIsFormOpen(!isFormOpen)}
-          className="flex items-center gap-2 bg-[#f5a623] hover:bg-[#d4901e] text-[#1a1a2e] px-4 py-2.5 rounded-lg font-bold transition-colors shadow-sm">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={fetchDamages}
+            className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors">
 
-          <Plus className="w-5 h-5" />
-          Add Report
-        </button>
-      </div>
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            onClick={() => setIsFormOpen(!isFormOpen)}
+            className="flex items-center gap-2 bg-[#f5a623] hover:bg-[#d4901e] text-[#1a1a2e] px-4 py-2.5 rounded-lg font-bold transition-colors shadow-sm">
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-          <p className="text-sm font-medium text-gray-500">Total Reports</p>
-          <p className="text-3xl font-bold text-[#2d4059]">
-            {stats.totalReports}
-          </p>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-          <p className="text-sm font-medium text-gray-500">Items Damaged</p>
-          <p className="text-3xl font-bold text-orange-600">
-            {stats.totalItems}
-          </p>
+            <Plus className="w-5 h-5" />
+            Add Report
+          </button>
         </div>
       </div>
 
@@ -364,54 +412,97 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
         }
       </AnimatePresence>
 
+      {/* Loading */}
+      {loading && apiDamages.length === 0 &&
+      <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 text-[#f5a623] animate-spin" />
+          <span className="ml-3 text-gray-500 font-medium">
+            Loading damage reports...
+          </span>
+        </div>
+      }
+
+      {/* Error */}
+      {fetchError && !loading &&
+      <div className="bg-red-50 border border-red-200 rounded-xl p-6 mb-8 text-center">
+          <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+          <p className="text-red-700 font-medium mb-3">{fetchError}</p>
+          <button
+          onClick={fetchDamages}
+          className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors">
+
+            Retry
+          </button>
+        </div>
+      }
+
       {/* List */}
+      {!loading && !fetchError &&
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200">
+                <tr>
+                  <th className="px-6 py-3">Date</th>
+                  <th className="px-6 py-3">Product</th>
+                  <th className="px-6 py-3">Identifier</th>
+                  <th className="px-6 py-3">Qty</th>
+                  <th className="px-6 py-3">Reason</th>
+                  <th className="px-6 py-3">Reported By</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {apiDamages.length === 0 ?
               <tr>
-                <th className="px-6 py-3">Date</th>
-                <th className="px-6 py-3">Product</th>
-                <th className="px-6 py-3">Qty</th>
-                <th className="px-6 py-3">Notes</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {damages.length === 0 ?
-              <tr>
-                  <td
-                  colSpan={4}
+                    <td
+                  colSpan={6}
                   className="px-6 py-8 text-center text-gray-500">
 
-                    No damage reports recorded yet.
-                  </td>
-                </tr> :
+                      No damage reports recorded yet.
+                    </td>
+                  </tr> :
 
-              damages.map((damage) =>
+              apiDamages.map((damage) =>
               <tr
                 key={damage.id}
                 className="hover:bg-gray-50 transition-colors">
 
-                    <td className="px-6 py-4 text-gray-600">{damage.date}</td>
-                    <td className="px-6 py-4 font-medium text-[#1a1a2e]">
-                      {damage.productName}
-                    </td>
-                    <td className="px-6 py-4 text-gray-600">
-                      {damage.damagedQty}
-                    </td>
-                    <td
+                      <td className="px-6 py-4 text-gray-600 whitespace-nowrap">
+                        {formatDate(damage.reported_at)}
+                      </td>
+                      <td className="px-6 py-4 font-medium text-[#1a1a2e]">
+                        {damage.product_name}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="font-mono text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                          {damage.identifier}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 font-bold text-orange-600">
+                        {damage.quantity}
+                      </td>
+                      <td
                   className="px-6 py-4 text-gray-500 max-w-xs truncate"
-                  title={damage.notes}>
+                  title={damage.reason}>
 
-                      {damage.notes || '-'}
-                    </td>
-                  </tr>
+                        {damage.reason || '-'}
+                      </td>
+                      <td className="px-6 py-4 text-gray-600">
+                        <div className="flex items-center gap-1.5">
+                          <User className="w-3.5 h-3.5 text-gray-400" />
+                          <span className="text-sm">
+                            {damage.reported_by_name}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
               )
               }
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      }
     </div>);
 
 }

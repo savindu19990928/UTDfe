@@ -2,7 +2,10 @@
 // Prevents redundant fetches when navigating between pages
 
 const cache = new Map<string, {data: any;ts: number;}>();
-const DEFAULT_TTL = 30_000; // 30 seconds
+const DEFAULT_TTL = 5 * 60_000; // 5 minutes
+const FRESH_TTL = 60_000; // 1 minute — considered "fresh" (skip network)
+
+export { DEFAULT_TTL, FRESH_TTL };
 
 export function getCached<T = any>(key: string, ttl = DEFAULT_TTL): T | null {
   const entry = cache.get(key);
@@ -14,7 +17,7 @@ export function getCached<T = any>(key: string, ttl = DEFAULT_TTL): T | null {
   return entry.data;
 }
 
-export function isFresh(key: string, ttl = DEFAULT_TTL): boolean {
+export function isFresh(key: string, ttl = FRESH_TTL): boolean {
   const entry = cache.get(key);
   if (!entry) return false;
   return Date.now() - entry.ts <= ttl;

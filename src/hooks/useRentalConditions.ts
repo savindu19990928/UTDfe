@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { API_URL } from '../utils/config';
 import { getAuthHeaders } from '../utils/auth';
+import { getCached, setCache, isFresh } from '../utils/apiCache';
 
 export interface RentalCondition {
   id: number | string;
@@ -13,13 +14,24 @@ interface UseRentalConditionsReturn {
   error: string | null;
 }
 
+const CACHE_KEY = 'rentalConditions';
+
 export function useRentalConditions(): UseRentalConditionsReturn {
   const [conditions, setConditions] = useState<RentalCondition[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchConditions = useCallback(async () => {
-    setLoading(true);
+    // Conditions rarely change — use long TTL cache
+    const cached = getCached<RentalCondition[]>(CACHE_KEY, 10 * 60_000);
+    if (cached) {
+      setConditions(cached);
+      setLoading(false);
+      if (isFresh(CACHE_KEY, 5 * 60_000)) return;
+    } else {
+      setLoading(true);
+    }
+
     setError(null);
     try {
       const res = await fetch(`${API_URL}rental-conditions/active/`, {
@@ -52,8 +64,11 @@ export function useRentalConditions(): UseRentalConditionsReturn {
       );
 
       setConditions(mapped);
+      setCache(CACHE_KEY, mapped);
     } catch (err: any) {
-      setError(err.message || 'Failed to load rental conditions');
+      if (!cached) {
+        setError(err.message || 'Failed to load rental conditions');
+      }
       console.error('Rental conditions fetch error:', err);
     } finally {
       setLoading(false);

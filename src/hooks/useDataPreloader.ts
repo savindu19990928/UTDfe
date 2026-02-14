@@ -1,14 +1,50 @@
+import { useEffect } from 'react';
+import { API_URL } from '../utils/config';
+import { getAuthHeaders } from '../utils/auth';
+import { getCached, setCache, isFresh } from '../utils/apiCache';
+
 /**
- * Data preloader — intentionally empty.
- *
- * Data is loaded lazily by each page when needed.
- * Once loaded, the apiCache makes it available to other pages
- * via stale-while-revalidate, so e.g. if CatalogPage loads
- * sale products, QuickSale can reuse them from cache.
+ * Data preloader — eagerly fetches core data on app load.
+ * Products, customers, and categories are fetched once and cached.
+ * All hooks then read from cache and filter locally.
  */
 export function useDataPreloader() {
+  useEffect(() => {
+    const headers = {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json'
+    };
 
+    // Only preload if not already cached
+    const preload = async (
+    cacheKey: string,
+    url: string,
+    mapper?: (data: any) => any) =>
+    {
+      if (isFresh(cacheKey, 60_000)) return;
+      try {
+        const res = await fetch(url, { headers });
+        if (!res.ok) return;
+        const data = await res.json();
+        const rawList = Array.isArray(data) ? data : data.results || [];
+        setCache(cacheKey, mapper ? mapper(rawList) : rawList);
+      } catch {
 
-  // No-op: each page fetches its own data on demand.
-  // The shared apiCache ensures cross-page data reuse.
+        // Silent fail — hooks will fetch on demand
+      }};
+
+    // Preload categories (small, fast)
+    preload('categories:all', `${API_URL}categories/`, (list) =>
+    list.map((c: any) => ({
+      id: c.id,
+      name: c.name || c.category_name || '',
+      category_type: c.category_type || undefined
+    }))
+    );
+
+    // Preload customers
+    if (!isFresh('customers:all', 60_000)) {
+      preload('customers:all', `${API_URL}customers/`);
+    }
+  }, []);
 }

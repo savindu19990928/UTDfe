@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { CustomerRecord } from '../types';
 import { API_URL } from '../utils/config';
 import { getAuthHeaders } from '../utils/auth';
@@ -55,47 +55,29 @@ function buildFormData(data: Partial<CustomerFormData>): FormData {
   return fd;
 }
 
+const CACHE_KEY = 'customers:all';
+
 export function useCustomers(
 options?: UseCustomersOptions)
 : UseCustomersReturn {
-  const [customers, setCustomers] = useState<CustomerRecord[]>([]);
+  const [allCustomers, setAllCustomers] = useState<CustomerRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [totalCount, setTotalCount] = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
   const search = options?.search;
-  const [debouncedSearch, setDebouncedSearch] = useState(search);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setDebouncedSearch(search);
-    }, 300);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [search]);
-
+  // Fetch ALL customers once — no search param to API
   const fetchCustomers = useCallback(async () => {
-    let url = `${API_URL}customers/`;
-    if (debouncedSearch && debouncedSearch.trim()) {
-      url += `?search=${encodeURIComponent(debouncedSearch.trim())}`;
-    }
+    const url = `${API_URL}customers/`;
 
-    const cacheKey = `customers:${url}`;
-
-    // Stale-while-revalidate
-    const cached = getCached<{
-      customers: CustomerRecord[];
-      totalCount: number;
-    }>(cacheKey, 60_000);
+    // Stale-while-revalidate from cache
+    const cached = getCached<CustomerRecord[]>(CACHE_KEY, 5 * 60_000);
     if (cached) {
-      setCustomers(cached.customers);
-      setTotalCount(cached.totalCount);
+      setAllCustomers(cached);
       setLoading(false);
-      if (isFresh(cacheKey, 20_000)) return;
+      // If still fresh, skip network entirely
+      if (isFresh(CACHE_KEY, 60_000)) return;
     } else {
       setLoading(true);
     }
@@ -113,12 +95,8 @@ options?: UseCustomersOptions)
 
       const rawList: any[] = Array.isArray(data) ? data : data.results || [];
       const mapped = rawList.map(mapApiCustomer);
-      setCustomers(mapped);
-      setTotalCount(data.count ?? rawList.length);
-      setCache(cacheKey, {
-        customers: mapped,
-        totalCount: data.count ?? rawList.length
-      });
+      setAllCustomers(mapped);
+      setCache(CACHE_KEY, mapped);
     } catch (err: any) {
       if (!cached) {
         setError(err.message || 'Failed to load customers');
@@ -127,11 +105,24 @@ options?: UseCustomersOptions)
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch]);
+  }, []);
 
   useEffect(() => {
     fetchCustomers();
   }, [fetchCustomers]);
+
+  // Filter locally based on search — instant, no API call
+  const customers = useMemo(() => {
+    if (!search || !search.trim()) return allCustomers;
+    const q = search.toLowerCase().trim();
+    return allCustomers.filter(
+      (c) =>
+      c.name.toLowerCase().includes(q) ||
+      c.phone.toLowerCase().includes(q) ||
+      c.nicNumber && c.nicNumber.toLowerCase().includes(q) ||
+      c.address && c.address.toLowerCase().includes(q)
+    );
+  }, [allCustomers, search]);
 
   const addCustomer = useCallback(
     async (data: CustomerFormData): Promise<boolean> => {
@@ -150,6 +141,7 @@ options?: UseCustomersOptions)
           `Failed (${res.status})`;
           throw new Error(msg);
         }
+        // Clear cache and refetch to include the new customer
         clearCache('customers');
         await fetchCustomers();
         return true;
@@ -180,6 +172,7 @@ options?: UseCustomersOptions)
           `Failed (${res.status})`;
           throw new Error(msg);
         }
+        // Clear cache and refetch to reflect the update
         clearCache('customers');
         await fetchCustomers();
         return true;
@@ -197,10 +190,13 @@ options?: UseCustomersOptions)
     customers,
     loading,
     error,
-    totalCount,
+    totalCount: allCustomers.length,
     submitting,
     addCustomer,
     updateCustomer,
-    refetch: fetchCustomers
+    refetch: () => {
+      clearCache('customers');
+      fetchCustomers();
+    }
   };
 }

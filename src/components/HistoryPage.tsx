@@ -972,58 +972,54 @@ export function HistoryPage({
                               </p>
                             </div>
                             {bill.rentalStatus !== 'closed' &&
-                    <>
-                                {bill.items.some(
-                        (i) => i.status === 'active' && i.apiItemId
-                      ) &&
-                      <button
-                        onClick={() => {
-                          setReturnAllConfirmBill(bill);
-                          setReturnPaymentAmount('');
-                          setActionError(null);
-                        }}
-                        disabled={
-                        actionLoading === `return-all-${bill.id}`
-                        }
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold bg-amber-500 text-white hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
-
-                                    {actionLoading ===
-                        `return-all-${bill.id}` ?
-                        <>
-                                        <Loader2 className="w-4 h-4 animate-spin" />{' '}
-                                        Returning...
-                                      </> :
-
-                        <>
-                                        <RotateCcw className="w-4 h-4" /> Return
-                                        All
-                                      </>
-                        }
-                                  </button>
+                    bill.items.some(
+                      (i) => i.status === 'active' && i.apiItemId
+                    ) &&
+                    <button
+                      onClick={() => {
+                        setReturnAllConfirmBill(bill);
+                        setReturnPaymentAmount('');
+                        setActionError(null);
+                      }}
+                      disabled={
+                      actionLoading === `return-all-${bill.id}`
                       }
-                                <button
-                        onClick={() => {
-                          setEditingBillId(isEditing ? null : bill.id);
-                          setAddItemModalBillId(null);
-                        }}
-                        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold transition-colors ${isEditing ? 'bg-gray-200 text-gray-700' : needsPayment ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold bg-amber-500 text-white hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
 
-                                  {isEditing ?
-                        <>
-                                      <X className="w-4 h-4" /> Close
-                                    </> :
-                        needsPayment ?
-                        <>
-                                      <Banknote className="w-4 h-4" /> Settle
+                                  {actionLoading === `return-all-${bill.id}` ?
+                      <>
+                                      <Loader2 className="w-4 h-4 animate-spin" />{' '}
+                                      Returning...
                                     </> :
 
-                        <>
-                                      <Edit className="w-4 h-4" /> Edit
+                      <>
+                                      <RotateCcw className="w-4 h-4" /> Return
+                                      All
                                     </>
-                        }
+                      }
                                 </button>
-                              </>
                     }
+                            <button
+                      onClick={() => {
+                        setEditingBillId(isEditing ? null : bill.id);
+                        setAddItemModalBillId(null);
+                      }}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold transition-colors ${isEditing ? 'bg-gray-200 text-gray-700' : needsPayment ? 'bg-red-600 text-white hover:bg-red-700' : bill.rentalStatus === 'closed' ? 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+
+                              {isEditing ?
+                      <>
+                                  <X className="w-4 h-4" /> Close
+                                </> :
+                      needsPayment ?
+                      <>
+                                  <Banknote className="w-4 h-4" /> Settle
+                                </> :
+
+                      <>
+                                  <Edit className="w-4 h-4" /> Edit
+                                </>
+                      }
+                            </button>
                             <button
                       onClick={() => onViewBill(bill)}
                       className="flex items-center gap-1.5 px-3 py-2 bg-[#1a1a2e] text-white rounded-lg text-sm font-bold hover:bg-[#2d4059] transition-colors">

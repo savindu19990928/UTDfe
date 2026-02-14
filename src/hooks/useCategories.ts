@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ApiCategory } from '../types';
 import { API_URL } from '../utils/config';
 import { getAuthHeaders } from '../utils/auth';
@@ -11,22 +11,22 @@ interface UseCategoriesReturn {
   refetch: () => void;
 }
 
+const CACHE_KEY = 'categories:all';
+
 export function useCategories(
 categoryType?: 'sell' | 'rent')
 : UseCategoriesReturn {
-  const [categories, setCategories] = useState<ApiCategory[]>([]);
+  const [allCategories, setAllCategories] = useState<ApiCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchCategories = useCallback(async () => {
-    const cacheKey = `categories:${categoryType || 'all'}`;
-
-    // Stale-while-revalidate — categories rarely change, use longer TTL
-    const cached = getCached<ApiCategory[]>(cacheKey, 120_000);
+    // Categories rarely change — use long TTL cache
+    const cached = getCached<ApiCategory[]>(CACHE_KEY, 10 * 60_000);
     if (cached) {
-      setCategories(cached);
+      setAllCategories(cached);
       setLoading(false);
-      if (isFresh(cacheKey, 60_000)) return;
+      if (isFresh(CACHE_KEY, 5 * 60_000)) return;
     } else {
       setLoading(true);
     }
@@ -43,19 +43,14 @@ categoryType?: 'sell' | 'rent')
       const data = await res.json();
       const rawList: any[] = Array.isArray(data) ? data : data.results || [];
 
-      let mapped: ApiCategory[] = rawList.map((c: any) => ({
+      const mapped: ApiCategory[] = rawList.map((c: any) => ({
         id: c.id,
         name: c.name || c.category_name || '',
         category_type: c.category_type || undefined
       }));
 
-      // Filter by category_type if specified
-      if (categoryType) {
-        mapped = mapped.filter((c) => c.category_type === categoryType);
-      }
-
-      setCategories(mapped);
-      setCache(cacheKey, mapped);
+      setAllCategories(mapped);
+      setCache(CACHE_KEY, mapped);
     } catch (err: any) {
       if (!cached) {
         setError(err.message || 'Failed to load categories');
@@ -64,11 +59,17 @@ categoryType?: 'sell' | 'rent')
     } finally {
       setLoading(false);
     }
-  }, [categoryType]);
+  }, []);
 
   useEffect(() => {
     fetchCategories();
   }, [fetchCategories]);
+
+  // Filter locally by category_type — no separate API calls
+  const categories = useMemo(() => {
+    if (!categoryType) return allCategories;
+    return allCategories.filter((c) => c.category_type === categoryType);
+  }, [allCategories, categoryType]);
 
   return { categories, loading, error, refetch: fetchCategories };
 }
