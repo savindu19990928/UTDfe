@@ -57,13 +57,17 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
   const { products: allProducts } = useProducts({
     enabled: scanMode
   });
-  // Preloaded counts for both product types (from cache)
-  const { totalCount: saleProductCount } = useProducts({
+  // Preloaded counts for both product types
+  const { totalCount: saleProductCount, loading: saleCountLoading } =
+  useProducts({
     categoryType: 'sell',
+    page: 1,
     enabled: true
   });
-  const { totalCount: rentProductCount } = useProducts({
+  const { totalCount: rentProductCount, loading: rentCountLoading } =
+  useProducts({
     categoryType: 'rent',
+    page: 1,
     enabled: true
   });
   // Preloaded rental & sale bill counts (from cache via useDataPreloader)
@@ -309,7 +313,7 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
           <span
             className={`ml-1 text-xs px-1.5 py-0.5 rounded-full ${activeTab === 'sale' ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>
 
-            {saleProductCount}
+            {saleCountLoading ? '…' : saleProductCount}
           </span>
         </button>
         <button
@@ -321,7 +325,7 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
           <span
             className={`ml-1 text-xs px-1.5 py-0.5 rounded-full ${activeTab === 'rent' ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>
 
-            {rentProductCount}
+            {rentCountLoading ? '…' : rentProductCount}
           </span>
         </button>
 
