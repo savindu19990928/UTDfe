@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Product } from '../types';
 import { API_URL } from '../utils/config';
 import { getAuthHeaders } from '../utils/auth';
@@ -8,7 +8,6 @@ interface UseProductsOptions {
   categoryType?: 'sell' | 'rent';
   categoryId?: number | string;
   page?: number;
-  search?: string;
   enabled?: boolean;
 }
 
@@ -27,6 +26,7 @@ interface UseProductsReturn {
 }
 
 const PER_PAGE = 20;
+const CACHE_KEY = 'products:all';
 
 function mapApiProduct(raw: any): Product {
   const categoryType =
@@ -59,73 +59,29 @@ function mapApiProduct(raw: any): Product {
   };
 }
 
-// Build cache key from params
-function buildCacheKey(params: URLSearchParams): string {
-  const sorted = Array.from(params.entries()).sort(([a], [b]) =>
-  a.localeCompare(b)
-  );
-  return `products:${sorted.map(([k, v]) => `${k}=${v}`).join('&') || 'all'}`;
-}
-
-// Build API URL with query params
-function buildApiUrl(options?: UseProductsOptions): {
-  url: string;
-  cacheKey: string;
-} {
-  const params = new URLSearchParams();
-  if (options?.categoryId) {
-    params.set('category', String(options.categoryId));
-  } else if (options?.categoryType) {
-    params.set('category_type', options.categoryType);
-  }
-  if (options?.page) {
-    params.set('page', String(options.page));
-  }
-  if (options?.search) {
-    params.set('search', options.search);
-  }
-  const qs = params.toString();
-  return {
-    url: `${API_URL}products/${qs ? `?${qs}` : ''}`,
-    cacheKey: buildCacheKey(params)
-  };
-}
-
 export function useProducts(options?: UseProductsOptions): UseProductsReturn {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [totalCount, setTotalCount] = useState(0);
 
   const categoryType = options?.categoryType;
   const categoryId = options?.categoryId;
-  const page = options?.page ?? 1;
-  const search = options?.search;
-  const enabled = options?.enabled !== false;
+  const page = options?.page;
+  const enabled = options?.enabled !== false; // default true
 
-  // Track current request to avoid stale responses
-  const requestIdRef = useRef(0);
-
-  const { url, cacheKey } = useMemo(
-    () => buildApiUrl(options),
-    [categoryType, categoryId, page, search]
-  );
-
-  const fetchProducts = useCallback(async () => {
+  // Fetch ALL products once — no filters sent to API
+  const fetchAllProducts = useCallback(async () => {
     if (!enabled) return;
 
-    const currentRequestId = ++requestIdRef.current;
+    const url = `${API_URL}products/`;
 
     // Stale-while-revalidate from cache
-    const cached = getCached<{products: Product[];totalCount: number;}>(
-      cacheKey,
-      5 * 60_000
-    );
+    const cached = getCached<Product[]>(CACHE_KEY, 5 * 60_000);
     if (cached) {
-      setProducts(cached.products);
-      setTotalCount(cached.totalCount);
+      setAllProducts(cached);
       setLoading(false);
-      if (isFresh(cacheKey, 60_000)) return;
+      // If still fresh, skip network entirely
+      if (isFresh(CACHE_KEY, 60_000)) return;
     } else {
       setLoading(true);
     }
@@ -137,65 +93,103 @@ export function useProducts(options?: UseProductsOptions): UseProductsReturn {
         'Content-Type': 'application/json'
       };
 
-      const res = await fetch(url, { headers });
+      // Fetch first page
+      const firstRes = await fetch(url, { headers });
+      if (!firstRes.ok)
+      throw new Error(`Failed to fetch products (${firstRes.status})`);
+      const firstData = await firstRes.json();
 
-      // Abort if a newer request has been made
-      if (currentRequestId !== requestIdRef.current) return;
+      let allResults: any[];
 
-      if (!res.ok) throw new Error(`Failed to fetch products (${res.status})`);
-      const data = await res.json();
-
-      let results: any[];
-      let count: number;
-
-      if (Array.isArray(data)) {
-        results = data;
-        count = data.length;
+      if (Array.isArray(firstData)) {
+        allResults = firstData;
       } else {
-        results = data.results || [];
-        count = data.count ?? results.length;
-      }
+        allResults = [...(firstData.results || [])];
+        const total = firstData.count ?? allResults.length;
 
-      const mapped = results.map(mapApiProduct);
+        // Fetch remaining pages in PARALLEL if paginated
+        if (firstData.next) {
+          const pageSize = firstData.results?.length || 20;
+          const totalPages = Math.ceil(total / pageSize);
+          const pageUrls: string[] = [];
+          for (let p = 2; p <= totalPages; p++) {
+            pageUrls.push(`${url}?page=${p}`);
+          }
 
-      // Only update state if this is still the latest request
-      if (currentRequestId === requestIdRef.current) {
-        setProducts(mapped);
-        setTotalCount(count);
-        setCache(cacheKey, { products: mapped, totalCount: count });
-      }
-    } catch (err: any) {
-      if (currentRequestId === requestIdRef.current) {
-        if (!cached) {
-          setError(err.message || 'Failed to load products');
+          if (pageUrls.length > 0) {
+            const pageResults = await Promise.all(
+              pageUrls.map(async (pageUrl) => {
+                try {
+                  const res = await fetch(pageUrl, { headers });
+                  if (!res.ok) return [];
+                  const data = await res.json();
+                  return data.results || [];
+                } catch {
+                  return [];
+                }
+              })
+            );
+            for (const results of pageResults) {
+              allResults = [...allResults, ...results];
+            }
+          }
         }
-        console.error('Product fetch error:', err);
       }
+
+      const mapped = allResults.map(mapApiProduct);
+      setAllProducts(mapped);
+      setCache(CACHE_KEY, mapped);
+    } catch (err: any) {
+      if (!cached) {
+        setError(err.message || 'Failed to load products');
+      }
+      console.error('Product fetch error:', err);
     } finally {
-      if (currentRequestId === requestIdRef.current) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
-  }, [enabled, url, cacheKey]);
+  }, [enabled]);
 
   useEffect(() => {
     if (enabled) {
-      fetchProducts();
+      fetchAllProducts();
     }
-  }, [fetchProducts, enabled]);
+  }, [fetchAllProducts, enabled]);
 
-  // Derived convenience lists (only meaningful when no filters applied)
+  // Filter locally based on categoryType and categoryId — instant, no API call
+  const filteredProducts = useMemo(() => {
+    let result = allProducts;
+    if (categoryId) {
+      result = result.filter(
+        (p) =>
+        p.categoryId != null && String(p.categoryId) === String(categoryId)
+      );
+    } else if (categoryType) {
+      const targetType = categoryType === 'sell' ? 'sale' : 'rent';
+      result = result.filter((p) => p.listingType === targetType);
+    }
+    return result;
+  }, [allProducts, categoryType, categoryId]);
+
+  // Apply local pagination if page is specified
+  const paginatedProducts = useMemo(() => {
+    if (page == null) return filteredProducts;
+    const start = (page - 1) * PER_PAGE;
+    return filteredProducts.slice(start, start + PER_PAGE);
+  }, [filteredProducts, page]);
+
+  const products = page != null ? paginatedProducts : filteredProducts;
   const saleProducts = useMemo(
-    () => products.filter((p) => p.listingType === 'sale'),
-    [products]
+    () => allProducts.filter((p) => p.listingType === 'sale'),
+    [allProducts]
   );
   const rentProducts = useMemo(
-    () => products.filter((p) => p.listingType === 'rent'),
-    [products]
+    () => allProducts.filter((p) => p.listingType === 'rent'),
+    [allProducts]
   );
 
+  const totalCount = filteredProducts.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / PER_PAGE));
-  const currentPage = page;
+  const currentPage = page ?? 1;
 
   return {
     products,
@@ -209,8 +203,8 @@ export function useProducts(options?: UseProductsOptions): UseProductsReturn {
     hasNext: currentPage < totalPages,
     hasPrev: currentPage > 1,
     refetch: () => {
-      clearCache(cacheKey);
-      fetchProducts();
+      clearCache('products');
+      fetchAllProducts();
     }
   };
 }

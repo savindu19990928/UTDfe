@@ -69,23 +69,27 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
   const newNicRef = useRef<HTMLInputElement>(null);
   const newPhoneRef = useRef<HTMLInputElement>(null);
   const newAddressRef = useRef<HTMLInputElement>(null);
-  // Search products via API — only when 3+ characters typed
-  const searchQuery =
-  productSearch.trim().length >= 3 ? productSearch.trim() : undefined;
-  const { products: searchResults, loading: searchLoading } = useProducts({
-    search: searchQuery,
+  // Fetch rental products
+  const { rentProducts } = useProducts({
     categoryType: 'rent',
-    enabled: !!searchQuery
+    enabled: true
   });
   // Fetch customers
   const { customers, loading: customersLoading } = useCustomers({
     search: customerSearch
   });
-  // Products to show in dropdown
+  // Filter products locally for speed
   const filteredProducts = useMemo(() => {
-    if (!searchQuery) return [];
-    return searchResults.slice(0, 10);
-  }, [searchQuery, searchResults]);
+    if (!productSearch.trim()) return [];
+    const q = productSearch.toLowerCase();
+    return rentProducts.
+    filter(
+      (p) =>
+      p.name.toLowerCase().includes(q) ||
+      p.itemCode?.toLowerCase().includes(q)
+    ).
+    slice(0, 10);
+  }, [productSearch, rentProducts]);
   // Helper: get total quantity already in cart for a given product
   const getUsedQty = (productId: string, excludeIndex?: number) => {
     return items.reduce((sum, item, idx) => {
@@ -924,16 +928,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                     }}
                     className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 max-h-80 overflow-y-auto z-30">
 
-                        {productSearch.trim().length < 3 ?
-                    <div className="p-4 text-center text-gray-400 text-sm">
-                            Type at least 3 characters to search...
-                          </div> :
-                    searchLoading ?
-                    <div className="p-4 text-center text-gray-400 flex items-center justify-center gap-2">
-                            <Loader2 className="w-4 h-4 animate-spin" />{' '}
-                            Searching...
-                          </div> :
-                    filteredProducts.length > 0 ?
+                        {filteredProducts.length > 0 ?
                     filteredProducts.map((product) =>
                     <button
                       key={product.id}
