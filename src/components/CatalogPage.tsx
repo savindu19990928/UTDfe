@@ -7,8 +7,9 @@ import {
   AlertCircle,
   X,
   Loader2,
-  Zap } from
-'lucide-react';
+  Zap
+} from
+  'lucide-react';
 import { useProducts } from '../hooks/useProducts';
 import { useCategories } from '../hooks/useCategories';
 import { useRentals } from '../hooks/useRentals';
@@ -41,18 +42,21 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
   const { addToCart } = useCart();
   const currentPage = activeTab === 'sale' ? salePage : rentPage;
   const categoryType =
-  activeTab === 'sale' ? 'sell' as const : 'rent' as const;
+    activeTab === 'sale' ? 'sell' as const : 'rent' as const;
   const activeCategoryId =
-  activeTab === 'sale' ? saleCategoryId : rentCategoryId;
+    activeTab === 'sale' ? saleCategoryId : rentCategoryId;
   // Fetch categories for current tab
   const { categories } = useCategories(categoryType);
+  const activeCategoryName = categories.find(c => c.id === activeCategoryId)?.name;
+
   // Fetch products with category + pagination
   const { products, loading, error, totalCount, totalPages, refetch } =
-  useProducts({
-    categoryType: activeCategoryId ? undefined : categoryType,
-    categoryId: activeCategoryId || undefined,
-    page: currentPage
-  });
+    useProducts({
+      categoryType: categoryType,
+      categoryId: activeCategoryId || undefined,
+      categoryName: activeCategoryName,
+      page: currentPage
+    });
   // All products for barcode scanning — only fetch when scan mode is active
   const { products: allProducts } = useProducts({
     enabled: scanMode
@@ -80,8 +84,8 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
   const totalRentalCount = rentals.length;
   const totalSaleCount = sales.length;
   const handlePageChange = (newPage: number) => {
-    if (activeTab === 'sale') setSalePage(newPage);else
-    setRentPage(newPage);
+    if (activeTab === 'sale') setSalePage(newPage); else
+      setRentPage(newPage);
     window.scrollTo(0, 0);
   };
   const handleCategoryChange = (catId: string | number | null) => {
@@ -113,14 +117,14 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
       if (!trimmed) return;
       const product = allProducts.find(
         (p) =>
-        p.barcode?.toLowerCase() === trimmed.toLowerCase() ||
-        p.itemCode?.toLowerCase() === trimmed.toLowerCase()
+          p.barcode?.toLowerCase() === trimmed.toLowerCase() ||
+          p.itemCode?.toLowerCase() === trimmed.toLowerCase()
       );
       if (product) {
         const type = product.listingType;
         const success = addToCart(product, type, 1);
-        if (success) showFeedback('success', `${product.name} added to cart`);else
-        showFeedback('error', `Can't mix sale & rental items in cart`);
+        if (success) showFeedback('success', `${product.name} added to cart`); else
+          showFeedback('error', `Can't mix sale & rental items in cart`);
       } else {
         showFeedback('error', `No product found for code: ${trimmed}`);
       }
@@ -173,17 +177,17 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
         </div>
         <div className="flex gap-3">
           {onNavigate &&
-          <>
+            <>
               <button
-              onClick={() => onNavigate('quick-sale')}
-              className="flex items-center gap-2 px-4 py-2.5 bg-orange-600 text-white rounded-lg text-sm font-bold hover:bg-orange-700 transition-colors shadow-sm">
+                onClick={() => onNavigate('quick-sale')}
+                className="flex items-center gap-2 px-4 py-2.5 bg-orange-600 text-white rounded-lg text-sm font-bold hover:bg-orange-700 transition-colors shadow-sm">
 
                 <ShoppingCart className="w-5 h-5" />
                 Quick Sale
               </button>
               <button
-              onClick={() => onNavigate('quick-rental')}
-              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm">
+                onClick={() => onNavigate('quick-rental')}
+                className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm">
 
                 <Zap className="w-5 h-5" />
                 Quick Rental
@@ -207,20 +211,20 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
       {/* Scan Mode Banner */}
       <AnimatePresence>
         {scanMode &&
-        <motion.div
-          initial={{
-            height: 0,
-            opacity: 0
-          }}
-          animate={{
-            height: 'auto',
-            opacity: 1
-          }}
-          exit={{
-            height: 0,
-            opacity: 0
-          }}
-          className="overflow-hidden mb-6">
+          <motion.div
+            initial={{
+              height: 0,
+              opacity: 0
+            }}
+            animate={{
+              height: 'auto',
+              opacity: 1
+            }}
+            exit={{
+              height: 0,
+              opacity: 0
+            }}
+            className="overflow-hidden mb-6">
 
             <div className="bg-[#f5a623]/10 border-2 border-dashed border-[#f5a623] rounded-xl p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -235,10 +239,10 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
                     Scan any product barcode to add it to the cart
                     automatically.
                     {scanBuffer &&
-                  <span className="ml-2 font-mono bg-white px-2 py-0.5 rounded text-[#1a1a2e] border border-gray-200">
+                      <span className="ml-2 font-mono bg-white px-2 py-0.5 rounded text-[#1a1a2e] border border-gray-200">
                         {scanBuffer}
                       </span>
-                  }
+                    }
                   </p>
                 </div>
               </div>
@@ -248,12 +252,12 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
                   <span className="relative inline-flex rounded-full h-3 w-3 bg-[#f5a623]"></span>
                 </span>
                 <button
-                onClick={() => {
-                  setScanMode(false);
-                  bufferRef.current = '';
-                  setScanBuffer('');
-                }}
-                className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-white/50 rounded-lg transition-colors">
+                  onClick={() => {
+                    setScanMode(false);
+                    bufferRef.current = '';
+                    setScanBuffer('');
+                  }}
+                  className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-white/50 rounded-lg transition-colors">
 
                   <X className="w-4 h-4" />
                 </button>
@@ -266,32 +270,32 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
       {/* Scan Feedback Toast */}
       <AnimatePresence>
         {scanFeedback &&
-        <motion.div
-          initial={{
-            opacity: 0,
-            y: -20,
-            scale: 0.95
-          }}
-          animate={{
-            opacity: 1,
-            y: 0,
-            scale: 1
-          }}
-          exit={{
-            opacity: 0,
-            y: -20,
-            scale: 0.95
-          }}
-          className="fixed top-20 right-4 z-50">
+          <motion.div
+            initial={{
+              opacity: 0,
+              y: -20,
+              scale: 0.95
+            }}
+            animate={{
+              opacity: 1,
+              y: 0,
+              scale: 1
+            }}
+            exit={{
+              opacity: 0,
+              y: -20,
+              scale: 0.95
+            }}
+            className="fixed top-20 right-4 z-50">
 
             <div
-            className={`flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg border text-sm font-bold ${scanFeedback.type === 'success' ? 'bg-green-50 text-green-800 border-green-200' : 'bg-red-50 text-red-800 border-red-200'}`}>
+              className={`flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg border text-sm font-bold ${scanFeedback.type === 'success' ? 'bg-green-50 text-green-800 border-green-200' : 'bg-red-50 text-red-800 border-red-200'}`}>
 
               {scanFeedback.type === 'success' ?
-            <Check className="w-4 h-4 text-green-600 flex-shrink-0" /> :
+                <Check className="w-4 h-4 text-green-600 flex-shrink-0" /> :
 
-            <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
-            }
+                <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+              }
               {scanFeedback.message}
             </div>
           </motion.div>
@@ -333,9 +337,9 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
 
             <span className="font-medium">
               {rentalsLoading ?
-              '…' :
+                '…' :
 
-              <>
+                <>
                   <span className="font-bold text-[#2d4059]">
                     {activeRentalCount}
                   </span>{' '}
@@ -351,9 +355,9 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
 
             <span className="font-medium">
               {salesLoading ?
-              '…' :
+                '…' :
 
-              <>
+                <>
                   <span className="font-bold text-[#2d4059]">
                     {totalSaleCount}
                   </span>{' '}
@@ -367,7 +371,7 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
 
       {/* Loading */}
       {loading &&
-      <div className="flex items-center justify-center py-20">
+        <div className="flex items-center justify-center py-20">
           <Loader2 className="w-8 h-8 text-[#f5a623] animate-spin" />
           <span className="ml-3 text-gray-500 font-medium">
             Loading products...
@@ -377,12 +381,12 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
 
       {/* Error */}
       {error && !loading &&
-      <div className="bg-red-50 border border-red-200 rounded-xl p-6 mb-8 text-center">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 mb-8 text-center">
           <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
           <p className="text-red-700 font-medium mb-3">{error}</p>
           <button
-          onClick={() => window.location.reload()}
-          className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors">
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors">
 
             Retry
           </button>
@@ -391,17 +395,17 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
 
       {/* Product List */}
       {!loading && !error &&
-      <ProductList
-        products={products}
-        title={activeTab === 'sale' ? 'Sale Items' : 'Rental Equipment'}
-        listingType={activeTab}
-        categories={categories}
-        activeCategoryId={activeCategoryId}
-        onCategoryChange={handleCategoryChange}
-        currentPage={currentPage}
-        totalPages={totalPages}
-        totalCount={totalCount}
-        onPageChange={handlePageChange} />
+        <ProductList
+          products={products}
+          title={activeTab === 'sale' ? 'Sale Items' : 'Rental Equipment'}
+          listingType={activeTab}
+          categories={categories}
+          activeCategoryId={activeCategoryId}
+          onCategoryChange={handleCategoryChange}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalCount={totalCount}
+          onPageChange={handlePageChange} />
 
       }
     </div>);

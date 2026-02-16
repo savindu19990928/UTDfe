@@ -7,6 +7,7 @@ import { getCached, setCache, isFresh, clearCache } from '../utils/apiCache';
 interface UseProductsOptions {
   categoryType?: 'sell' | 'rent';
   categoryId?: number | string;
+  categoryName?: string;
   page?: number;
   enabled?: boolean;
 }
@@ -30,29 +31,29 @@ const CACHE_KEY = 'products:all';
 
 function mapApiProduct(raw: any): Product {
   const categoryType =
-  raw.category?.category_type || raw.category_type || raw.listingType;
+    raw.category?.category_type || raw.category_type || raw.listingType;
   const listingType: 'sale' | 'rent' =
-  categoryType === 'sell' ? 'sale' : categoryType === 'rent' ? 'rent' : 'sale';
+    categoryType === 'sell' ? 'sale' : categoryType === 'rent' ? 'rent' : 'sale';
   const price = parseFloat(raw.price ?? 0);
 
   return {
     id: String(raw.id),
     name: raw.name || raw.product_name || '',
     category:
-    raw.category?.name || raw.category_name || raw.category || 'Hand Tools',
+      raw.category?.name || raw.category_name || raw.category || 'Hand Tools',
     categoryId: raw.category?.id || raw.category_id || undefined,
     listingType,
     salePrice:
-    listingType === 'sale' ?
-    price || parseFloat(raw.sale_price ?? raw.salePrice ?? 0) :
-    parseFloat(raw.sale_price ?? raw.salePrice ?? 0),
+      listingType === 'sale' ?
+        price || parseFloat(raw.sale_price ?? raw.salePrice ?? 0) :
+        parseFloat(raw.sale_price ?? raw.salePrice ?? 0),
     rentPricePerDay:
-    listingType === 'rent' ?
-    price ||
-    parseFloat(raw.rent_price_per_day ?? raw.rentPricePerDay ?? 0) :
-    raw.rent_price_per_day != null ?
-    parseFloat(raw.rent_price_per_day) :
-    raw.rentPricePerDay ?? null,
+      listingType === 'rent' ?
+        price ||
+        parseFloat(raw.rent_price_per_day ?? raw.rentPricePerDay ?? 0) :
+        raw.rent_price_per_day != null ?
+          parseFloat(raw.rent_price_per_day) :
+          raw.rentPricePerDay ?? null,
     stock: parseInt(raw.current_stock ?? raw.stock ?? raw.quantity ?? 0, 10),
     itemCode: raw.item_number || raw.item_code || raw.itemCode || undefined,
     barcode: raw.barcode || undefined
@@ -66,6 +67,7 @@ export function useProducts(options?: UseProductsOptions): UseProductsReturn {
 
   const categoryType = options?.categoryType;
   const categoryId = options?.categoryId;
+  const categoryName = options?.categoryName;
   const page = options?.page;
   const enabled = options?.enabled !== false; // default true
 
@@ -96,7 +98,7 @@ export function useProducts(options?: UseProductsOptions): UseProductsReturn {
       // Fetch first page
       const firstRes = await fetch(url, { headers });
       if (!firstRes.ok)
-      throw new Error(`Failed to fetch products (${firstRes.status})`);
+        throw new Error(`Failed to fetch products (${firstRes.status})`);
       const firstData = await firstRes.json();
 
       let allResults: any[];
@@ -158,17 +160,30 @@ export function useProducts(options?: UseProductsOptions): UseProductsReturn {
   // Filter locally based on categoryType and categoryId — instant, no API call
   const filteredProducts = useMemo(() => {
     let result = allProducts;
-    if (categoryId) {
-      result = result.filter(
-        (p) =>
-        p.categoryId != null && String(p.categoryId) === String(categoryId)
-      );
-    } else if (categoryType) {
+
+    // First filter by type (Sale vs Rent)
+    if (categoryType) {
       const targetType = categoryType === 'sell' ? 'sale' : 'rent';
       result = result.filter((p) => p.listingType === targetType);
     }
+
+    // Then filter by specific category if selected
+    if (categoryId) {
+      result = result.filter(
+        (p) => {
+          if (p.categoryId != null) {
+            return String(p.categoryId) === String(categoryId);
+          }
+          if (categoryName) {
+            return p.category === categoryName;
+          }
+          return false;
+        }
+      );
+    }
+
     return result;
-  }, [allProducts, categoryType, categoryId]);
+  }, [allProducts, categoryType, categoryId, categoryName]);
 
   // Apply local pagination if page is specified
   const paginatedProducts = useMemo(() => {
