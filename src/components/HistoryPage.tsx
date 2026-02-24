@@ -17,7 +17,9 @@ import {
   AlertCircle,
   RefreshCw,
   Undo2,
-  Ban } from
+  Ban,
+  Wrench,
+  Trash2 } from
 'lucide-react';
 import { Bill, CartItem, Product, CashTransaction } from '../types';
 import { useProducts } from '../hooks/useProducts';
@@ -76,10 +78,18 @@ export function HistoryPage({
     null
   );
   const [returnPaymentAmount, setReturnPaymentAmount] = useState('');
+  // Fines state for return modal
+  const [returnFines, setReturnFines] = useState<
+    {
+      reason: string;
+      fine: string;
+    }[]>(
+    []);
   const [rentalReturnResult, setRentalReturnResult] = useState<{
     refundAmount: number;
     totalRentalFee: number;
     paymentProcessed: number;
+    totalFines: number;
     allReturned: boolean;
     billId: string;
   } | null>(null);
@@ -334,7 +344,9 @@ export function HistoryPage({
         refundAmount: parseFloat(data.refund_amount ?? 0),
         totalRentalFee: parseFloat(data.total_rental_fee ?? 0),
         paymentProcessed: parseFloat(data.payment_to_process ?? 0),
-        allReturned: data.all_items_being_returned ?? false,
+        totalFines: parseFloat(data.rental?.total_fines ?? 0),
+        allReturned:
+        data.all_items_returned ?? data.all_items_being_returned ?? false,
         billId: bill.id
       });
       // Optimistic local update
@@ -376,6 +388,16 @@ export function HistoryPage({
       if (!isNaN(paymentVal) && paymentVal > 0) {
         requestBody.payment = paymentVal;
       }
+      // Include fines if any valid entries exist
+      const validFines = returnFines.filter(
+        (f) => f.reason.trim() && parseFloat(f.fine) > 0
+      );
+      if (validFines.length > 0) {
+        requestBody.fines = validFines.map((f) => ({
+          reason: f.reason.trim(),
+          fine: parseFloat(f.fine)
+        }));
+      }
       const res = await fetch(`${API_URL}rentals/${bill.apiId}/return_items/`, {
         method: 'POST',
         headers: {
@@ -402,7 +424,9 @@ export function HistoryPage({
         refundAmount: parseFloat(data.refund_amount ?? 0),
         totalRentalFee: parseFloat(data.total_rental_fee ?? 0),
         paymentProcessed: parseFloat(data.payment_to_process ?? 0),
-        allReturned: data.all_items_being_returned ?? false,
+        totalFines: parseFloat(data.rental?.total_fines ?? 0),
+        allReturned:
+        data.all_items_returned ?? data.all_items_being_returned ?? false,
         billId: bill.id
       });
       // Optimistic local update — mark entire bill as returned
@@ -410,6 +434,7 @@ export function HistoryPage({
       setEditingBillId(null);
       setReturnAllConfirmBill(null);
       setReturnPaymentAmount('');
+      setReturnFines([]);
       // Background refetch
       clearCache('rentals:');
       refetchRentals();
@@ -571,7 +596,10 @@ export function HistoryPage({
       bill.depositHistory?.reduce((s, d) => s + d.amount, 0) ||
       bill.deposit ||
       0;
-      const owes = bill.total > totalDeposit;
+      const totalFines =
+      bill.fines?.reduce((s, f) => s + Number(f.fine), 0) || 0;
+      const netOwed = bill.total + totalFines;
+      const owes = netOwed > totalDeposit;
       if (allReturned && owes) {
         return (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800">
@@ -913,10 +941,13 @@ export function HistoryPage({
             bill.depositHistory?.reduce((s, d) => s + d.amount, 0) ||
             bill.deposit ||
             0;
+            const totalFines =
+            bill.fines?.reduce((s, f) => s + Number(f.fine), 0) || 0;
             const allItemsReturned =
             returnedCount === bill.items.length &&
             bill.items.length > 0;
-            const balance = totalDeposit - bill.total;
+            const netOwed = bill.total + totalFines;
+            const balance = totalDeposit - netOwed;
             const hasOutstandingBalance = balance < 0;
             const needsPayment =
             allItemsReturned && hasOutstandingBalance;
@@ -950,11 +981,21 @@ export function HistoryPage({
                           </div>
                           <div className="flex items-center gap-3">
                             <div className="text-right mr-2">
-                              <p className="text-xs text-gray-500">Total</p>
+                              <p className="text-xs text-gray-500">
+                                Rental Fee
+                              </p>
                               <p className="font-bold text-[#1a1a2e]">
                                 {formatPrice(bill.total)}
                               </p>
                             </div>
+                            {totalFines > 0 &&
+                    <div className="text-right mr-2">
+                                <p className="text-xs text-gray-500">Fines</p>
+                                <p className="font-bold text-red-600">
+                                  {formatPrice(totalFines)}
+                                </p>
+                              </div>
+                    }
                             <div className="text-right mr-2">
                               <p className="text-xs text-gray-500">Deposit</p>
                               <p className="font-bold text-blue-600">
@@ -2086,6 +2127,7 @@ export function HistoryPage({
           onClick={() => {
             setReturnAllConfirmBill(null);
             setReturnPaymentAmount('');
+            setReturnFines([]);
           }}>
 
             <motion.div
@@ -2104,10 +2146,10 @@ export function HistoryPage({
             transition={{
               duration: 0.15
             }}
-            className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden"
+            className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden max-h-[90vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}>
 
-              <div className="p-4 border-b border-gray-200 bg-amber-50">
+              <div className="p-4 border-b border-gray-200 bg-amber-50 flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <div className="bg-amber-100 p-1.5 rounded-lg">
                     <RotateCcw className="w-5 h-5 text-amber-600" />
@@ -2124,7 +2166,7 @@ export function HistoryPage({
                 </div>
               </div>
 
-              <div className="p-5 space-y-4">
+              <div className="p-5 space-y-4 overflow-y-auto flex-1">
                 {/* Items summary */}
                 <div className="bg-gray-50 rounded-lg p-3 space-y-1.5">
                   {returnAllConfirmBill.items.
@@ -2160,17 +2202,34 @@ export function HistoryPage({
                 ) ||
                 returnAllConfirmBill.deposit ||
                 0;
-                const balance = totalDeposit - returnAllConfirmBill.total;
+                const totalFinesPreview = returnFines.reduce(
+                  (sum, f) => sum + (parseFloat(f.fine) || 0),
+                  0
+                );
+                const totalOwed =
+                returnAllConfirmBill.total + totalFinesPreview;
+                const balance = totalDeposit - totalOwed;
                 return (
                   <div
                     className={`rounded-lg p-3 text-sm ${balance < 0 ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'}`}>
 
                       <div className="flex justify-between mb-1">
-                        <span className="text-gray-600">Current Total</span>
+                        <span className="text-gray-600">Rental Fee</span>
                         <span className="font-bold">
                           {formatPrice(returnAllConfirmBill.total)}
                         </span>
                       </div>
+                      {totalFinesPreview > 0 &&
+                    <div className="flex justify-between mb-1">
+                          <span className="text-orange-600 flex items-center gap-1">
+                            <Wrench className="w-3 h-3" />
+                            Damage Fines
+                          </span>
+                          <span className="font-bold text-orange-600">
+                            +{formatPrice(totalFinesPreview)}
+                          </span>
+                        </div>
+                    }
                       <div className="flex justify-between mb-1">
                         <span className="text-gray-600">Total Deposit</span>
                         <span className="font-bold">
@@ -2181,13 +2240,125 @@ export function HistoryPage({
                       className={`flex justify-between font-bold border-t pt-1 mt-1 ${balance < 0 ? 'text-red-700 border-red-200' : 'text-green-700 border-green-200'}`}>
 
                         <span>
-                          {balance >= 0 ? 'Refundable' : 'Customer Owes'}
+                          {balance >= 0 ?
+                        'Refund to Customer' :
+                        'Customer Owes'}
                         </span>
                         <span>{formatPrice(Math.abs(balance))}</span>
                       </div>
                     </div>);
 
               })()}
+
+                {/* Damage Fines Section */}
+                <div className="bg-white rounded-lg border border-orange-200 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-bold text-xs text-gray-700 flex items-center gap-1.5">
+                      <Wrench className="w-4 h-4 text-orange-500" />
+                      Damage Fines
+                      <span className="text-gray-400 font-normal">
+                        (optional)
+                      </span>
+                    </h4>
+                    <button
+                    onClick={() =>
+                    setReturnFines((prev) => [
+                    ...prev,
+                    {
+                      reason: '',
+                      fine: ''
+                    }]
+                    )
+                    }
+                    className="flex items-center gap-1 text-xs px-2 py-1 bg-orange-50 text-orange-600 border border-orange-200 rounded-md hover:bg-orange-100 transition-colors font-bold">
+
+                      <Plus className="w-3 h-3" />
+                      Add Fine
+                    </button>
+                  </div>
+
+                  {returnFines.length === 0 ?
+                <p className="text-[11px] text-gray-400 italic text-center py-2">
+                      No fines — click "Add Fine" if items are damaged
+                    </p> :
+
+                <div className="space-y-2">
+                      {returnFines.map((fine, idx) =>
+                  <div key={idx} className="flex items-start gap-2">
+                          <div className="flex-1 space-y-1">
+                            <input
+                        type="text"
+                        value={fine.reason}
+                        onChange={(e) =>
+                        setReturnFines((prev) =>
+                        prev.map((f, i) =>
+                        i === idx ?
+                        {
+                          ...f,
+                          reason: e.target.value
+                        } :
+                        f
+                        )
+                        )
+                        }
+                        placeholder="Damage description (e.g. Motor seized)"
+                        className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-orange-400 outline-none" />
+
+                            <div className="relative">
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-bold">
+                                Rs.
+                              </span>
+                              <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={fine.fine}
+                          onChange={(e) =>
+                          setReturnFines((prev) =>
+                          prev.map((f, i) =>
+                          i === idx ?
+                          {
+                            ...f,
+                            fine: e.target.value
+                          } :
+                          f
+                          )
+                          )
+                          }
+                          placeholder="Fine amount"
+                          className="w-full pl-9 pr-3 py-1.5 border border-gray-300 rounded-md text-xs font-bold focus:ring-2 focus:ring-orange-400 outline-none" />
+
+                            </div>
+                          </div>
+                          <button
+                      onClick={() =>
+                      setReturnFines((prev) =>
+                      prev.filter((_, i) => i !== idx)
+                      )
+                      }
+                      className="mt-1 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors">
+
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                  )}
+                      {/* Fines total preview */}
+                      {returnFines.some((f) => parseFloat(f.fine) > 0) &&
+                  <div className="flex justify-between text-xs font-bold text-orange-700 bg-orange-50 rounded-md px-2.5 py-1.5 border border-orange-200 mt-1">
+                          <span>Total Fines</span>
+                          <span>
+                            {formatPrice(
+                        returnFines.reduce(
+                          (sum, f) => sum + (parseFloat(f.fine) || 0),
+                          0
+                        )
+                      )}
+                          </span>
+                        </div>
+                  }
+                    </div>
+                }
+                </div>
 
                 {/* Payment input — shown when customer owes money */}
                 {(() => {
@@ -2198,7 +2369,13 @@ export function HistoryPage({
                 ) ||
                 returnAllConfirmBill.deposit ||
                 0;
-                const balance = totalDeposit - returnAllConfirmBill.total;
+                const totalFinesPreview = returnFines.reduce(
+                  (sum, f) => sum + (parseFloat(f.fine) || 0),
+                  0
+                );
+                const totalOwed =
+                returnAllConfirmBill.total + totalFinesPreview;
+                const balance = totalDeposit - totalOwed;
                 if (balance >= 0) return null;
                 return (
                   <div className="bg-white rounded-lg border border-gray-200 p-3">
@@ -2241,10 +2418,11 @@ export function HistoryPage({
               }
               </div>
 
-              <div className="p-4 border-t border-gray-200 bg-gray-50 flex gap-3">
+              <div className="p-4 border-t border-gray-200 bg-gray-50 flex gap-3 flex-shrink-0">
                 <button
                 onClick={() => {
                   setReturnAllConfirmBill(null);
+                  setReturnFines([]);
                   setActionError(null);
                 }}
                 className="flex-1 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-100 transition-colors">
@@ -2338,6 +2516,18 @@ export function HistoryPage({
                     </span>
                   </div>
 
+                  {rentalReturnResult.totalFines > 0 &&
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 flex justify-between text-sm">
+                      <span className="text-orange-700 font-medium flex items-center gap-1.5">
+                        <Wrench className="w-3.5 h-3.5" />
+                        Damage Fines
+                      </span>
+                      <span className="font-bold text-orange-700">
+                        {formatPrice(rentalReturnResult.totalFines)}
+                      </span>
+                    </div>
+                }
+
                   {rentalReturnResult.paymentProcessed > 0 &&
                 <div className="bg-blue-50 rounded-lg p-3 flex justify-between text-sm">
                       <span className="text-blue-700">Payment Received</span>
@@ -2363,6 +2553,16 @@ export function HistoryPage({
                       {formatPrice(Math.abs(rentalReturnResult.refundAmount))}
                     </span>
                   </div>
+
+                  {rentalReturnResult.totalFines > 0 &&
+                <div className="bg-orange-50 border border-orange-100 rounded-lg p-2.5 text-xs text-orange-700 text-left">
+                      <p className="font-bold mb-0.5">⚠ Fines are separate</p>
+                      <p className="text-orange-600">
+                        Collect {formatPrice(rentalReturnResult.totalFines)} in
+                        damage fines directly from the customer.
+                      </p>
+                    </div>
+                }
                 </div>
 
                 {rentalReturnResult.allReturned &&

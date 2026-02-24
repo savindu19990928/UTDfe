@@ -63,10 +63,14 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
   const discountAmount = bill.discountAmount;
   const total = bill.total;
   const deposit = bill.deposit || 0;
-  const refund = deposit > total ? deposit - total : 0;
-  const owing = deposit < total ? total - deposit : 0;
+  // Include fines in refund/owing calculation
+  const totalFines = bill.fines?.reduce((s, f) => s + Number(f.fine), 0) || 0;
+  const netOwed = total + totalFines;
+  const refund = deposit > netOwed ? deposit - netOwed : 0;
+  const owing = deposit < netOwed ? netOwed - deposit : 0;
   const isOpen = bill.rentalStatus !== 'closed';
   const hasDiscount = discountPercent > 0;
+  const hasFines = bill.fines && bill.fines.length > 0;
   const printedTime = new Date().toLocaleString('en-GB');
   // Helper to split a number into rupees and cents
   const splitPrice = (amount: number) => {
@@ -182,7 +186,7 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
         </p>
       </div>
 
-      {/* Items Table */}
+      {/* Items Table + Fines Table (joined) */}
       <div className="mb-6">
         <table className="w-full border-collapse border border-black text-xs">
           <thead>
@@ -300,81 +304,272 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
                 <td className="border border-black px-2 py-1"></td>
               </tr>
             )}
+
+            {/* Fines section — joined directly to items table */}
+            {hasFines &&
+            <>
+                <tr className="bg-red-50">
+                  <td
+                  colSpan={10}
+                  className="border border-black px-2 py-1 font-bold text-xs text-red-800 uppercase tracking-wide">
+
+                    හානි දඩ මුදල් (Damage Fines)
+                  </td>
+                </tr>
+                <tr className="bg-red-50">
+                  <td
+                  colSpan={8}
+                  className="border border-black px-2 py-1 font-bold text-[10px] text-red-700">
+
+                    හේතුව (Reason)
+                  </td>
+                  <td className="border border-black px-2 py-1 font-bold text-[10px] text-red-700 text-center">
+                    රුපියල්
+                  </td>
+                  <td className="border border-black px-2 py-1 font-bold text-[10px] text-red-700 text-center">
+                    ශත
+                  </td>
+                </tr>
+                {bill.fines!.map((fine, idx) => {
+                const { rupees, cents } = splitPrice(Number(fine.fine));
+                return (
+                  <tr key={`fine-${idx}`}>
+                      <td
+                      colSpan={8}
+                      className="border border-black px-2 py-1 font-bold text-red-800">
+
+                        {fine.reason}
+                      </td>
+                      <td className="border border-black px-2 py-1 text-right font-bold text-red-800">
+                        {rupees}
+                      </td>
+                      <td className="border border-black px-2 py-1 text-right font-bold text-red-800">
+                        {cents}
+                      </td>
+                    </tr>);
+
+              })}
+                <tr className="bg-red-50">
+                  <td
+                  colSpan={8}
+                  className="border border-black px-2 py-1 text-right font-bold text-xs text-red-800">
+
+                    එකතු දඩ මුදල (Total Fines)
+                  </td>
+                  <td className="border border-black px-2 py-1 text-right font-bold text-red-800">
+                    {splitPrice(totalFines).rupees}
+                  </td>
+                  <td className="border border-black px-2 py-1 text-right font-bold text-red-800">
+                    {splitPrice(totalFines).cents}
+                  </td>
+                </tr>
+              </>
+            }
+
+            {/* Deposit History — joined to table */}
+            {bill.depositHistory && bill.depositHistory.length > 0 &&
+            <>
+                <tr className="bg-blue-50">
+                  <td
+                  colSpan={10}
+                  className="border border-black px-2 py-1 font-bold text-xs text-blue-800 uppercase tracking-wide">
+
+                    තැන්පතු ඉතිහාසය (Deposit History)
+                  </td>
+                </tr>
+                <tr className="bg-blue-50">
+                  <td
+                  colSpan={8}
+                  className="border border-black px-2 py-1 font-bold text-[10px] text-blue-700">
+
+                    දිනය (Date)
+                  </td>
+                  <td className="border border-black px-2 py-1 font-bold text-[10px] text-blue-700 text-center">
+                    රුපියල්
+                  </td>
+                  <td className="border border-black px-2 py-1 font-bold text-[10px] text-blue-700 text-center">
+                    ශත
+                  </td>
+                </tr>
+                {bill.depositHistory.map((entry, idx) => {
+                const { rupees, cents } = splitPrice(entry.amount);
+                return (
+                  <tr key={`deposit-${idx}`}>
+                      <td
+                      colSpan={8}
+                      className="border border-black px-2 py-1 text-xs">
+
+                        {entry.date}
+                      </td>
+                      <td className="border border-black px-2 py-1 text-right font-bold text-xs text-blue-800">
+                        {rupees}
+                      </td>
+                      <td className="border border-black px-2 py-1 text-right font-bold text-xs text-blue-800">
+                        {cents}
+                      </td>
+                    </tr>);
+
+              })}
+                <tr className="bg-blue-50">
+                  <td
+                  colSpan={8}
+                  className="border border-black px-2 py-1 text-right font-bold text-xs text-blue-800">
+
+                    එකතු තැන්පතු (Total Deposit)
+                  </td>
+                  <td className="border border-black px-2 py-1 text-right font-bold text-xs text-blue-800">
+                    {
+                  splitPrice(
+                    bill.depositHistory.reduce((s, d) => s + d.amount, 0)
+                  ).rupees
+                  }
+                  </td>
+                  <td className="border border-black px-2 py-1 text-right font-bold text-xs text-blue-800">
+                    {
+                  splitPrice(
+                    bill.depositHistory.reduce((s, d) => s + d.amount, 0)
+                  ).cents
+                  }
+                  </td>
+                </tr>
+              </>
+            }
+
+            {/* Totals section — joined to table */}
+            {hasDiscount &&
+            <>
+                <tr>
+                  <td
+                  colSpan={8}
+                  className="border border-black px-2 py-1 text-right font-bold text-xs">
+
+                    එකතුව
+                  </td>
+                  <td className="border border-black px-2 py-1 text-right font-bold text-xs">
+                    {splitPrice(subtotal).rupees}
+                  </td>
+                  <td className="border border-black px-2 py-1 text-right font-bold text-xs">
+                    {splitPrice(subtotal).cents}
+                  </td>
+                </tr>
+                <tr>
+                  <td
+                  colSpan={8}
+                  className="border border-black px-2 py-1 text-right text-xs">
+
+                    වට්ටම ({discountPercent}%)
+                  </td>
+                  <td
+                  colSpan={2}
+                  className="border border-black px-2 py-1 text-right text-xs">
+
+                    -{formatPrice(discountAmount).replace('Rs. ', '')}
+                  </td>
+                </tr>
+              </>
+            }
+            <tr className="bg-gray-50">
+              <td
+                colSpan={8}
+                className="border border-black px-2 py-1 text-right font-bold text-xs">
+
+                කුලී එකතුව
+              </td>
+              <td className="border border-black px-2 py-1 text-right font-bold text-xs">
+                {splitPrice(total).rupees}
+              </td>
+              <td className="border border-black px-2 py-1 text-right font-bold text-xs">
+                {splitPrice(total).cents}
+              </td>
+            </tr>
+            {hasFines &&
+            <tr className="bg-gray-50">
+                <td
+                colSpan={8}
+                className="border border-black px-2 py-1 text-right font-bold text-xs">
+
+                  මුළු එකතුව
+                </td>
+                <td className="border border-black px-2 py-1 text-right font-bold text-xs">
+                  {splitPrice(netOwed).rupees}
+                </td>
+                <td className="border border-black px-2 py-1 text-right font-bold text-xs">
+                  {splitPrice(netOwed).cents}
+                </td>
+              </tr>
+            }
+            <tr>
+              <td
+                colSpan={8}
+                className="border border-black px-2 py-1 text-right font-bold text-xs">
+
+                ඇප තැම්පතු මුදල
+              </td>
+              <td className="border border-black px-2 py-1 text-right font-bold text-xs">
+                {splitPrice(deposit).rupees}
+              </td>
+              <td className="border border-black px-2 py-1 text-right font-bold text-xs">
+                {splitPrice(deposit).cents}
+              </td>
+            </tr>
+            {refund > 0 ?
+            <tr className={isOpen ? 'text-green-600' : 'text-green-700'}>
+                <td
+                colSpan={8}
+                className="border border-black px-2 py-1 text-right font-bold text-xs">
+
+                  ප්‍රතිපුර්ණ මුදල
+                </td>
+                <td className="border border-black px-2 py-1 text-right font-bold text-xs">
+                  {splitPrice(refund).rupees}
+                </td>
+                <td className="border border-black px-2 py-1 text-right font-bold text-xs">
+                  {splitPrice(refund).cents}
+                </td>
+              </tr> :
+            owing > 0 ?
+            <tr className={isOpen ? 'text-red-500' : 'text-red-600'}>
+                <td
+                colSpan={8}
+                className="border border-black px-2 py-1 text-right font-bold text-xs">
+
+                  ගෙවිය යුතු මුදල
+                </td>
+                <td className="border border-black px-2 py-1 text-right font-bold text-xs">
+                  {splitPrice(owing).rupees}
+                </td>
+                <td className="border border-black px-2 py-1 text-right font-bold text-xs">
+                  {splitPrice(owing).cents}
+                </td>
+              </tr> :
+
+            <tr className="text-green-700">
+                <td
+                colSpan={8}
+                className="border border-black px-2 py-1 text-right font-bold text-xs">
+
+                  ශේෂය
+                </td>
+                <td className="border border-black px-2 py-1 text-right font-bold text-xs">
+                  0
+                </td>
+                <td className="border border-black px-2 py-1 text-right font-bold text-xs">
+                  00
+                </td>
+              </tr>
+            }
+            {isOpen && owing > 0 &&
+            <tr>
+                <td
+                colSpan={10}
+                className="border border-black px-2 py-1 text-[10px] text-red-500 font-bold">
+
+                  * ගෙවීම් ඉතිරිව ඇත. බිල්පත ක්‍රියාකාරීව පවතී.
+                </td>
+              </tr>
+            }
           </tbody>
         </table>
-      </div>
-
-      {/* Deposit History */}
-      {bill.depositHistory && bill.depositHistory.length > 0 &&
-      <div className="mb-6 text-xs">
-          <h4 className="font-bold mb-1">තැන්පතු ඉතිහාසය:</h4>
-          <div className="w-1/2">
-            {bill.depositHistory.map((entry, i) =>
-          <div
-            key={i}
-            className="flex justify-between border-b border-gray-200 pb-1 mb-1">
-
-                <span>{entry.date}</span>
-                <span className="font-mono">
-                  {formatPrice(entry.amount).replace('Rs. ', '')}
-                </span>
-              </div>
-          )}
-          </div>
-        </div>
-      }
-
-      {/* Totals */}
-      <div className="flex justify-end mb-8">
-        <div className="w-72 text-right space-y-1 text-sm">
-          {hasDiscount &&
-          <>
-              <div className="flex justify-between font-bold">
-                <span>එකතුව</span>
-                <span>{formatPrice(subtotal).replace('Rs. ', '')}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>වට්ටම ({discountPercent}%)</span>
-                <span>-{formatPrice(discountAmount).replace('Rs. ', '')}</span>
-              </div>
-            </>
-          }
-          <div className="flex justify-between font-bold text-base border-t border-black pt-1 mt-1">
-            <span>එකතුව</span>
-            <span>{formatPrice(total).replace('Rs. ', '')}</span>
-          </div>
-          <div className="flex justify-between font-bold mt-2 pt-2 border-t border-dashed border-gray-400">
-            <span>ඇප තැම්පතු මුදල</span>
-            <span>{formatPrice(deposit).replace('Rs. ', '')}</span>
-          </div>
-          {refund > 0 ?
-          <div
-            className={`flex justify-between font-bold text-base ${isOpen ? 'text-green-600' : 'text-green-700'}`}>
-
-              <span>ප්‍රතිපුර්ණ මුදල</span>
-              <span>{formatPrice(refund).replace('Rs. ', '')}</span>
-            </div> :
-          owing > 0 ?
-          <div
-            className={`flex justify-between font-bold text-base ${isOpen ? 'text-red-500' : 'text-red-600'}`}>
-
-              <span>ගෙවිය යුතු මුදල</span>
-              <span>{formatPrice(owing).replace('Rs. ', '')}</span>
-            </div> :
-
-          <div className="flex justify-between font-bold text-base text-green-700">
-              <span>ශේෂය</span>
-              <span>0.00</span>
-            </div>
-          }
-          {isOpen && owing > 0 &&
-          <div className="mt-2 pt-2 border-t border-dashed border-gray-400">
-              <p className="text-[10px] text-red-500 font-bold text-left">
-                * ගෙවීම් ඉතිරිව ඇත. බිල්පත ක්‍රියාකාරීව පවතී.
-              </p>
-            </div>
-          }
-        </div>
       </div>
 
       {/* Footer */}

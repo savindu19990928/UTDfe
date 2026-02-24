@@ -64,6 +64,15 @@ function mapDepositTransaction(raw: any): DepositEntry & {type?: string;} {
   };
 }
 
+function mapRentalFine(raw: any) {
+  return {
+    id: raw.id,
+    reason: raw.reason || '',
+    fine: parseFloat(raw.fine ?? 0),
+    created_at: raw.created_at
+  };
+}
+
 function mapApiRental(raw: any): Bill {
   const items: CartItem[] = (raw.items || []).map(mapRentalItem);
   const depositTransactions = raw.deposit_transactions || [];
@@ -71,8 +80,13 @@ function mapApiRental(raw: any): Bill {
   filter((t: any) => t.transaction_type === 'deposit').
   map(mapDepositTransaction);
 
+  const fines = (raw.fines || []).map(mapRentalFine);
+
   const totalDeposit = parseFloat(raw.total_deposit ?? 0);
   const totalRentalFee = parseFloat(raw.total_rental_fee ?? 0);
+  const totalFines =
+  parseFloat(raw.total_fines ?? 0) ||
+  fines.reduce((s: number, f: any) => s + f.fine, 0);
   const discount = parseFloat(raw.discount ?? 0);
 
   // Calculate subtotal (before discount)
@@ -85,21 +99,19 @@ function mapApiRental(raw: any): Bill {
     address: raw.customer_address || ''
   };
 
-  // Determine rental status from item statuses AND balance
+  // Determine rental status from item statuses AND balance (including fines)
   const totalItems = items.length;
   const returnedItems = items.filter((i) => i.status === 'returned').length;
   const allReturned = totalItems > 0 && returnedItems === totalItems;
-  const balanceSettled = totalDeposit >= totalRentalFee;
+  const netOwed = totalRentalFee + totalFines;
+  const balanceSettled = totalDeposit >= netOwed;
 
   let rentalStatus: Bill['rentalStatus'] = 'open';
   if (allReturned && balanceSettled) {
-    // All items returned AND deposit covers the total — fully closed
     rentalStatus = 'closed';
   } else if (allReturned && !balanceSettled) {
-    // All items returned but balance not settled — awaiting payment
     rentalStatus = 'partially_closed';
   } else if (returnedItems > 0) {
-    // Some items returned
     rentalStatus = 'partially_closed';
   }
 
@@ -119,6 +131,7 @@ function mapApiRental(raw: any): Bill {
     paymentMethod: 'cash',
     deposit: totalDeposit,
     depositHistory: deposits,
+    fines,
     customerPhotoUrl: getPhotoUrl(raw.customer_photo),
     customerNic: raw.customer_nic || undefined,
     rentalStatus

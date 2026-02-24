@@ -115,6 +115,13 @@ export type DepositEntry = {
   note?: string;
 };
 
+export type RentalFine = {
+  id?: number;
+  reason: string;
+  fine: number;
+  created_at?: string;
+};
+
 export type RentalBillStatus = 'open' | 'partially_closed' | 'closed';
 
 export type Bill = {
@@ -133,6 +140,7 @@ export type Bill = {
   paymentMethod?: 'cash' | 'card' | 'bank_transfer';
   deposit?: number;
   depositHistory?: DepositEntry[];
+  fines?: RentalFine[];
   customerPhotoUrl?: string;
   customerNic?: string;
   rentalStatus?: RentalBillStatus;
