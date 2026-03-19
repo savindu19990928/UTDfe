@@ -38,13 +38,13 @@ export function ExpenseTracker() {
           <button
             onClick={() => window.location.reload()}
             className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors">
-
+            
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <button
             onClick={() => setIsFormOpen(!isFormOpen)}
             className="flex items-center gap-2 bg-[#f5a623] hover:bg-[#d4901e] text-[#1a1a2e] px-4 py-2.5 rounded-lg font-bold transition-colors shadow-sm">
-
+            
             <Plus className="w-5 h-5" />
             Add Expense
           </button>
@@ -82,11 +82,11 @@ export function ExpenseTracker() {
             opacity: 0
           }}
           className="overflow-hidden mb-8">
-
+          
             <form
             onSubmit={handleSubmit}
             className="bg-white p-6 rounded-xl shadow-md border border-gray-200">
-
+            
               <h3 className="text-lg font-bold text-[#1a1a2e] mb-4">
                 New Expense
               </h3>
@@ -102,7 +102,7 @@ export function ExpenseTracker() {
                   className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f5a623] outline-none"
                   placeholder="e.g., Delivery Van Fuel"
                   required />
-
+                
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 mb-1">
@@ -116,7 +116,7 @@ export function ExpenseTracker() {
                   onChange={(e) => setAmount(e.target.value)}
                   className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f5a623] outline-none"
                   required />
-
+                
                 </div>
               </div>
               <div className="flex justify-end gap-3">
@@ -124,14 +124,14 @@ export function ExpenseTracker() {
                 type="button"
                 onClick={() => setIsFormOpen(false)}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-medium transition-colors">
-
+                
                   Cancel
                 </button>
                 <button
                 type="submit"
                 disabled={submitting}
                 className="px-6 py-2 bg-[#1a1a2e] text-white rounded-lg font-bold hover:bg-[#2d4059] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
-
+                
                   {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
                   {submitting ? 'Saving...' : 'Save Expense'}
                 </button>
@@ -159,7 +159,7 @@ export function ExpenseTracker() {
           <button
           onClick={() => window.location.reload()}
           className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors">
-
+          
             Retry
           </button>
         </div>
@@ -185,7 +185,7 @@ export function ExpenseTracker() {
                     <td
                   colSpan={5}
                   className="px-6 py-8 text-center text-gray-500">
-
+                  
                       No expenses recorded yet.
                     </td>
                   </tr> :
@@ -194,7 +194,7 @@ export function ExpenseTracker() {
               <tr
                 key={expense.id}
                 className="hover:bg-gray-50 transition-colors">
-
+                
                       <td className="px-6 py-4 text-gray-600">
                         {expense.date}
                       </td>
@@ -211,7 +211,7 @@ export function ExpenseTracker() {
                         <button
                     onClick={() => deleteExpense(expense.id)}
                     className="text-gray-400 hover:text-red-500 transition-colors p-1">
-
+                    
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </td>

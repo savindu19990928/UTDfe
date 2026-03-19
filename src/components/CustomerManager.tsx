@@ -199,7 +199,7 @@ export function CustomerManager() {
           <button
             onClick={refetch}
             className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors">
-
+            
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <button
@@ -208,7 +208,7 @@ export function CustomerManager() {
               setIsFormOpen(!isFormOpen);
             }}
             className="flex items-center gap-2 bg-[#f5a623] hover:bg-[#d4901e] text-[#1a1a2e] px-4 py-2.5 rounded-lg font-bold transition-colors shadow-sm">
-
+            
             <Plus className="w-5 h-5" />
             Add Customer
           </button>
@@ -227,7 +227,7 @@ export function CustomerManager() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#f5a623] transition-shadow" />
-
+          
         </div>
         {!loading &&
         <span className="text-sm text-gray-500 font-medium">
@@ -253,11 +253,11 @@ export function CustomerManager() {
             opacity: 0
           }}
           className="overflow-hidden mb-8">
-
+          
             <form
             onSubmit={handleSubmit}
             className="bg-white p-6 rounded-xl shadow-md border border-gray-200">
-
+            
               <h3 className="text-lg font-bold text-[#1a1a2e] mb-6">
                 {editingId ? 'Edit Customer' : 'New Customer Profile'}
               </h3>
@@ -275,14 +275,14 @@ export function CustomerManager() {
                   <div
                   className="w-32 h-32 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden relative group cursor-pointer"
                   onClick={() => fileInputRef.current?.click()}>
-
+                  
                     {photoPreview ?
                   <>
                         <img
                       src={photoPreview}
                       alt="Preview"
                       className="w-full h-full object-cover" />
-
+                    
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                           <Camera className="w-8 h-8 text-white" />
                         </div>
@@ -299,13 +299,13 @@ export function CustomerManager() {
                     onChange={handlePhotoChange}
                     accept="image/*"
                     className="hidden" />
-
+                  
                   </div>
                   <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   className="text-sm font-bold text-[#f5a623] hover:underline flex items-center gap-1">
-
+                  
                     <Upload className="w-4 h-4" />
                     {photoPreview ? 'Change Photo' : 'Upload Photo'}
                   </button>
@@ -323,7 +323,7 @@ export function CustomerManager() {
                     onChange={(e) => setName(e.target.value)}
                     className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f5a623] outline-none"
                     required />
-
+                  
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-gray-500 mb-1">
@@ -336,7 +336,7 @@ export function CustomerManager() {
                     placeholder="+94XXXXXXXXX"
                     className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f5a623] outline-none"
                     required />
-
+                  
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-xs font-bold text-gray-500 mb-1">
@@ -348,7 +348,7 @@ export function CustomerManager() {
                     onChange={(e) => setAddress(e.target.value)}
                     className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f5a623] outline-none"
                     required />
-
+                  
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-gray-500 mb-1">
@@ -359,7 +359,7 @@ export function CustomerManager() {
                     value={nicNumber}
                     onChange={(e) => setNicNumber(e.target.value)}
                     className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f5a623] outline-none" />
-
+                  
                   </div>
                 </div>
               </div>
@@ -369,14 +369,14 @@ export function CustomerManager() {
                 type="button"
                 onClick={resetForm}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-medium transition-colors">
-
+                
                   Cancel
                 </button>
                 <button
                 type="submit"
                 disabled={submitting}
                 className="px-6 py-2 bg-[#1a1a2e] text-white rounded-lg font-bold hover:bg-[#2d4059] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
-
+                
                   {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
                   {submitting ?
                 'Saving...' :
@@ -405,7 +405,7 @@ export function CustomerManager() {
           }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
           onClick={closeOtpModal}>
-
+          
             <motion.div
             initial={{
               scale: 0.95,
@@ -421,7 +421,7 @@ export function CustomerManager() {
             }}
             className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden"
             onClick={(e) => e.stopPropagation()}>
-
+            
               <div className="p-4 bg-[#1a1a2e] text-white">
                 <div className="flex items-center gap-2">
                   <CheckCircle className="w-5 h-5 text-[#f5a623]" />
@@ -461,7 +461,7 @@ export function CustomerManager() {
                       handleVerifyOtp();
                     }
                   }} />
-
+                
                 </div>
 
                 <button
@@ -469,7 +469,7 @@ export function CustomerManager() {
                 onClick={() => handleSendOtp(verifyingPhone)}
                 disabled={otpSending}
                 className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50 flex items-center gap-1">
-
+                
                   {otpSending ?
                 <Loader2 className="w-3 h-3 animate-spin" /> :
 
@@ -482,14 +482,14 @@ export function CustomerManager() {
                   <button
                   onClick={closeOtpModal}
                   className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors">
-
+                  
                     Cancel
                   </button>
                   <button
                   onClick={handleVerifyOtp}
                   disabled={!otpValue.trim() || otpVerifying}
                   className="flex-1 px-4 py-2.5 bg-[#1a1a2e] text-white rounded-lg text-sm font-bold hover:bg-[#2d4059] transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-
+                  
                     {otpVerifying &&
                   <Loader2 className="w-4 h-4 animate-spin" />
                   }
@@ -520,7 +520,7 @@ export function CustomerManager() {
           <button
           onClick={() => window.location.reload()}
           className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors">
-
+          
             Retry
           </button>
         </div>
@@ -552,7 +552,7 @@ export function CustomerManager() {
             y: 0
           }}
           className={`bg-white rounded-xl shadow-sm border p-6 flex flex-col gap-4 transition-shadow ${customer.isBanned ? 'border-red-200 bg-red-50/30' : 'border-gray-200'}`}>
-
+          
                 <div className="flex gap-4">
                   <div className="w-16 h-16 rounded-full bg-gray-100 flex-shrink-0 overflow-hidden border border-gray-200 relative">
                     {customer.photoUrl ?
@@ -599,7 +599,7 @@ export function CustomerManager() {
                     otpSending && verifyingPhone === customer.phone
                     }
                     className="text-[9px] font-bold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded flex-shrink-0 hover:bg-blue-200 transition-colors disabled:opacity-50">
-
+                    
                             {otpSending && verifyingPhone === customer.phone ?
                     <Loader2 className="w-2.5 h-2.5 animate-spin inline" /> :
 
@@ -634,7 +634,7 @@ export function CustomerManager() {
                   <button
               onClick={() => handleEdit(customer)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-gray-600 bg-gray-50 hover:bg-gray-100 transition-colors">
-
+              
                     <Edit className="w-3.5 h-3.5" />
                     Edit
                   </button>

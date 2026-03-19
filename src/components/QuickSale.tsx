@@ -220,14 +220,14 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
     <div
       className="min-h-screen bg-gray-50 flex flex-col"
       onKeyDown={handleKeyDown}>
-
+      
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-20">
         <div className="flex items-center gap-4">
           <button
             onClick={onCancel}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-
+            
             <X className="w-5 h-5 text-gray-500" />
           </button>
           <h1 className="text-xl font-bold text-[#1a1a2e]">Quick Sale</h1>
@@ -237,7 +237,7 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
         <div className="flex items-center gap-2 text-sm">
           <div
             className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${stage === 'items' ? 'bg-orange-100 text-orange-700 font-bold' : 'text-gray-400'}`}>
-
+            
             <span className="w-5 h-5 rounded-full bg-current text-white flex items-center justify-center text-xs">
               1
             </span>
@@ -246,7 +246,7 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
           <ChevronRight className="w-4 h-4 text-gray-300" />
           <div
             className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${stage === 'payment' ? 'bg-orange-100 text-orange-700 font-bold' : 'text-gray-400'}`}>
-
+            
             <span className="w-5 h-5 rounded-full bg-current text-white flex items-center justify-center text-xs">
               2
             </span>
@@ -280,7 +280,7 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
                     }
                   }}
                   className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-lg" />
-
+                
 
                   {/* Product Dropdown */}
                   <AnimatePresence>
@@ -299,7 +299,7 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
                       y: 10
                     }}
                     className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 max-h-80 overflow-y-auto z-30">
-
+                    
                         {productSearch.trim().length < 3 ?
                     <div className="p-4 text-center text-gray-400 text-sm">
                             Type at least 3 characters to search...
@@ -320,7 +320,7 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
                       getUsedQty(product.id) >= product.stock
                       }
                       className={`w-full text-left px-4 py-3 hover:bg-orange-50 flex items-center justify-between border-b border-gray-50 last:border-0 ${product.stock != null && product.stock > 0 && getUsedQty(product.id) >= product.stock ? 'opacity-40 cursor-not-allowed hover:bg-white' : ''}`}>
-
+                      
                               <div>
                                 <p className="font-bold text-[#1a1a2e]">
                                   {product.name}
@@ -395,7 +395,7 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
                           }
                         }}
                         className="w-16 text-center border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-orange-500 outline-none" />
-
+                      
                         </td>
                         <td className="px-4 py-3 text-right font-bold text-[#1a1a2e]">
                           {formatPrice(item.product.salePrice * item.quantity)}
@@ -404,7 +404,7 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
                           <button
                         onClick={() => handleRemoveItem(index)}
                         className="text-gray-400 hover:text-red-500 transition-colors">
-
+                        
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </td>
@@ -445,7 +445,7 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
                   onClick={() => items.length > 0 && setStage('payment')}
                   disabled={items.length === 0}
                   className="bg-orange-600 hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
-
+                  
                     Proceed to Payment <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -498,7 +498,7 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
                       }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
                       placeholder="0" />
-
+                    
                     </div>
                     <div className="text-right pt-5">
                       <p className="text-xs text-gray-500">Discount Amount</p>
@@ -533,7 +533,7 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
                     }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
                     placeholder="Walk-in Customer" />
-
+                  
                   </div>
 
                   {/* Payment Method Selection */}
@@ -545,21 +545,21 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
                       <button
                       onClick={() => setPaymentMethod('cash')}
                       className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all ${paymentMethod === 'cash' ? 'bg-orange-50 border-orange-500 text-orange-700 ring-1 ring-orange-500' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-
+                      
                         <Banknote className="w-6 h-6 mb-1" />
                         <span className="text-xs font-bold">Cash (1)</span>
                       </button>
                       <button
                       onClick={() => setPaymentMethod('card')}
                       className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all ${paymentMethod === 'card' ? 'bg-orange-50 border-orange-500 text-orange-700 ring-1 ring-orange-500' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-
+                      
                         <CreditCard className="w-6 h-6 mb-1" />
                         <span className="text-xs font-bold">Card (2)</span>
                       </button>
                       <button
                       onClick={() => setPaymentMethod('bank_transfer')}
                       className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all ${paymentMethod === 'bank_transfer' ? 'bg-orange-50 border-orange-500 text-orange-700 ring-1 ring-orange-500' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-
+                      
                         <Landmark className="w-6 h-6 mb-1" />
                         <span className="text-xs font-bold">Transfer (3)</span>
                       </button>
@@ -578,14 +578,14 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
                   <button
                   onClick={() => setStage('items')}
                   className="flex-1 px-4 py-3 bg-white border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-50">
-
+                  
                     Back
                   </button>
                   <button
                   onClick={handleSubmit}
                   disabled={submitting}
                   className="flex-1 px-4 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-
+                  
                     {submitting ?
                   <>
                         <Loader2 className="w-5 h-5 animate-spin" />{' '}

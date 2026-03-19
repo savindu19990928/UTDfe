@@ -87,7 +87,12 @@ export function useSales(options?: UseSalesOptions): UseSalesReturn {
 
     let baseUrl = `${API_URL}sales/`;
     if (debouncedSearch && debouncedSearch.trim()) {
-      baseUrl += `?bill_number=${encodeURIComponent(debouncedSearch.trim())}`;
+      let searchVal = debouncedSearch.trim();
+      // Auto-prepend SALE- prefix if user only typed the number
+      if (/^\d+$/.test(searchVal)) {
+        searchVal = `SALE-${searchVal}`;
+      }
+      baseUrl += `?bill_number=${encodeURIComponent(searchVal)}`;
     }
 
     const cacheKey = `sales:${baseUrl}`;

@@ -100,7 +100,7 @@ export function CartProvider({ children }: {children: ReactNode;}) {
         cartTotal,
         cartCount
       }}>
-
+      
       {children}
     </CartContext.Provider>);
 

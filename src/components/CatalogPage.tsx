@@ -178,14 +178,14 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
               <button
               onClick={() => onNavigate('quick-sale')}
               className="flex items-center gap-2 px-4 py-2.5 bg-orange-600 text-white rounded-lg text-sm font-bold hover:bg-orange-700 transition-colors shadow-sm">
-
+              
                 <ShoppingCart className="w-5 h-5" />
                 Quick Sale
               </button>
               <button
               onClick={() => onNavigate('quick-rental')}
               className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm">
-
+              
                 <Zap className="w-5 h-5" />
                 Quick Rental
               </button>
@@ -198,7 +198,7 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
               setScanBuffer('');
             }}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all ${scanMode ? 'bg-[#f5a623] text-[#1a1a2e] shadow-md ring-2 ring-[#f5a623]/30' : 'bg-[#1a1a2e] text-white hover:bg-[#2d4059]'}`}>
-
+            
             <ScanBarcode className="w-5 h-5" />
             {scanMode ? 'Scanning...' : 'Scan Barcode'}
           </button>
@@ -222,7 +222,7 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
             opacity: 0
           }}
           className="overflow-hidden mb-6">
-
+          
             <div className="bg-[#f5a623]/10 border-2 border-dashed border-[#f5a623] rounded-xl p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="bg-[#f5a623] p-2 rounded-lg">
@@ -255,7 +255,7 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
                   setScanBuffer('');
                 }}
                 className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-white/50 rounded-lg transition-colors">
-
+                
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -284,10 +284,10 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
             scale: 0.95
           }}
           className="fixed top-20 right-4 z-50">
-
+          
             <div
             className={`flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg border text-sm font-bold ${scanFeedback.type === 'success' ? 'bg-green-50 text-green-800 border-green-200' : 'bg-red-50 text-red-800 border-red-200'}`}>
-
+            
               {scanFeedback.type === 'success' ?
             <Check className="w-4 h-4 text-green-600 flex-shrink-0" /> :
 
@@ -304,24 +304,24 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
         <button
           onClick={() => handleTabChange('sale')}
           className={`relative flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-colors ${activeTab === 'sale' ? 'bg-[#f5a623] text-[#1a1a2e] shadow-md' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}>
-
+          
           <ShoppingCart className="w-4 h-4" />
           Sale Items
           <span
             className={`ml-1 text-xs px-1.5 py-0.5 rounded-full ${activeTab === 'sale' ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>
-
+            
             {countsLoading ? '…' : saleProductCount}
           </span>
         </button>
         <button
           onClick={() => handleTabChange('rent')}
           className={`relative flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-colors ${activeTab === 'rent' ? 'bg-[#2d4059] text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}>
-
+          
           <Clock className="w-4 h-4" />
           Rent Items
           <span
             className={`ml-1 text-xs px-1.5 py-0.5 rounded-full ${activeTab === 'rent' ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>
-
+            
             {countsLoading ? '…' : rentProductCount}
           </span>
         </button>
@@ -331,7 +331,7 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
           <div className="flex items-center gap-1.5 text-xs text-gray-500">
             <div
               className={`w-2 h-2 rounded-full ${activeRentalCount > 0 ? 'bg-blue-500' : 'bg-gray-300'}`} />
-
+            
             <span className="font-medium">
               {rentalsLoading ?
               '…' :
@@ -349,7 +349,7 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
           <div className="flex items-center gap-1.5 text-xs text-gray-500">
             <div
               className={`w-2 h-2 rounded-full ${totalSaleCount > 0 ? 'bg-[#f5a623]' : 'bg-gray-300'}`} />
-
+            
             <span className="font-medium">
               {salesLoading ?
               '…' :
@@ -384,7 +384,7 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
           <button
           onClick={() => window.location.reload()}
           className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors">
-
+          
             Retry
           </button>
         </div>

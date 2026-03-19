@@ -36,13 +36,13 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           y: 0
         }}
         className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-
+        
         <div className="bg-[#f5a623] p-8 text-center">
           <img
             src={LOGO_URL}
             alt="Universal Tools"
             className="h-20 w-auto mx-auto mb-2 object-contain" />
-
+          
           <p className="text-[#1a1a2e] text-sm font-medium mt-1">POS System</p>
         </div>
 
@@ -59,7 +59,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 x: 0
               }}
               className="bg-red-50 text-red-600 p-3 rounded-lg text-sm flex items-center gap-2 border border-red-100">
-
+              
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 {error}
               </motion.div>
@@ -78,7 +78,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                   className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#f5a623] focus:border-transparent outline-none transition-all"
                   placeholder="Enter username"
                   required />
-
+                
               </div>
             </div>
 
@@ -95,7 +95,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                   className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#f5a623] focus:border-transparent outline-none transition-all"
                   placeholder="Enter password"
                   required />
-
+                
               </div>
             </div>
 
@@ -103,7 +103,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               type="submit"
               disabled={isLoading}
               className="w-full bg-[#1a1a2e] hover:bg-[#2d4059] text-white font-bold py-3.5 rounded-xl transition-all transform active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-
+              
               {isLoading ?
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> :
 

@@ -80,12 +80,12 @@ export function Header({ currentPage, onNavigate, onLogout }: HeaderProps) {
           <div
             className="flex items-center cursor-pointer group"
             onClick={() => handleNavClick('catalog')}>
-
+            
             <img
               src={LOGO_URL}
               alt="Universal Tools"
               className="h-10 w-auto object-contain group-hover:scale-105 transition-transform duration-200" />
-
+            
           </div>
 
           {/* Desktop Navigation */}
@@ -95,7 +95,7 @@ export function Header({ currentPage, onNavigate, onLogout }: HeaderProps) {
               key={item.id}
               onClick={() => handleNavClick(item.id)}
               className={`relative px-3 py-2 text-sm font-medium transition-colors flex items-center gap-2 ${currentPage === item.id ? 'text-[#f5a623]' : 'text-gray-300 hover:text-white'}`}>
-
+              
                 <item.icon className="w-4 h-4" />
                 {item.label}
                 {currentPage === item.id &&
@@ -114,7 +114,7 @@ export function Header({ currentPage, onNavigate, onLogout }: HeaderProps) {
               onClick={() => handleNavClick('cart')}
               className="relative p-2 text-gray-300 hover:text-[#f5a623] transition-colors"
               aria-label="Shopping Cart">
-
+              
               <ShoppingCart className="h-6 w-6" />
               {cartCount > 0 &&
               <motion.span
@@ -125,7 +125,7 @@ export function Header({ currentPage, onNavigate, onLogout }: HeaderProps) {
                   scale: 1
                 }}
                 className="absolute -top-1 -right-1 bg-[#f5a623] text-[#1a1a2e] text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-[#1a1a2e]">
-
+                
                   {cartCount}
                 </motion.span>
               }
@@ -136,7 +136,7 @@ export function Header({ currentPage, onNavigate, onLogout }: HeaderProps) {
             <button
               onClick={onLogout}
               className="hidden lg:flex items-center gap-2 text-gray-400 hover:text-white transition-colors text-sm font-medium">
-
+              
               <LogOut className="w-4 h-4" />
               Logout
             </button>
@@ -144,7 +144,7 @@ export function Header({ currentPage, onNavigate, onLogout }: HeaderProps) {
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="lg:hidden p-2 text-gray-300 hover:text-white">
-
+              
               {isMobileMenuOpen ?
               <X className="w-6 h-6" /> :
 
@@ -172,14 +172,14 @@ export function Header({ currentPage, onNavigate, onLogout }: HeaderProps) {
             opacity: 0
           }}
           className="lg:hidden bg-[#2d4059] border-t border-gray-700 overflow-hidden">
-
+          
             <div className="px-4 pt-2 pb-6 space-y-1">
               {navItems.map((item) =>
             <button
               key={item.id}
               onClick={() => handleNavClick(item.id)}
               className={`block w-full text-left px-3 py-3 rounded-md text-base font-medium ${currentPage === item.id ? 'bg-[#1a1a2e] text-[#f5a623]' : 'text-gray-300 hover:bg-[#1a1a2e] hover:text-white'}`}>
-
+              
                   <div className="flex items-center gap-3">
                     <item.icon className="w-5 h-5" />
                     {item.label}
@@ -189,7 +189,7 @@ export function Header({ currentPage, onNavigate, onLogout }: HeaderProps) {
               <button
               onClick={onLogout}
               className="block w-full text-left px-3 py-3 rounded-md text-base font-medium text-red-400 hover:bg-[#1a1a2e] hover:text-red-300 mt-4 border-t border-gray-600">
-
+              
                 <div className="flex items-center gap-3">
                   <LogOut className="w-5 h-5" />
                   Logout

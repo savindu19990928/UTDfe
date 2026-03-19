@@ -210,7 +210,7 @@ function AppContent() {
         currentPage={currentPage}
         onNavigate={handleNavigate}
         onLogout={handleLogout} />
-
+      
 
       {/* Overdue Rentals Banner */}
       <AnimatePresence>
@@ -232,7 +232,7 @@ function AppContent() {
             duration: 0.25
           }}
           className="overflow-hidden">
-
+          
             <div className="bg-amber-50 border-b border-amber-200">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5 min-w-0">
@@ -244,7 +244,7 @@ function AppContent() {
                 <button
                 onClick={() => setOverdueMessage(null)}
                 className="p-1 text-amber-500 hover:text-amber-700 hover:bg-amber-100 rounded transition-colors flex-shrink-0">
-
+                
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -293,7 +293,7 @@ function AppContent() {
               target="_blank"
               rel="noopener noreferrer"
               className="text-[#f5a623] hover:underline">
-
+              
               Devrious
             </a>
           </p>

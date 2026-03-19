@@ -101,8 +101,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
     sum + (item.product.rentPricePerDay || 0) * item.days * item.quantity,
     0
   );
-  const tax = subtotal * 0.08;
-  const total = subtotal + tax;
+  const total = subtotal;
   // Focus management
   useEffect(() => {
     if (stage === 'customer') {
@@ -409,14 +408,14 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
     <div
       className="min-h-screen bg-gray-50 flex flex-col"
       onKeyDown={handleKeyDown}>
-
+      
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-20">
         <div className="flex items-center gap-4">
           <button
             onClick={onCancel}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-
+            
             <X className="w-5 h-5 text-gray-500" />
           </button>
           <h1 className="text-xl font-bold text-[#1a1a2e]">Quick Rental</h1>
@@ -426,7 +425,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
         <div className="flex items-center gap-2 text-sm">
           <div
             className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${stage === 'customer' ? 'bg-blue-100 text-blue-700 font-bold' : 'text-gray-400'}`}>
-
+            
             <span className="w-5 h-5 rounded-full bg-current text-white flex items-center justify-center text-xs">
               1
             </span>
@@ -435,7 +434,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
           <ChevronRight className="w-4 h-4 text-gray-300" />
           <div
             className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${stage === 'items' ? 'bg-blue-100 text-blue-700 font-bold' : 'text-gray-400'}`}>
-
+            
             <span className="w-5 h-5 rounded-full bg-current text-white flex items-center justify-center text-xs">
               2
             </span>
@@ -444,7 +443,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
           <ChevronRight className="w-4 h-4 text-gray-300" />
           <div
             className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${stage === 'deposit' ? 'bg-blue-100 text-blue-700 font-bold' : 'text-gray-400'}`}>
-
+            
             <span className="w-5 h-5 rounded-full bg-current text-white flex items-center justify-center text-xs">
               3
             </span>
@@ -491,7 +490,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                     x: -20
                   }}
                   className="space-y-3">
-
+                  
                       <div className="relative">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                         <input
@@ -516,7 +515,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                       }}
                       placeholder="Search customer by name, phone..."
                       className="w-full pl-12 pr-4 py-4 text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-
+                    
 
                         <AnimatePresence>
                           {showCustomerDropdown && customerSearch &&
@@ -534,7 +533,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                           y: 10
                         }}
                         className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 max-h-60 overflow-y-auto z-30">
-
+                        
                               {customersLoading ?
                         <div className="p-4 text-center text-gray-400 flex items-center justify-center gap-2">
                                   <Loader2 className="w-4 h-4 animate-spin" />{' '}
@@ -546,7 +545,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                           key={c.id}
                           onClick={() => handleSelectAndSubmit(c)}
                           className={`w-full text-left px-4 py-3 hover:bg-blue-50 flex items-center gap-3 border-b border-gray-50 last:border-0 ${idx === 0 ? 'bg-blue-50/50' : ''}`}>
-
+                          
                                     <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
                                       {c.photoUrl ?
                             <img
@@ -592,7 +591,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                       <button
                     onClick={() => setShowNewCustomerForm(true)}
                     className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/50 transition-colors font-medium">
-
+                    
                         <UserPlus className="w-5 h-5" />
                         Add New Customer
                         <kbd className="text-[10px] bg-gray-100 border border-gray-200 rounded px-1.5 py-0.5 text-gray-400 ml-2">
@@ -619,7 +618,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                     x: 20
                   }}
                   className="space-y-4">
-
+                  
                       <div className="bg-gray-50 rounded-xl border border-gray-200 p-5 space-y-4">
                         <div>
                           <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
@@ -639,7 +638,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                         }}
                         placeholder="Customer name"
                         className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
-
+                      
                         </div>
                         <div>
                           <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
@@ -658,7 +657,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                         }}
                         placeholder="National ID (optional)"
                         className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
-
+                      
                         </div>
                         <div>
                           <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
@@ -677,7 +676,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                         }}
                         placeholder="Mobile number"
                         className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
-
+                      
                         </div>
                         <div>
                           <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
@@ -696,7 +695,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                         }}
                         placeholder="Address (optional)"
                         className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
-
+                      
                         </div>
                         <div className="flex items-center gap-4 pt-2 border-t border-gray-200">
                           <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-500 hover:text-blue-600 transition-colors">
@@ -705,7 +704,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                           accept="image/*"
                           onChange={handlePhotoChange}
                           className="hidden" />
-
+                        
                             {newPhotoPreview ?
                         <img
                           src={newPhotoPreview}
@@ -727,7 +726,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                         setNewPhoneVerified(!newPhoneVerified)
                         }
                         className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full border transition-colors ${newPhoneVerified ? 'bg-green-50 border-green-300 text-green-700' : 'bg-gray-50 border-gray-200 text-gray-400 hover:border-gray-300'}`}>
-
+                        
                             <ShieldCheck className="w-3.5 h-3.5" />
                             {newPhoneVerified ? 'Verified' : 'Not Verified'}
                           </button>
@@ -748,7 +747,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                     opacity: 1,
                     scale: 1
                   }}>
-
+                  
                       <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 relative">
                         <button
                       onClick={() => {
@@ -756,7 +755,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                         resetNewCustomerForm();
                       }}
                       className="absolute top-4 right-4 text-gray-400 hover:text-red-500">
-
+                      
                           <X className="w-5 h-5" />
                         </button>
                         <div className="flex items-center gap-4 mb-4">
@@ -825,7 +824,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                       <button
                     onClick={() => resetNewCustomerForm()}
                     className="flex-1 px-4 py-3 bg-white border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-50">
-
+                    
                         Back
                       </button>
                       <button
@@ -834,7 +833,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                     !newName.trim() || !newPhone.trim() || addingCustomer
                     }
                     className="flex-1 px-4 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-
+                    
                         {addingCustomer ?
                     <>
                             <Loader2 className="w-5 h-5 animate-spin" />{' '}
@@ -852,7 +851,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                 <button
                   onClick={() => setStage('items')}
                   className="w-full px-4 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2">
-
+                  
                       Add Items <ArrowRight className="w-4 h-4" />
                     </button> :
                 null}
@@ -880,7 +879,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                   <button
                 onClick={() => setStage('customer')}
                 className="text-xs text-blue-600 hover:text-blue-800 font-medium">
-
+                
                     Change
                   </button>
                 </div>
@@ -906,7 +905,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                     }
                   }}
                   className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-lg" />
-
+                
                   <AnimatePresence>
                     {showProductDropdown && productSearch &&
                   <motion.div
@@ -923,7 +922,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                       y: 10
                     }}
                     className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 max-h-80 overflow-y-auto z-30">
-
+                    
                         {productSearch.trim().length < 3 ?
                     <div className="p-4 text-center text-gray-400 text-sm">
                             Type at least 3 characters to search...
@@ -944,7 +943,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                       getUsedQty(product.id) >= product.stock
                       }
                       className={`w-full text-left px-4 py-3 hover:bg-blue-50 flex items-center justify-between border-b border-gray-50 last:border-0 ${product.stock != null && product.stock > 0 && getUsedQty(product.id) >= product.stock ? 'opacity-40 cursor-not-allowed hover:bg-white' : ''}`}>
-
+                      
                               <div>
                                 <p className="font-bold text-[#1a1a2e]">
                                   {product.name}
@@ -1027,7 +1026,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                               }
                             }}
                             className="w-14 text-center border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none" />
-
+                          
                             </div>
                             <span className="text-gray-400 text-xs font-bold">
                               ×
@@ -1047,7 +1046,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                             }
                           }}
                           className="w-14 text-center border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none" />
-
+                        
                           </div>
                         </td>
                         <td className="px-4 py-3 text-right font-bold text-[#1a1a2e]">
@@ -1061,7 +1060,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                           <button
                         onClick={() => handleRemoveItem(index)}
                         className="text-gray-400 hover:text-red-500 transition-colors">
-
+                        
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </td>
@@ -1089,7 +1088,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                   <button
                   onClick={() => setStage('customer')}
                   className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-50 text-sm">
-
+                  
                     Back
                   </button>
                   <div className="text-sm text-gray-500">
@@ -1110,7 +1109,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                   onClick={() => items.length > 0 && setStage('deposit')}
                   disabled={items.length === 0}
                   className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
-
+                  
                     Set Deposit <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -1179,7 +1178,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                       placeholder="00001"
                       maxLength={5}
                       className={`flex-1 px-3 py-2.5 border rounded-r-lg text-sm font-mono font-bold focus:ring-2 outline-none ${billNumberError ? 'border-red-400 focus:ring-red-300 bg-red-50' : 'border-gray-300 focus:ring-blue-500'}`} />
-
+                    
                     </div>
                     {billNumberError &&
                   <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
@@ -1214,7 +1213,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                       }}
                       className="w-full pl-12 pr-4 py-4 text-2xl font-bold text-right border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                       placeholder="0.00" />
-
+                    
                     </div>
                     {(parseFloat(depositAmount) || 0) < total &&
                   <p className="text-xs text-red-500 mt-2 flex items-center gap-1 font-medium">
@@ -1245,7 +1244,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                   <button
                   onClick={() => setStage('items')}
                   className="flex-1 px-4 py-3 bg-white border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-50">
-
+                  
                     Back
                   </button>
                   <button
@@ -1254,7 +1253,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                   (parseFloat(depositAmount) || 0) < total || submitting
                   }
                   className="flex-1 px-4 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-
+                  
                     {submitting ?
                   <>
                         <Loader2 className="w-5 h-5 animate-spin" />{' '}

@@ -116,7 +116,7 @@ export function ProductList({
             y: -10
           }}
           className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
-
+          
             <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm font-bold text-red-800">
@@ -133,7 +133,7 @@ export function ProductList({
             <button
             onClick={() => setShowTypeWarning(false)}
             className="text-red-400 hover:text-red-600 transition-colors">
-
+            
               <X className="w-4 h-4" />
             </button>
           </motion.div>
@@ -162,7 +162,7 @@ export function ProductList({
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={handleSearchKeyDown}
             className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#f5a623] focus:border-transparent transition-shadow" />
-
+          
         </div>
       </div>
 
@@ -173,7 +173,7 @@ export function ProductList({
           categories={categories}
           activeCategoryId={activeCategoryId}
           onSelectCategory={onCategoryChange} />
-
+        
         </div>
       }
 
@@ -213,7 +213,7 @@ export function ProductList({
                         opacity: 0
                       }}
                       className="hover:bg-gray-50 transition-colors group">
-
+                      
                         <td className="px-6 py-4">
                           <div className="font-bold text-[#1a1a2e] text-base">
                             {product.name}
@@ -239,7 +239,7 @@ export function ProductList({
                           onClick={() => handleAddToCart(product)}
                           disabled={isOutOfStock}
                           className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm ${isOutOfStock ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : isBlocked ? 'bg-gray-100 text-gray-400 border border-dashed border-gray-300' : listingType === 'sale' ? 'bg-[#f5a623] hover:bg-[#d4901e] text-[#1a1a2e]' : 'bg-[#2d4059] hover:bg-[#1a1a2e] text-white'}`}>
-
+                          
                             {listingType === 'sale' ?
                           <ShoppingCart className="w-4 h-4" /> :
 
@@ -274,7 +274,7 @@ export function ProductList({
                           setActiveCategory('All');
                         }}
                         className="mt-4 text-[#f5a623] font-medium hover:underline text-sm">
-
+                        
                           Clear all filters
                         </button>
                       </div>
@@ -300,7 +300,7 @@ export function ProductList({
               onClick={() => onPageChange!(currentPage - 1)}
               disabled={currentPage <= 1}
               className="p-2 rounded-lg text-gray-500 hover:bg-white hover:text-[#1a1a2e] disabled:opacity-30 disabled:cursor-not-allowed transition-colors border border-transparent hover:border-gray-200 disabled:hover:border-transparent disabled:hover:bg-transparent">
-
+              
                 <ChevronLeft className="w-4 h-4" />
               </button>
 
@@ -309,7 +309,7 @@ export function ProductList({
             <span
               key={`dots-${idx}`}
               className="px-2 text-gray-400 text-sm">
-
+              
                     …
                   </span> :
 
@@ -317,7 +317,7 @@ export function ProductList({
               key={page}
               onClick={() => onPageChange!(page as number)}
               className={`min-w-[36px] h-9 rounded-lg text-sm font-bold transition-colors ${page === currentPage ? 'bg-[#1a1a2e] text-white shadow-sm' : 'text-gray-600 hover:bg-white hover:text-[#1a1a2e] border border-transparent hover:border-gray-200'}`}>
-
+              
                     {page}
                   </button>
 
@@ -327,7 +327,7 @@ export function ProductList({
               onClick={() => onPageChange!(currentPage + 1)}
               disabled={currentPage >= totalPages}
               className="p-2 rounded-lg text-gray-500 hover:bg-white hover:text-[#1a1a2e] disabled:opacity-30 disabled:cursor-not-allowed transition-colors border border-transparent hover:border-gray-200 disabled:hover:border-transparent disabled:hover:bg-transparent">
-
+              
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>

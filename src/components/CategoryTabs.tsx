@@ -18,7 +18,7 @@ export function CategoryTabs({
         <button
           onClick={() => onSelectCategory(null)}
           className={`relative px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200 ${activeCategoryId === null ? 'text-[#1a1a2e]' : 'text-gray-500 hover:text-[#1a1a2e] hover:bg-gray-100'}`}>
-
+          
           All
           {activeCategoryId === null &&
           <motion.div
@@ -40,7 +40,7 @@ export function CategoryTabs({
               key={cat.id}
               onClick={() => onSelectCategory(cat.id)}
               className={`relative px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200 ${isActive ? 'text-[#1a1a2e]' : 'text-gray-500 hover:text-[#1a1a2e] hover:bg-gray-100'}`}>
-
+              
               {cat.name}
               {isActive &&
               <motion.div

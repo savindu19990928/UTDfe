@@ -200,13 +200,13 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
           <button
             onClick={fetchDamages}
             className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors">
-
+            
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <button
             onClick={() => setIsFormOpen(!isFormOpen)}
             className="flex items-center gap-2 bg-[#f5a623] hover:bg-[#d4901e] text-[#1a1a2e] px-4 py-2.5 rounded-lg font-bold transition-colors shadow-sm">
-
+            
             <Plus className="w-5 h-5" />
             Add Report
           </button>
@@ -230,11 +230,11 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
             opacity: 0
           }}
           className="overflow-hidden mb-8">
-
+          
             <form
             onSubmit={handleSubmit}
             className="bg-white p-6 rounded-xl shadow-md border border-gray-200">
-
+            
               <h3 className="text-lg font-bold text-[#1a1a2e] mb-4">
                 New Damage Report
               </h3>
@@ -267,7 +267,7 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
                         onFocus={() => setIsProductDropdownOpen(true)}
                         placeholder="Search by name, barcode, or item code..."
                         className="w-full pl-9 pr-3 p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f5a623] outline-none text-sm" />
-
+                      
                         </div>
                         <AnimatePresence>
                           {isProductDropdownOpen &&
@@ -288,7 +288,7 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
                           duration: 0.15
                         }}
                         className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
-
+                        
                               {filteredFormProducts.length > 0 ?
                         filteredFormProducts.map((p) =>
                         <button
@@ -296,7 +296,7 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
                           type="button"
                           onClick={() => handleSelectProduct(p)}
                           className="w-full text-left px-3 py-2.5 hover:bg-gray-50 transition-colors flex items-center justify-between border-b border-gray-50 last:border-0">
-
+                          
                                     <div>
                                       <span className="text-sm font-bold text-[#1a1a2e]">
                                         {p.name}
@@ -336,7 +336,7 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
                       type="button"
                       onClick={handleClearProduct}
                       className="text-gray-400 hover:text-red-500 transition-colors p-1">
-
+                      
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -372,7 +372,7 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
                   onChange={(e) => setQty(parseInt(e.target.value))}
                   className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f5a623] outline-none"
                   required />
-
+                
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 mb-1">
@@ -384,7 +384,7 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
                   onChange={(e) => setNotes(e.target.value)}
                   className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f5a623] outline-none"
                   placeholder="Describe the damage..." />
-
+                
                 </div>
               </div>
               <div className="flex justify-end gap-3">
@@ -395,14 +395,14 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
                   setSubmitError(null);
                 }}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-medium transition-colors">
-
+                
                   Cancel
                 </button>
                 <button
                 type="submit"
                 disabled={submitting}
                 className="px-6 py-2 bg-[#1a1a2e] text-white rounded-lg font-bold hover:bg-[#2d4059] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
-
+                
                   {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
                   {submitting ? 'Saving...' : 'Save Report'}
                 </button>
@@ -430,7 +430,7 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
           <button
           onClick={fetchDamages}
           className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors">
-
+          
             Retry
           </button>
         </div>
@@ -457,7 +457,7 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
                     <td
                   colSpan={6}
                   className="px-6 py-8 text-center text-gray-500">
-
+                  
                       No damage reports recorded yet.
                     </td>
                   </tr> :
@@ -466,7 +466,7 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
               <tr
                 key={damage.id}
                 className="hover:bg-gray-50 transition-colors">
-
+                
                       <td className="px-6 py-4 text-gray-600 whitespace-nowrap">
                         {formatDate(damage.reported_at)}
                       </td>
@@ -484,7 +484,7 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
                       <td
                   className="px-6 py-4 text-gray-500 max-w-xs truncate"
                   title={damage.reason}>
-
+                  
                         {damage.reason || '-'}
                       </td>
                       <td className="px-6 py-4 text-gray-600">

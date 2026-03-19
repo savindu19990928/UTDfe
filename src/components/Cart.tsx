@@ -69,9 +69,7 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
   }, []);
   const discountAmount = cartTotal * (discountPercent / 100);
   const afterDiscount = cartTotal - discountAmount;
-  const taxRate = 0.08;
-  const taxAmount = afterDiscount * taxRate;
-  const grandTotal = afterDiscount + taxAmount;
+  const grandTotal = afterDiscount;
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId);
   const filteredCustomers = availableCustomers.filter((c) => {
     if (!customerSearch.trim()) return true;
@@ -347,7 +345,7 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
         <button
           onClick={onContinueShopping}
           className="bg-[#f5a623] hover:bg-[#d4901e] text-[#1a1a2e] px-8 py-3 rounded-lg font-bold transition-colors shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
-
+          
           Browse Products
         </button>
       </div>);
@@ -363,7 +361,7 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
         {cartType &&
         <span
           className={`text-xs font-bold px-2.5 py-1 rounded ${cartType === 'sale' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
-
+          
             {cartType === 'sale' ? 'SALE ORDER' : 'RENTAL ORDER'}
           </span>
         }
@@ -385,7 +383,7 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
           <button
             onClick={onContinueShopping}
             className="flex items-center text-[#f5a623] font-medium hover:underline mt-6">
-
+            
             <ArrowRight className="w-4 h-4 mr-2 rotate-180" />
             Continue Shopping
           </button>
@@ -400,7 +398,7 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
                 setCustomerSearch('');
               }}
               className="flex items-center gap-2 text-sm text-red-500 hover:text-red-700 font-medium transition-colors px-3 py-2 rounded-lg hover:bg-red-50">
-
+              
               <Trash2 className="w-4 h-4" />
               Clear Cart
             </button>
@@ -440,7 +438,7 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
                       }}
                       placeholder="0"
                       className="w-full pr-7 pl-2 py-1 text-right text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-[#f5a623] outline-none" />
-
+                    
                     <Percent className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                   </div>
                 </div>
@@ -454,10 +452,6 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
                 </div>
               }
 
-              <div className="flex justify-between text-gray-600">
-                <span>Tax (8%)</span>
-                <span className="font-medium">{formatPrice(taxAmount)}</span>
-              </div>
               <div className="flex justify-between text-xl font-bold text-[#1a1a2e] pt-2">
                 <span>Total</span>
                 <span>{formatPrice(grandTotal)}</span>
@@ -489,7 +483,7 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
                     placeholder="00001"
                     maxLength={5}
                     className={`flex-1 px-2.5 py-1.5 border rounded-r-md text-xs font-mono font-bold focus:ring-2 outline-none ${billNumberError ? 'border-red-400 focus:ring-red-300 bg-red-50' : 'border-gray-300 focus:ring-[#f5a623]'}`} />
-
+                  
                   </div>
                   {billNumberError &&
                 <p className="text-[10px] text-red-500 flex items-center gap-1">
@@ -527,7 +521,7 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
                       }}
                       placeholder="0.00"
                       className="w-full pl-8 pr-2 py-1 text-right text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-[#f5a623] outline-none" />
-
+                    
                     </div>
                   </div>
                   {depositAmount > 0 &&
@@ -537,7 +531,7 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
                       </span>
                       <span
                     className={`font-bold ${depositAmount >= grandTotal ? 'text-green-600' : 'text-red-500'}`}>
-
+                    
                         {depositAmount >= grandTotal ?
                     formatPrice(depositAmount - grandTotal) :
                     `-${formatPrice(grandTotal - depositAmount)}`}
@@ -586,7 +580,7 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
                       onFocus={() => setIsCustomerDropdownOpen(true)}
                       placeholder="Search by name, phone, or NIC..."
                       className="w-full pl-9 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f5a623] outline-none bg-white text-sm" />
-
+                    
                         {customersLoading &&
                     <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 animate-spin" />
                     }
@@ -611,7 +605,7 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
                         duration: 0.15
                       }}
                       className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
-
+                      
                             {customersLoading ?
                       <div className="px-3 py-4 text-center text-sm text-gray-400 flex items-center justify-center gap-2">
                                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -623,7 +617,7 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
                         key={c.id}
                         onClick={() => handleSelectCustomer(c)}
                         className="w-full text-left px-3 py-2.5 hover:bg-gray-50 transition-colors flex items-center gap-3 border-b border-gray-50 last:border-0">
-
+                        
                                   <div className="w-8 h-8 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden">
                                     {c.photoUrl ?
                           <img
@@ -701,7 +695,7 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
                     onClick={handleClearCustomer}
                     className="text-gray-400 hover:text-red-500 transition-colors p-1"
                     title="Change customer">
-
+                    
                         <X className="w-4 h-4" />
                       </button>
                     </div>
@@ -738,7 +732,7 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
                     key={method.value}
                     onClick={() => setPaymentMethod(method.value)}
                     className={`py-2.5 px-3 rounded-lg text-sm font-bold border transition-colors ${paymentMethod === method.value ? 'bg-[#f5a623] border-[#f5a623] text-[#1a1a2e]' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-
+                    
                         {method.label}
                       </button>
                   )}
@@ -758,7 +752,7 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
               onClick={handleGenerateBill}
               disabled={!isFormValid || submitting}
               className="w-full bg-[#f5a623] hover:bg-[#d4901e] disabled:bg-gray-300 disabled:cursor-not-allowed text-[#1a1a2e] py-3.5 rounded-lg font-bold text-lg shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2">
-
+              
               {submitting ?
               <>
                   <Loader2 className="w-5 h-5 animate-spin" />

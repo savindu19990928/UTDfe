@@ -20,8 +20,10 @@ interface UseRentalsReturn {
 
 function mapApiStatus(status: string): Bill['rentalStatus'] {
   switch (status) {
-    case 'returned':
+    case 'closed':
       return 'closed';
+    case 'returned':
+      return 'partially_closed';
     case 'active':
       return 'open';
     case 'overdue':
@@ -99,20 +101,20 @@ function mapApiRental(raw: any): Bill {
     address: raw.customer_address || ''
   };
 
-  // Determine rental status from item statuses AND balance (including fines)
+  // Determine rental status — respect API status, never auto-close
+  // Closing must be done manually via manual_close endpoint
   const totalItems = items.length;
   const returnedItems = items.filter((i) => i.status === 'returned').length;
-  const allReturned = totalItems > 0 && returnedItems === totalItems;
-  const netOwed = totalRentalFee + totalFines;
-  const balanceSettled = totalDeposit >= netOwed;
 
-  let rentalStatus: Bill['rentalStatus'] = 'open';
-  if (allReturned && balanceSettled) {
-    rentalStatus = 'closed';
-  } else if (allReturned && !balanceSettled) {
-    rentalStatus = 'partially_closed';
-  } else if (returnedItems > 0) {
-    rentalStatus = 'partially_closed';
+  let rentalStatus: Bill['rentalStatus'] = mapApiStatus(raw.status || '');
+  // If API doesn't explicitly say closed, derive from item states (but never auto-close)
+  if (rentalStatus !== 'closed') {
+    const allReturned = totalItems > 0 && returnedItems === totalItems;
+    if (allReturned || returnedItems > 0) {
+      rentalStatus = 'partially_closed';
+    } else {
+      rentalStatus = 'open';
+    }
   }
 
   return {
@@ -160,7 +162,12 @@ export function useRentals(options?: UseRentalsOptions): UseRentalsReturn {
 
     let baseUrl = `${API_URL}rentals/`;
     if (debouncedSearch && debouncedSearch.trim()) {
-      baseUrl += `?bill_number=${encodeURIComponent(debouncedSearch.trim())}`;
+      let searchVal = debouncedSearch.trim();
+      // Auto-prepend RENT- prefix if user only typed the number
+      if (/^\d+$/.test(searchVal)) {
+        searchVal = `RENT-${searchVal}`;
+      }
+      baseUrl += `?bill_number=${encodeURIComponent(searchVal)}`;
     }
 
     const cacheKey = `rentals:${baseUrl}`;

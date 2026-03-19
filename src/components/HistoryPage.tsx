@@ -169,18 +169,14 @@ export function HistoryPage({
         (i) => i.status === 'returned'
       ).length;
       const allReturned = returnedCount === updatedItems.length;
-      const totalDeposit =
-      bill.depositHistory?.reduce((s, d) => s + d.amount, 0) ||
-      bill.deposit ||
-      0;
-      const balanceSettled = totalDeposit >= bill.total;
-      let rentalStatus: Bill['rentalStatus'] = 'open';
-      if (allReturned && balanceSettled) {
-        rentalStatus = 'closed';
-      } else if (allReturned && !balanceSettled) {
-        rentalStatus = 'partially_closed';
-      } else if (returnedCount > 0) {
-        rentalStatus = 'partially_closed';
+      // Never auto-close — closing must be done manually
+      let rentalStatus: Bill['rentalStatus'] = bill.rentalStatus || 'open';
+      if (rentalStatus !== 'closed') {
+        if (allReturned || returnedCount > 0) {
+          rentalStatus = 'partially_closed';
+        } else {
+          rentalStatus = 'open';
+        }
       }
       return {
         ...bill,
@@ -244,6 +240,9 @@ export function HistoryPage({
           closed++;
         } else if (allReturned && owes) {
           unpaid++;
+        } else if (allReturned && !owes) {
+          // All returned, balance settled, but not yet manually closed
+          open++;
         } else if (hasActiveItems && owes) {
           overdue++;
         } else if (hasActiveItems) {
@@ -274,7 +273,10 @@ export function HistoryPage({
       const owes = b.total > totalDeposit;
       switch (rentalFilter) {
         case 'open':
-          return hasActiveItems && !owes;
+          return (
+            hasActiveItems && !owes ||
+            allReturned && !owes && b.rentalStatus !== 'closed');
+
         case 'overdue':
           return hasActiveItems && owes;
         case 'unpaid':
@@ -485,6 +487,41 @@ export function HistoryPage({
       setActionLoading(null);
     }
   };
+  // Manually close a rental bill (no auto-close)
+  const handleManualClose = async (bill: Bill) => {
+    if (!bill.apiId) return;
+    setActionLoading(`close-${bill.id}`);
+    setActionError(null);
+    try {
+      const res = await fetch(`${API_URL}rentals/${bill.apiId}/manual_close/`, {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        const msg = errData ?
+        typeof errData === 'string' ?
+        errData :
+        errData.detail ||
+        errData.message ||
+        errData.error ||
+        JSON.stringify(errData) :
+        `Failed to close bill (${res.status})`;
+        throw new Error(msg);
+      }
+      // Clear cache and refetch to get updated status
+      clearCache('rentals:');
+      refetchRentals();
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to close bill');
+      console.error('Manual close error:', err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
   const handleAddItem = (bill: Bill, product: Product) => {
     const today = new Date();
     const returnDate = newItemReturnDate ?
@@ -564,9 +601,13 @@ export function HistoryPage({
     const newTotal = afterDiscount + taxAmount;
     const totalDeposit =
     depositHistory?.reduce((sum, entry) => sum + entry.amount, 0) || 0;
-    let newStatus: Bill['rentalStatus'] = 'open';
-    if (allReturned && items.length > 0) newStatus = 'closed';else
-    if (anyReturned) newStatus = 'partially_closed';
+    // Never auto-close — closing must be done manually
+    let newStatus: Bill['rentalStatus'] = bill.rentalStatus || 'open';
+    if (newStatus !== 'closed') {
+      if (allReturned && items.length > 0) newStatus = 'partially_closed';else
+      if (anyReturned) newStatus = 'partially_closed';else
+      newStatus = 'open';
+    }
     onUpdateBill({
       ...bill,
       items,
@@ -585,7 +626,7 @@ export function HistoryPage({
     p.itemCode?.toLowerCase().includes(productSearch.toLowerCase())
   );
   const getStatusBadge = (status?: string, bill?: Bill) => {
-    // Check if all items returned but balance outstanding (unpaid)
+    // Check special states for partially_closed bills
     if (bill && status === 'partially_closed') {
       const returnedCount = bill.items.filter(
         (i) => i.status === 'returned'
@@ -605,6 +646,14 @@ export function HistoryPage({
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800">
             <Ban className="w-3 h-3 mr-1" />
             Unpaid
+          </span>);
+
+      }
+      if (allReturned && !owes) {
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+            <CheckCircle className="w-3 h-3 mr-1" />
+            Ready to Close
           </span>);
 
       }
@@ -720,7 +769,7 @@ export function HistoryPage({
               setRentalFilter('all');
             }}
             className={`relative flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-colors ${activeTab === 'rentals' ? 'bg-[#2d4059] text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}>
-
+            
             <Clock className="w-4 h-4" />
             Rentals
           </button>
@@ -731,7 +780,7 @@ export function HistoryPage({
               setEditingBillId(null);
             }}
             className={`relative flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-colors ${activeTab === 'sales' ? 'bg-[#f5a623] text-[#1a1a2e] shadow-md' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}>
-
+            
             <ShoppingCart className="w-4 h-4" />
             Sales
           </button>
@@ -744,10 +793,10 @@ export function HistoryPage({
               refetchRentals();
             }}
             className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors">
-
+            
               <RefreshCw
               className={`w-4 h-4 ${rentalsLoading ? 'animate-spin' : ''}`} />
-
+            
             </button>
           }
           {activeTab === 'sales' &&
@@ -757,10 +806,10 @@ export function HistoryPage({
               refetchSales();
             }}
             className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors">
-
+            
               <RefreshCw
               className={`w-4 h-4 ${salesLoading ? 'animate-spin' : ''}`} />
-
+            
             </button>
           }
           <div className="relative w-full md:w-80">
@@ -771,7 +820,7 @@ export function HistoryPage({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#f5a623] text-sm" />
-
+            
           </div>
         </div>
       </div>
@@ -785,7 +834,7 @@ export function HistoryPage({
             setRentalFilter(rentalFilter === 'open' ? 'all' : 'open')
             }
             className={`p-4 rounded-xl shadow-sm border flex items-center justify-between transition-all ${rentalFilter === 'open' ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-200' : 'bg-white border-gray-200 hover:border-blue-200'}`}>
-
+            
               <div>
                 <p className="text-xs font-medium text-gray-500 text-left">
                   Open
@@ -796,7 +845,7 @@ export function HistoryPage({
               </div>
               <div
               className={`p-2.5 rounded-full ${rentalFilter === 'open' ? 'bg-blue-200' : 'bg-blue-100'}`}>
-
+              
                 <Clock className="w-5 h-5 text-blue-600" />
               </div>
             </button>
@@ -805,7 +854,7 @@ export function HistoryPage({
             setRentalFilter(rentalFilter === 'overdue' ? 'all' : 'overdue')
             }
             className={`p-4 rounded-xl shadow-sm border flex items-center justify-between transition-all ${rentalFilter === 'overdue' ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-200' : 'bg-white border-gray-200 hover:border-amber-200'}`}>
-
+            
               <div>
                 <p className="text-xs font-medium text-gray-500 text-left">
                   Overdue
@@ -816,7 +865,7 @@ export function HistoryPage({
               </div>
               <div
               className={`p-2.5 rounded-full ${rentalFilter === 'overdue' ? 'bg-amber-200' : 'bg-amber-100'}`}>
-
+              
                 <AlertTriangle className="w-5 h-5 text-amber-600" />
               </div>
             </button>
@@ -825,7 +874,7 @@ export function HistoryPage({
             setRentalFilter(rentalFilter === 'unpaid' ? 'all' : 'unpaid')
             }
             className={`p-4 rounded-xl shadow-sm border flex items-center justify-between transition-all ${rentalFilter === 'unpaid' ? 'bg-red-50 border-red-400 ring-2 ring-red-200' : 'bg-white border-gray-200 hover:border-red-200'}`}>
-
+            
               <div>
                 <p className="text-xs font-medium text-gray-500 text-left">
                   Unpaid
@@ -836,7 +885,7 @@ export function HistoryPage({
               </div>
               <div
               className={`p-2.5 rounded-full ${rentalFilter === 'unpaid' ? 'bg-red-200' : 'bg-red-100'}`}>
-
+              
                 <Ban className="w-5 h-5 text-red-600" />
               </div>
             </button>
@@ -845,7 +894,7 @@ export function HistoryPage({
             setRentalFilter(rentalFilter === 'closed' ? 'all' : 'closed')
             }
             className={`p-4 rounded-xl shadow-sm border flex items-center justify-between transition-all ${rentalFilter === 'closed' ? 'bg-green-50 border-green-400 ring-2 ring-green-200' : 'bg-white border-gray-200 hover:border-green-200'}`}>
-
+            
               <div>
                 <p className="text-xs font-medium text-gray-500 text-left">
                   Closed
@@ -856,7 +905,7 @@ export function HistoryPage({
               </div>
               <div
               className={`p-2.5 rounded-full ${rentalFilter === 'closed' ? 'bg-green-200' : 'bg-green-100'}`}>
-
+              
                 <CheckCircle className="w-5 h-5 text-green-600" />
               </div>
             </button>
@@ -875,7 +924,7 @@ export function HistoryPage({
               <button
             onClick={() => setRentalFilter('all')}
             className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1">
-
+            
                 <X className="w-3 h-3" />
                 Clear filter
               </button>
@@ -900,7 +949,7 @@ export function HistoryPage({
               <button
             onClick={() => refetchRentals()}
             className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors">
-
+            
                 Retry
               </button>
             </div>
@@ -927,7 +976,7 @@ export function HistoryPage({
                     <button
               onClick={() => setRentalFilter('all')}
               className="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium">
-
+              
                       Show all bills
                     </button>
                   </div> :
@@ -955,7 +1004,7 @@ export function HistoryPage({
               <div
                 key={bill.id}
                 className={`bg-white rounded-xl shadow-sm border ${isEditing ? 'border-blue-300 ring-2 ring-blue-100' : needsPayment ? 'border-red-200 ring-1 ring-red-100' : 'border-gray-200'}`}>
-
+                
                         {/* Bill Header */}
                         <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
                           <div>
@@ -1006,7 +1055,7 @@ export function HistoryPage({
                               <p className="text-xs text-gray-500">Balance</p>
                               <p
                         className={`font-bold ${balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-
+                        
                                 {balance >= 0 ?
                         formatPrice(balance) :
                         `-${formatPrice(Math.abs(balance))}`}
@@ -1026,7 +1075,7 @@ export function HistoryPage({
                       actionLoading === `return-all-${bill.id}`
                       }
                       className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold bg-amber-500 text-white hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
-
+                      
                                   {actionLoading === `return-all-${bill.id}` ?
                       <>
                                       <Loader2 className="w-4 h-4 animate-spin" />{' '}
@@ -1040,13 +1089,35 @@ export function HistoryPage({
                       }
                                 </button>
                     }
+                            {bill.rentalStatus !== 'closed' &&
+                    allItemsReturned &&
+                    <button
+                      onClick={() => handleManualClose(bill)}
+                      disabled={
+                      actionLoading === `close-${bill.id}`
+                      }
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
+                      
+                                  {actionLoading === `close-${bill.id}` ?
+                      <>
+                                      <Loader2 className="w-4 h-4 animate-spin" />{' '}
+                                      Closing...
+                                    </> :
+
+                      <>
+                                      <CheckCircle className="w-4 h-4" /> Close
+                                      Bill
+                                    </>
+                      }
+                                </button>
+                    }
                             <button
                       onClick={() => {
                         setEditingBillId(isEditing ? null : bill.id);
                         setAddItemModalBillId(null);
                       }}
                       className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold transition-colors ${isEditing ? 'bg-gray-200 text-gray-700' : needsPayment ? 'bg-red-600 text-white hover:bg-red-700' : bill.rentalStatus === 'closed' ? 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
-
+                      
                               {isEditing ?
                       <>
                                   <X className="w-4 h-4" /> Close
@@ -1064,7 +1135,7 @@ export function HistoryPage({
                             <button
                       onClick={() => onViewBill(bill)}
                       className="flex items-center gap-1.5 px-3 py-2 bg-[#1a1a2e] text-white rounded-lg text-sm font-bold hover:bg-[#2d4059] transition-colors">
-
+                      
                               <Eye className="w-4 h-4" />
                               Invoice
                             </button>
@@ -1143,12 +1214,12 @@ export function HistoryPage({
                             'bg-green-50/50' :
                             ''
                             }>
-
+                            
                                     <td className="px-4 py-2.5">
                                       <div className="flex items-center gap-2">
                                         <span
                                   className={`w-2 h-2 rounded-full flex-shrink-0 ${item.status === 'returned' ? 'bg-green-500' : 'bg-blue-500'}`} />
-
+                                
                                         <span className="font-medium text-[#1a1a2e]">
                                           {item.product.name}
                                         </span>
@@ -1210,7 +1281,7 @@ export function HistoryPage({
                                     }
                                     className="px-2 py-1 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-blue-400 outline-none w-32"
                                     autoFocus />
-
+                                  
                                                 <input
                                     type="time"
                                     value={returnTimeValue}
@@ -1220,7 +1291,7 @@ export function HistoryPage({
                                     )
                                     }
                                     className="px-2 py-1 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-blue-400 outline-none w-24" />
-
+                                  
                                                 <button
                                     onClick={() => {
                                       if (returnDateValue) {
@@ -1238,7 +1309,7 @@ export function HistoryPage({
                                     `return-${bill.id}-${idx}`
                                     }
                                     className="px-2 py-1 bg-blue-600 text-white text-xs font-bold rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-
+                                    
                                                   {actionLoading ===
                                     `return-${bill.id}-${idx}` ?
                                     <Loader2 className="w-3 h-3 animate-spin" /> :
@@ -1253,7 +1324,7 @@ export function HistoryPage({
                                       setReturnTimeValue('');
                                     }}
                                     className="px-1.5 py-1 text-gray-400 hover:text-gray-600 text-xs rounded-md hover:bg-gray-100 transition-colors">
-
+                                    
                                                   <X className="w-3 h-3" />
                                                 </button>
                                               </div> :
@@ -1276,7 +1347,7 @@ export function HistoryPage({
                                     );
                                   }}
                                   className="px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-md hover:bg-blue-200 transition-colors">
-
+                                  
                                                 <RotateCcw className="w-3 h-3 inline mr-1" />
                                                 Return
                                               </button>
@@ -1309,7 +1380,7 @@ export function HistoryPage({
                       opacity: 0
                     }}
                     className="overflow-hidden">
-
+                    
                               <div className="p-4 border-t border-blue-100 bg-blue-50/30">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                   {/* Add Deposit */}
@@ -1334,14 +1405,14 @@ export function HistoryPage({
                               }
                               placeholder="Amount"
                               className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-[#f5a623] outline-none" />
-
+                            
                                       <button
                               onClick={() => handleAddDeposit(bill)}
                               disabled={
                               actionLoading === `deposit-${bill.id}`
                               }
                               className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-bold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5">
-
+                              
                                         {actionLoading ===
                               `deposit-${bill.id}` &&
                               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1358,7 +1429,7 @@ export function HistoryPage({
                             <div
                               key={i}
                               className="flex justify-between text-xs text-gray-500">
-
+                              
                                               <span>
                                                 {d.date}{' '}
                                                 {d.note && `· ${d.note}`}
@@ -1384,7 +1455,7 @@ export function HistoryPage({
                               setProductSearch('');
                             }}
                             className="w-full px-3 py-2 bg-blue-600 text-white rounded-md text-sm font-bold hover:bg-blue-700 flex items-center justify-center gap-2 transition-colors">
-
+                            
                                       <Plus className="w-4 h-4" />
                                       Select Product
                                     </button>
@@ -1468,7 +1539,7 @@ export function HistoryPage({
               <button
             onClick={() => refetchSales()}
             className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors">
-
+            
                 Retry
               </button>
             </div>
@@ -1508,7 +1579,7 @@ export function HistoryPage({
                     <tr
                       key={bill.id}
                       className="hover:bg-gray-50 transition-colors">
-
+                      
                             <td className="px-6 py-4 font-mono text-sm font-bold text-[#1a1a2e]">
                               {bill.id}
                             </td>
@@ -1518,7 +1589,7 @@ export function HistoryPage({
                           <span
                             key={i}
                             className="text-xs text-gray-600">
-
+                            
                                     {item.product.name} ×{item.quantity}
                                     {(item.returnedQuantity || 0) > 0 &&
                             <span className="ml-1 text-orange-500 font-medium">
@@ -1558,7 +1629,7 @@ export function HistoryPage({
                           <button
                             onClick={() => openReturnModal(bill)}
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg text-xs font-bold hover:bg-orange-200 transition-colors">
-
+                            
                                     <Undo2 className="w-3.5 h-3.5" />
                                     Return
                                   </button>
@@ -1566,7 +1637,7 @@ export function HistoryPage({
                                 <button
                             onClick={() => onViewBill(bill)}
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1a2e] text-white rounded-lg text-xs font-bold hover:bg-[#2d4059] transition-colors">
-
+                            
                                   <Eye className="w-3.5 h-3.5" />
                                   View
                                 </button>
@@ -1604,7 +1675,7 @@ export function HistoryPage({
             setSelectedProductForAdd(null);
             setNewItemReturnDate('');
           }}>
-
+          
             <motion.div
             initial={{
               scale: 0.95,
@@ -1623,7 +1694,7 @@ export function HistoryPage({
             }}
             className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}>
-
+            
               {/* Modal Header */}
               <div className="flex items-center justify-between p-4 border-b border-gray-200">
                 <div>
@@ -1644,7 +1715,7 @@ export function HistoryPage({
                   setNewItemReturnDate('');
                 }}
                 className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-
+                
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -1684,7 +1755,7 @@ export function HistoryPage({
                     value={new Date().toISOString().split('T')[0]}
                     disabled
                     className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500" />
-
+                  
                       <p className="text-[10px] text-gray-400 mt-1">
                         Today (auto)
                       </p>
@@ -1700,7 +1771,7 @@ export function HistoryPage({
                     min={new Date().toISOString().split('T')[0]}
                     className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#f5a623] outline-none"
                     autoFocus />
-
+                  
                     </div>
                   </div>
 
@@ -1756,7 +1827,7 @@ export function HistoryPage({
                     setNewItemReturnDate('');
                   }}
                   className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors">
-
+                  
                       Back
                     </button>
                     <button
@@ -1767,7 +1838,7 @@ export function HistoryPage({
                   }}
                   disabled={!newItemReturnDate}
                   className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-
+                  
                       <Plus className="w-4 h-4" />
                       Add to Bill
                     </button>
@@ -1786,7 +1857,7 @@ export function HistoryPage({
                     value={productSearch}
                     onChange={(e) => setProductSearch(e.target.value)}
                     className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#f5a623] outline-none" />
-
+                  
                     </div>
                   </div>
 
@@ -1809,7 +1880,7 @@ export function HistoryPage({
                     );
                   }}
                   className="w-full text-left px-4 py-3 hover:bg-[#f5a623]/10 border-b border-gray-50 last:border-0 flex items-center justify-between transition-colors">
-
+                  
                           <div>
                             <p className="font-bold text-[#1a1a2e]">{p.name}</p>
                             <div className="flex items-center gap-2 mt-0.5">
@@ -1859,7 +1930,7 @@ export function HistoryPage({
           }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
           onClick={closeReturnModal}>
-
+          
             <motion.div
             initial={{
               scale: 0.95,
@@ -1878,7 +1949,7 @@ export function HistoryPage({
             }}
             className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}>
-
+            
               {/* Modal Header */}
               <div className="p-4 border-b border-gray-200 bg-orange-50">
                 <div className="flex items-center justify-between">
@@ -1898,7 +1969,7 @@ export function HistoryPage({
                   <button
                   onClick={closeReturnModal}
                   className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-
+                  
                     <X className="w-5 h-5" />
                   </button>
                 </div>
@@ -1925,7 +1996,7 @@ export function HistoryPage({
                     <button
                   onClick={closeReturnModal}
                   className="px-6 py-2.5 bg-[#1a1a2e] text-white rounded-lg font-bold hover:bg-[#2d4059] transition-colors">
-
+                  
                       Done
                     </button>
                   </div>
@@ -1951,7 +2022,7 @@ export function HistoryPage({
                     <div
                       key={itemId}
                       className={`border rounded-lg p-4 transition-colors ${currentReturnQty > 0 ? 'border-orange-300 bg-orange-50/50' : 'border-gray-200 bg-white'}`}>
-
+                      
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 min-w-0">
                               <p className="font-bold text-[#1a1a2e] text-sm">
@@ -2002,7 +2073,7 @@ export function HistoryPage({
                               }}
                               disabled={currentReturnQty <= 0}
                               className="w-8 h-8 flex items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-bold">
-
+                              
                                   −
                                 </button>
                                 <input
@@ -2020,7 +2091,7 @@ export function HistoryPage({
                                 }));
                               }}
                               className="w-12 h-8 text-center border border-gray-300 rounded-md text-sm font-bold focus:ring-2 focus:ring-orange-400 outline-none" />
-
+                            
                                 <button
                               onClick={() => {
                                 setReturnQuantities((prev) => ({
@@ -2033,7 +2104,7 @@ export function HistoryPage({
                               }}
                               disabled={currentReturnQty >= remaining}
                               className="w-8 h-8 flex items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-bold">
-
+                              
                                   +
                                 </button>
                               </div>
@@ -2078,14 +2149,14 @@ export function HistoryPage({
                             <button
                           onClick={closeReturnModal}
                           className="flex-1 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-100 transition-colors">
-
+                          
                               Cancel
                             </button>
                             <button
                           onClick={handleSaleReturn}
                           disabled={totalReturning === 0 || returnLoading}
                           className="flex-1 px-4 py-2.5 bg-orange-500 text-white rounded-lg text-sm font-bold hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-
+                          
                               {returnLoading ?
                           <>
                                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -2129,7 +2200,7 @@ export function HistoryPage({
             setReturnPaymentAmount('');
             setReturnFines([]);
           }}>
-
+          
             <motion.div
             initial={{
               scale: 0.95,
@@ -2148,7 +2219,7 @@ export function HistoryPage({
             }}
             className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden max-h-[90vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}>
-
+            
               <div className="p-4 border-b border-gray-200 bg-amber-50 flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <div className="bg-amber-100 p-1.5 rounded-lg">
@@ -2212,7 +2283,7 @@ export function HistoryPage({
                 return (
                   <div
                     className={`rounded-lg p-3 text-sm ${balance < 0 ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'}`}>
-
+                    
                       <div className="flex justify-between mb-1">
                         <span className="text-gray-600">Rental Fee</span>
                         <span className="font-bold">
@@ -2238,7 +2309,7 @@ export function HistoryPage({
                       </div>
                       <div
                       className={`flex justify-between font-bold border-t pt-1 mt-1 ${balance < 0 ? 'text-red-700 border-red-200' : 'text-green-700 border-green-200'}`}>
-
+                      
                         <span>
                           {balance >= 0 ?
                         'Refund to Customer' :
@@ -2271,7 +2342,7 @@ export function HistoryPage({
                     )
                     }
                     className="flex items-center gap-1 text-xs px-2 py-1 bg-orange-50 text-orange-600 border border-orange-200 rounded-md hover:bg-orange-100 transition-colors font-bold">
-
+                    
                       <Plus className="w-3 h-3" />
                       Add Fine
                     </button>
@@ -2303,7 +2374,7 @@ export function HistoryPage({
                         }
                         placeholder="Damage description (e.g. Motor seized)"
                         className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-orange-400 outline-none" />
-
+                      
                             <div className="relative">
                               <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-bold">
                                 Rs.
@@ -2327,7 +2398,7 @@ export function HistoryPage({
                           }
                           placeholder="Fine amount"
                           className="w-full pl-9 pr-3 py-1.5 border border-gray-300 rounded-md text-xs font-bold focus:ring-2 focus:ring-orange-400 outline-none" />
-
+                        
                             </div>
                           </div>
                           <button
@@ -2337,7 +2408,7 @@ export function HistoryPage({
                       )
                       }
                       className="mt-1 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors">
-
+                      
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
@@ -2404,7 +2475,7 @@ export function HistoryPage({
                         }
                         placeholder="0.00"
                         className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md text-sm font-bold text-right focus:ring-2 focus:ring-amber-400 outline-none" />
-
+                      
                       </div>
                     </div>);
 
@@ -2426,7 +2497,7 @@ export function HistoryPage({
                   setActionError(null);
                 }}
                 className="flex-1 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-100 transition-colors">
-
+                
                   Cancel
                 </button>
                 <button
@@ -2437,7 +2508,7 @@ export function HistoryPage({
                 actionLoading === `return-all-${returnAllConfirmBill.id}`
                 }
                 className="flex-1 px-4 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-bold hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-
+                
                   {actionLoading === `return-all-${returnAllConfirmBill.id}` ?
                 <>
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -2471,7 +2542,7 @@ export function HistoryPage({
           }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
           onClick={() => setRentalReturnResult(null)}>
-
+          
             <motion.div
             initial={{
               scale: 0.95,
@@ -2490,11 +2561,11 @@ export function HistoryPage({
             }}
             className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden"
             onClick={(e) => e.stopPropagation()}>
-
+            
               <div className="p-6 text-center">
                 <div
                 className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${rentalReturnResult.refundAmount >= 0 ? 'bg-green-100' : 'bg-red-100'}`}>
-
+                
                   {rentalReturnResult.refundAmount >= 0 ?
                 <CheckCircle className="w-8 h-8 text-green-600" /> :
 
@@ -2539,17 +2610,17 @@ export function HistoryPage({
 
                   <div
                   className={`rounded-lg p-3 flex justify-between text-sm ${rentalReturnResult.refundAmount >= 0 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
-
+                  
                     <span
                     className={`font-medium ${rentalReturnResult.refundAmount >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-
+                    
                       {rentalReturnResult.refundAmount >= 0 ?
                     'Refund to Customer' :
                     'Customer Owes'}
                     </span>
                     <span
                     className={`text-lg font-bold ${rentalReturnResult.refundAmount >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-
+                    
                       {formatPrice(Math.abs(rentalReturnResult.refundAmount))}
                     </span>
                   </div>
@@ -2574,7 +2645,7 @@ export function HistoryPage({
                 <button
                 onClick={() => setRentalReturnResult(null)}
                 className="w-full px-6 py-2.5 bg-[#1a1a2e] text-white rounded-lg font-bold hover:bg-[#2d4059] transition-colors">
-
+                
                   Done
                 </button>
               </div>
