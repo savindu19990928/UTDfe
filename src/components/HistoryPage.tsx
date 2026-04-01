@@ -58,8 +58,17 @@ export function HistoryPage({
   const [selectedProductForAdd, setSelectedProductForAdd] =
   useState<Product | null>(null);
   const [newItemReturnDate, setNewItemReturnDate] = useState('');
-  const [returnTimeValue, setReturnTimeValue] = useState('');
-  // Return date picker state
+  // Single item return modal state
+  const [returnSingleItemModal, setReturnSingleItemModal] = useState<{
+    bill: Bill;
+    itemIndex: number;
+    returnDate: string;
+    returnTime: string;
+    fines: {
+      reason: string;
+      fine: string;
+    }[];
+  } | null>(null);
   const [returnDatePickerKey, setReturnDatePickerKey] = useState<string | null>(
     null
   );
@@ -293,7 +302,11 @@ export function HistoryPage({
   bill: Bill,
   itemIndex: number,
   returnDate: string,
-  returnTime: string) =>
+  returnTime: string,
+  fines?: {
+    reason: string;
+    fine: string;
+  }[]) =>
   {
     const item = bill.items[itemIndex];
     if (
@@ -317,6 +330,16 @@ export function HistoryPage({
       const requestBody: any = {
         items_to_return: [returnPayload]
       };
+      // Include fines if any valid entries exist
+      const validFines = (fines || []).filter(
+        (f) => f.reason.trim() && parseFloat(f.fine) > 0
+      );
+      if (validFines.length > 0) {
+        requestBody.fines = validFines.map((f) => ({
+          reason: f.reason.trim(),
+          fine: parseFloat(f.fine)
+        }));
+      }
       const res = await fetch(`${API_URL}rentals/${bill.apiId}/return_items/`, {
         method: 'POST',
         headers: {
@@ -338,9 +361,7 @@ export function HistoryPage({
         throw new Error(msg);
       }
       const data = await res.json();
-      setReturnDatePickerKey(null);
-      setReturnDateValue('');
-      setReturnTimeValue('');
+      setReturnSingleItemModal(null);
       // Show return result
       setRentalReturnResult({
         refundAmount: parseFloat(data.refund_amount ?? 0),
@@ -1126,6 +1147,10 @@ export function HistoryPage({
                       <>
                                   <Banknote className="w-4 h-4" /> Settle
                                 </> :
+                      bill.rentalStatus === 'closed' ?
+                      <>
+                                  <Banknote className="w-4 h-4" /> Deposits
+                                </> :
 
                       <>
                                   <Edit className="w-4 h-4" /> Edit
@@ -1267,92 +1292,27 @@ export function HistoryPage({
                                     {isEditing &&
                             <td className="px-4 py-2.5 text-center">
                                         {item.status === 'active' &&
-                              <>
-                                            {returnDatePickerKey ===
-                                `${bill.id}-${idx}` ?
-                                <div className="flex items-center gap-1.5">
-                                                <input
-                                    type="date"
-                                    value={returnDateValue}
-                                    onChange={(e) =>
-                                    setReturnDateValue(
-                                      e.target.value
-                                    )
-                                    }
-                                    className="px-2 py-1 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-blue-400 outline-none w-32"
-                                    autoFocus />
-                                  
-                                                <input
-                                    type="time"
-                                    value={returnTimeValue}
-                                    onChange={(e) =>
-                                    setReturnTimeValue(
-                                      e.target.value
-                                    )
-                                    }
-                                    className="px-2 py-1 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-blue-400 outline-none w-24" />
-                                  
-                                                <button
-                                    onClick={() => {
-                                      if (returnDateValue) {
-                                        handleReturnItem(
-                                          bill,
-                                          idx,
-                                          returnDateValue,
-                                          returnTimeValue
-                                        );
-                                      }
-                                    }}
-                                    disabled={
-                                    !returnDateValue ||
-                                    actionLoading ===
-                                    `return-${bill.id}-${idx}`
-                                    }
-                                    className="px-2 py-1 bg-blue-600 text-white text-xs font-bold rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                                    
-                                                  {actionLoading ===
-                                    `return-${bill.id}-${idx}` ?
-                                    <Loader2 className="w-3 h-3 animate-spin" /> :
-
-                                    <CheckCircle className="w-3 h-3" />
-                                    }
-                                                </button>
-                                                <button
-                                    onClick={() => {
-                                      setReturnDatePickerKey(null);
-                                      setReturnDateValue('');
-                                      setReturnTimeValue('');
-                                    }}
-                                    className="px-1.5 py-1 text-gray-400 hover:text-gray-600 text-xs rounded-md hover:bg-gray-100 transition-colors">
-                                    
-                                                  <X className="w-3 h-3" />
-                                                </button>
-                                              </div> :
-
-                                <button
-                                  onClick={() => {
-                                    const now = new Date();
-                                    const today = now.
+                              <button
+                                onClick={() => {
+                                  const now = new Date();
+                                  setReturnSingleItemModal({
+                                    bill,
+                                    itemIndex: idx,
+                                    returnDate: now.
                                     toISOString().
-                                    split('T')[0];
-                                    const currentTime = now.
+                                    split('T')[0],
+                                    returnTime: now.
                                     toTimeString().
-                                    slice(0, 5);
-                                    setReturnDatePickerKey(
-                                      `${bill.id}-${idx}`
-                                    );
-                                    setReturnDateValue(today);
-                                    setReturnTimeValue(
-                                      currentTime
-                                    );
-                                  }}
-                                  className="px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-md hover:bg-blue-200 transition-colors">
-                                  
-                                                <RotateCcw className="w-3 h-3 inline mr-1" />
-                                                Return
-                                              </button>
-                                }
-                                          </>
+                                    slice(0, 5),
+                                    fines: []
+                                  });
+                                  setActionError(null);
+                                }}
+                                className="px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-md hover:bg-blue-200 transition-colors">
+                                
+                                            <RotateCcw className="w-3 h-3 inline mr-1" />
+                                            Return
+                                          </button>
                               }
                                       </td>
                             }
@@ -1387,7 +1347,9 @@ export function HistoryPage({
                                   <div className="bg-white p-3 rounded-lg border border-gray-200">
                                     <h4 className="font-bold text-xs text-gray-700 mb-2 flex items-center gap-1.5">
                                       <Banknote className="w-4 h-4 text-green-600" />
-                                      Add Deposit
+                                      {bill.rentalStatus !== 'closed' ?
+                            'Add Deposit' :
+                            'Deposit History'}
                                     </h4>
                                     {actionError &&
                           editingBillId === bill.id &&
@@ -1396,8 +1358,9 @@ export function HistoryPage({
                                           <span>{actionError}</span>
                                         </div>
                           }
-                                    <div className="flex gap-2">
-                                      <input
+                                    {bill.rentalStatus !== 'closed' &&
+                          <div className="flex gap-2">
+                                        <input
                               type="number"
                               value={newDepositAmount}
                               onChange={(e) =>
@@ -1406,22 +1369,25 @@ export function HistoryPage({
                               placeholder="Amount"
                               className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-[#f5a623] outline-none" />
                             
-                                      <button
+                                        <button
                               onClick={() => handleAddDeposit(bill)}
                               disabled={
-                              actionLoading === `deposit-${bill.id}`
+                              actionLoading ===
+                              `deposit-${bill.id}`
                               }
                               className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-bold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5">
                               
-                                        {actionLoading ===
+                                          {actionLoading ===
                               `deposit-${bill.id}` &&
                               <Loader2 className="w-3.5 h-3.5 animate-spin" />
                               }
-                                        {actionLoading === `deposit-${bill.id}` ?
+                                          {actionLoading ===
+                              `deposit-${bill.id}` ?
                               'Adding...' :
                               'Add'}
-                                      </button>
-                                    </div>
+                                        </button>
+                                      </div>
+                          }
                                     {bill.depositHistory &&
                           bill.depositHistory.length > 0 &&
                           <div className="mt-2 space-y-1">
@@ -1444,22 +1410,24 @@ export function HistoryPage({
                                   </div>
 
                                   {/* Add Item - opens modal */}
-                                  <div className="bg-white p-3 rounded-lg border border-gray-200">
-                                    <h4 className="font-bold text-xs text-gray-700 mb-2 flex items-center gap-1.5">
-                                      <Plus className="w-4 h-4 text-blue-600" />
-                                      Add Rental Item
-                                    </h4>
-                                    <button
+                                  {bill.rentalStatus !== 'closed' &&
+                        <div className="bg-white p-3 rounded-lg border border-gray-200">
+                                      <h4 className="font-bold text-xs text-gray-700 mb-2 flex items-center gap-1.5">
+                                        <Plus className="w-4 h-4 text-blue-600" />
+                                        Add Rental Item
+                                      </h4>
+                                      <button
                             onClick={() => {
                               setAddItemModalBillId(bill.id);
                               setProductSearch('');
                             }}
                             className="w-full px-3 py-2 bg-blue-600 text-white rounded-md text-sm font-bold hover:bg-blue-700 flex items-center justify-center gap-2 transition-colors">
                             
-                                      <Plus className="w-4 h-4" />
-                                      Select Product
-                                    </button>
-                                  </div>
+                                        <Plus className="w-4 h-4" />
+                                        Select Product
+                                      </button>
+                                    </div>
+                        }
                                 </div>
                               </div>
                             </motion.div>
@@ -2647,6 +2615,314 @@ export function HistoryPage({
                 className="w-full px-6 py-2.5 bg-[#1a1a2e] text-white rounded-lg font-bold hover:bg-[#2d4059] transition-colors">
                 
                   Done
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        }
+      </AnimatePresence>
+
+      {/* Return Single Item Modal */}
+      <AnimatePresence>
+        {returnSingleItemModal &&
+        <motion.div
+          initial={{
+            opacity: 0
+          }}
+          animate={{
+            opacity: 1
+          }}
+          exit={{
+            opacity: 0
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => {
+            setReturnSingleItemModal(null);
+            setActionError(null);
+          }}>
+          
+            <motion.div
+            initial={{
+              scale: 0.95,
+              opacity: 0
+            }}
+            animate={{
+              scale: 1,
+              opacity: 1
+            }}
+            exit={{
+              scale: 0.95,
+              opacity: 0
+            }}
+            transition={{
+              duration: 0.15
+            }}
+            className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}>
+            
+              {/* Header */}
+              <div className="p-4 border-b border-gray-200 bg-blue-50 flex-shrink-0">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="bg-blue-100 p-1.5 rounded-lg">
+                      <RotateCcw className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-lg text-[#1a1a2e]">
+                        Return Item
+                      </h3>
+                      <p className="text-xs text-gray-500">
+                        {returnSingleItemModal.bill.id} ·{' '}
+                        {
+                      returnSingleItemModal.bill.items[
+                      returnSingleItemModal.itemIndex].
+                      product.name
+                      }
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                  onClick={() => {
+                    setReturnSingleItemModal(null);
+                    setActionError(null);
+                  }}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                  
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-5 space-y-4 overflow-y-auto flex-1">
+                {/* Date & Time */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                      Return Date
+                    </label>
+                    <input
+                    type="date"
+                    value={returnSingleItemModal.returnDate}
+                    onChange={(e) =>
+                    setReturnSingleItemModal((prev) =>
+                    prev ?
+                    {
+                      ...prev,
+                      returnDate: e.target.value
+                    } :
+                    prev
+                    )
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none"
+                    autoFocus />
+                  
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                      Return Time
+                    </label>
+                    <input
+                    type="time"
+                    value={returnSingleItemModal.returnTime}
+                    onChange={(e) =>
+                    setReturnSingleItemModal((prev) =>
+                    prev ?
+                    {
+                      ...prev,
+                      returnTime: e.target.value
+                    } :
+                    prev
+                    )
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none" />
+                  
+                  </div>
+                </div>
+
+                {/* Damage Fines Section */}
+                <div className="bg-white rounded-lg border border-orange-200 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-bold text-xs text-gray-700 flex items-center gap-1.5">
+                      <Wrench className="w-4 h-4 text-orange-500" />
+                      Damage Fines
+                      <span className="text-gray-400 font-normal">
+                        (optional)
+                      </span>
+                    </h4>
+                    <button
+                    onClick={() =>
+                    setReturnSingleItemModal((prev) =>
+                    prev ?
+                    {
+                      ...prev,
+                      fines: [
+                      ...prev.fines,
+                      {
+                        reason: '',
+                        fine: ''
+                      }]
+
+                    } :
+                    prev
+                    )
+                    }
+                    className="flex items-center gap-1 text-xs px-2 py-1 bg-orange-50 text-orange-600 border border-orange-200 rounded-md hover:bg-orange-100 transition-colors font-bold">
+                    
+                      <Plus className="w-3 h-3" />
+                      Add Fine
+                    </button>
+                  </div>
+
+                  {returnSingleItemModal.fines.length === 0 ?
+                <p className="text-[11px] text-gray-400 italic text-center py-2">
+                      No fines — click "Add Fine" if item is damaged
+                    </p> :
+
+                <div className="space-y-2">
+                      {returnSingleItemModal.fines.map((fine, idx) =>
+                  <div key={idx} className="flex items-start gap-2">
+                          <div className="flex-1 space-y-1">
+                            <input
+                        type="text"
+                        value={fine.reason}
+                        onChange={(e) =>
+                        setReturnSingleItemModal((prev) =>
+                        prev ?
+                        {
+                          ...prev,
+                          fines: prev.fines.map((f, i) =>
+                          i === idx ?
+                          {
+                            ...f,
+                            reason: e.target.value
+                          } :
+                          f
+                          )
+                        } :
+                        prev
+                        )
+                        }
+                        placeholder="Damage description (e.g. Motor seized)"
+                        className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-orange-400 outline-none" />
+                      
+                            <div className="relative">
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-bold">
+                                Rs.
+                              </span>
+                              <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={fine.fine}
+                          onChange={(e) =>
+                          setReturnSingleItemModal((prev) =>
+                          prev ?
+                          {
+                            ...prev,
+                            fines: prev.fines.map((f, i) =>
+                            i === idx ?
+                            {
+                              ...f,
+                              fine: e.target.value
+                            } :
+                            f
+                            )
+                          } :
+                          prev
+                          )
+                          }
+                          placeholder="Fine amount"
+                          className="w-full pl-9 pr-3 py-1.5 border border-gray-300 rounded-md text-xs font-bold focus:ring-2 focus:ring-orange-400 outline-none" />
+                        
+                            </div>
+                          </div>
+                          <button
+                      onClick={() =>
+                      setReturnSingleItemModal((prev) =>
+                      prev ?
+                      {
+                        ...prev,
+                        fines: prev.fines.filter(
+                          (_, i) => i !== idx
+                        )
+                      } :
+                      prev
+                      )
+                      }
+                      className="mt-1 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors">
+                      
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                  )}
+                      {returnSingleItemModal.fines.some(
+                    (f) => parseFloat(f.fine) > 0
+                  ) &&
+                  <div className="flex justify-between text-xs font-bold text-orange-700 bg-orange-50 rounded-md px-2.5 py-1.5 border border-orange-200 mt-1">
+                          <span>Total Fines</span>
+                          <span>
+                            {formatPrice(
+                        returnSingleItemModal.fines.reduce(
+                          (sum, f) => sum + (parseFloat(f.fine) || 0),
+                          0
+                        )
+                      )}
+                          </span>
+                        </div>
+                  }
+                    </div>
+                }
+                </div>
+
+                {actionError &&
+              <div className="bg-red-50 border border-red-200 rounded-lg p-2.5 flex items-start gap-1.5 text-xs text-red-700">
+                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                    <span>{actionError}</span>
+                  </div>
+              }
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 border-t border-gray-200 bg-gray-50 flex gap-3 flex-shrink-0">
+                <button
+                onClick={() => {
+                  setReturnSingleItemModal(null);
+                  setActionError(null);
+                }}
+                className="flex-1 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-100 transition-colors">
+                
+                  Cancel
+                </button>
+                <button
+                onClick={() => {
+                  if (!returnSingleItemModal.returnDate) return;
+                  handleReturnItem(
+                    returnSingleItemModal.bill,
+                    returnSingleItemModal.itemIndex,
+                    returnSingleItemModal.returnDate,
+                    returnSingleItemModal.returnTime,
+                    returnSingleItemModal.fines
+                  );
+                }}
+                disabled={
+                !returnSingleItemModal.returnDate ||
+                actionLoading ===
+                `return-${returnSingleItemModal.bill.id}-${returnSingleItemModal.itemIndex}`
+                }
+                className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
+                
+                  {actionLoading ===
+                `return-${returnSingleItemModal.bill.id}-${returnSingleItemModal.itemIndex}` ?
+                <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Returning...
+                    </> :
+
+                <>
+                      <RotateCcw className="w-4 h-4" />
+                      Confirm Return
+                    </>
+                }
                 </button>
               </div>
             </motion.div>
