@@ -241,7 +241,10 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
                 const diffTime = Math.abs(end.getTime() - start.getTime());
                 days = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
               }
-              const lineTotal = unitPrice * item.quantity * days;
+              const lineTotal =
+              item.rentalFee !== undefined ?
+              item.rentalFee :
+              unitPrice * item.quantity * days;
               const { rupees, cents } = splitPrice(lineTotal);
               return (
                 <tr
@@ -415,7 +418,7 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
                   colSpan={8}
                   className="border border-black px-2 py-1 text-right font-bold text-xs text-blue-800">
                   
-                    එකතු තැන්පතු (Total Deposit)
+                    තැන්පතු එකතුව (Total Deposit)
                   </td>
                   <td className="border border-black px-2 py-1 text-right font-bold text-xs text-blue-800">
                     {

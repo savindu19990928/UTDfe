@@ -609,7 +609,10 @@ export function HistoryPage({
           const diffTime = Math.abs(now.getTime() - start.getTime());
           days = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
         }
-        newSubtotal += price * days * item.quantity;
+        newSubtotal +=
+        item.rentalFee !== undefined ?
+        item.rentalFee :
+        price * days * item.quantity;
         if (item.status === 'active') allReturned = false;
         if (item.status === 'returned') anyReturned = true;
       } else {
@@ -1147,10 +1150,6 @@ export function HistoryPage({
                       <>
                                   <Banknote className="w-4 h-4" /> Settle
                                 </> :
-                      bill.rentalStatus === 'closed' ?
-                      <>
-                                  <Banknote className="w-4 h-4" /> Deposits
-                                </> :
 
                       <>
                                   <Edit className="w-4 h-4" /> Edit
@@ -1230,6 +1229,8 @@ export function HistoryPage({
                           );
                         }
                         const lineTotal =
+                        item.rentalFee !== undefined ?
+                        item.rentalFee :
                         unitPrice * item.quantity * days;
                         return (
                           <tr
@@ -1347,9 +1348,7 @@ export function HistoryPage({
                                   <div className="bg-white p-3 rounded-lg border border-gray-200">
                                     <h4 className="font-bold text-xs text-gray-700 mb-2 flex items-center gap-1.5">
                                       <Banknote className="w-4 h-4 text-green-600" />
-                                      {bill.rentalStatus !== 'closed' ?
-                            'Add Deposit' :
-                            'Deposit History'}
+                                      Add Deposit
                                     </h4>
                                     {actionError &&
                           editingBillId === bill.id &&
@@ -1358,9 +1357,8 @@ export function HistoryPage({
                                           <span>{actionError}</span>
                                         </div>
                           }
-                                    {bill.rentalStatus !== 'closed' &&
-                          <div className="flex gap-2">
-                                        <input
+                                    <div className="flex gap-2">
+                                      <input
                               type="number"
                               value={newDepositAmount}
                               onChange={(e) =>
@@ -1369,25 +1367,22 @@ export function HistoryPage({
                               placeholder="Amount"
                               className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-[#f5a623] outline-none" />
                             
-                                        <button
+                                      <button
                               onClick={() => handleAddDeposit(bill)}
                               disabled={
-                              actionLoading ===
-                              `deposit-${bill.id}`
+                              actionLoading === `deposit-${bill.id}`
                               }
                               className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-bold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5">
                               
-                                          {actionLoading ===
+                                        {actionLoading ===
                               `deposit-${bill.id}` &&
                               <Loader2 className="w-3.5 h-3.5 animate-spin" />
                               }
-                                          {actionLoading ===
-                              `deposit-${bill.id}` ?
+                                        {actionLoading === `deposit-${bill.id}` ?
                               'Adding...' :
                               'Add'}
-                                        </button>
-                                      </div>
-                          }
+                                      </button>
+                                    </div>
                                     {bill.depositHistory &&
                           bill.depositHistory.length > 0 &&
                           <div className="mt-2 space-y-1">
@@ -1410,24 +1405,22 @@ export function HistoryPage({
                                   </div>
 
                                   {/* Add Item - opens modal */}
-                                  {bill.rentalStatus !== 'closed' &&
-                        <div className="bg-white p-3 rounded-lg border border-gray-200">
-                                      <h4 className="font-bold text-xs text-gray-700 mb-2 flex items-center gap-1.5">
-                                        <Plus className="w-4 h-4 text-blue-600" />
-                                        Add Rental Item
-                                      </h4>
-                                      <button
+                                  <div className="bg-white p-3 rounded-lg border border-gray-200">
+                                    <h4 className="font-bold text-xs text-gray-700 mb-2 flex items-center gap-1.5">
+                                      <Plus className="w-4 h-4 text-blue-600" />
+                                      Add Rental Item
+                                    </h4>
+                                    <button
                             onClick={() => {
                               setAddItemModalBillId(bill.id);
                               setProductSearch('');
                             }}
                             className="w-full px-3 py-2 bg-blue-600 text-white rounded-md text-sm font-bold hover:bg-blue-700 flex items-center justify-center gap-2 transition-colors">
                             
-                                        <Plus className="w-4 h-4" />
-                                        Select Product
-                                      </button>
-                                    </div>
-                        }
+                                      <Plus className="w-4 h-4" />
+                                      Select Product
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
                             </motion.div>

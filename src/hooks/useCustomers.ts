@@ -117,8 +117,8 @@ options?: UseCustomersOptions)
     const q = search.toLowerCase().trim();
     return allCustomers.filter(
       (c) =>
-      c.name.toLowerCase().includes(q) ||
-      c.phone.toLowerCase().includes(q) ||
+      c.name && c.name.toLowerCase().includes(q) ||
+      c.phone && c.phone.toLowerCase().includes(q) ||
       c.nicNumber && c.nicNumber.toLowerCase().includes(q) ||
       c.address && c.address.toLowerCase().includes(q)
     );

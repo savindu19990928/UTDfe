@@ -35,7 +35,6 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
   const [items, setItems] = useState<SaleItem[]>([]);
   const [productSearch, setProductSearch] = useState('');
   const [showProductDropdown, setShowProductDropdown] = useState(false);
-  const [selectedProductIndex, setSelectedProductIndex] = useState(-1);
   // Payment state
   const [discount, setDiscount] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<
@@ -46,7 +45,6 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
   const [error, setError] = useState<string | null>(null);
   // Refs for focus management
   const productSearchRef = useRef<HTMLInputElement>(null);
-  const productDropdownRef = useRef<HTMLDivElement>(null);
   const discountInputRef = useRef<HTMLInputElement>(null);
   const customerNameRef = useRef<HTMLInputElement>(null);
   const qtyRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -92,31 +90,7 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
       setTimeout(() => discountInputRef.current?.focus(), 100);
     }
   }, [stage]);
-  useEffect(() => {
-    if (selectedProductIndex >= 0 && productDropdownRef.current) {
-      const container = productDropdownRef.current;
-      const selectedElement = container.children[
-      selectedProductIndex] as
-      HTMLElement;
-      if (selectedElement) {
-        selectedElement.scrollIntoView({
-          block: 'nearest'
-        });
-      }
-    }
-  }, [selectedProductIndex]);
   const handleAddProduct = (product: Product) => {
-    // Check if item is already in cart
-    const existingItemIndex = items.findIndex(
-      (item) => item.product.id === product.id
-    );
-    if (existingItemIndex >= 0) {
-      setError(`"${product.name}" is already in the cart`);
-      setProductSearch('');
-      setShowProductDropdown(false);
-      setSelectedProductIndex(-1);
-      return;
-    }
     // Check stock availability (stock > 0 means limited stock)
     if (product.stock != null && product.stock > 0) {
       const usedQty = getUsedQty(product.id);
@@ -124,7 +98,6 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
         setError(`"${product.name}" is currently unavailable`);
         setProductSearch('');
         setShowProductDropdown(false);
-        setSelectedProductIndex(-1);
         return;
       }
     }
@@ -135,7 +108,6 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
     setItems((prev) => [...prev, newItem]);
     setProductSearch('');
     setShowProductDropdown(false);
-    setSelectedProductIndex(-1);
     setError(null);
     // Focus the quantity input of the new item after render
     setTimeout(() => {
@@ -299,28 +271,12 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
                   onChange={(e) => {
                     setProductSearch(e.target.value);
                     setShowProductDropdown(true);
-                    setSelectedProductIndex(-1);
                   }}
                   onFocus={() => setShowProductDropdown(true)}
                   onKeyDown={(e) => {
-                    if (e.key === 'ArrowDown') {
+                    if (e.key === 'Enter' && filteredProducts.length > 0) {
                       e.preventDefault();
-                      setSelectedProductIndex((prev) =>
-                      prev < filteredProducts.length - 1 ? prev + 1 : prev
-                      );
-                    } else if (e.key === 'ArrowUp') {
-                      e.preventDefault();
-                      setSelectedProductIndex((prev) =>
-                      prev > -1 ? prev - 1 : -1
-                      );
-                    } else if (
-                    e.key === 'Enter' &&
-                    filteredProducts.length > 0)
-                    {
-                      e.preventDefault();
-                      const index =
-                      selectedProductIndex >= 0 ? selectedProductIndex : 0;
-                      handleAddProduct(filteredProducts[index]);
+                      handleAddProduct(filteredProducts[0]);
                     }
                   }}
                   className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-lg" />
@@ -330,7 +286,6 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
                   <AnimatePresence>
                     {showProductDropdown && productSearch &&
                   <motion.div
-                    ref={productDropdownRef}
                     initial={{
                       opacity: 0,
                       y: 10
@@ -355,7 +310,7 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
                             Searching...
                           </div> :
                     filteredProducts.length > 0 ?
-                    filteredProducts.map((product, index) =>
+                    filteredProducts.map((product) =>
                     <button
                       key={product.id}
                       onClick={() => handleAddProduct(product)}
@@ -364,7 +319,7 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
                       product.stock > 0 &&
                       getUsedQty(product.id) >= product.stock
                       }
-                      className={`w-full text-left px-4 py-3 hover:bg-orange-50 flex items-center justify-between border-b border-gray-50 last:border-0 ${product.stock != null && product.stock > 0 && getUsedQty(product.id) >= product.stock ? 'opacity-40 cursor-not-allowed hover:bg-white' : ''} ${selectedProductIndex === index ? 'bg-orange-50' : ''}`}>
+                      className={`w-full text-left px-4 py-3 hover:bg-orange-50 flex items-center justify-between border-b border-gray-50 last:border-0 ${product.stock != null && product.stock > 0 && getUsedQty(product.id) >= product.stock ? 'opacity-40 cursor-not-allowed hover:bg-white' : ''}`}>
                       
                               <div>
                                 <p className="font-bold text-[#1a1a2e]">

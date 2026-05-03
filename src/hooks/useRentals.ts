@@ -53,7 +53,11 @@ function mapRentalItem(raw: any): CartItem {
     actualReturnDate: raw.returned_date || undefined,
     actualReturnTime: raw.returned_time || undefined,
     status: raw.is_returned ? 'returned' : 'active',
-    apiItemId: raw.id || undefined
+    apiItemId: raw.id || undefined,
+    rentalFee:
+    raw.rental_fee !== undefined && raw.rental_fee !== null ?
+    parseFloat(raw.rental_fee) :
+    undefined
   };
 }
 

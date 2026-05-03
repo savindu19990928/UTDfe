@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { API_URL } from '../utils/config';
 import { getAuthHeaders } from '../utils/auth';
 import { getCached, setCache, isFresh } from '../utils/apiCache';
+import { getPhotoUrl } from '../utils/format';
 
 /**
  * Data preloader — eagerly fetches core data on app load.
@@ -44,7 +45,19 @@ export function useDataPreloader() {
 
     // Preload customers
     if (!isFresh('customers:all', 60_000)) {
-      preload('customers:all', `${API_URL}customers/`);
+      preload('customers:all', `${API_URL}customers/`, (list) =>
+      list.map((raw: any) => ({
+        id: String(raw.id),
+        name: raw.name || '',
+        phone: raw.mobile_number || '',
+        address: raw.address || '',
+        nicNumber: raw.nic || undefined,
+        photoUrl: getPhotoUrl(raw.photo),
+        phoneVerified: raw.is_verified ?? false,
+        isBanned: raw.is_banned ?? false,
+        rentalCount: raw.rental_count ?? 0
+      }))
+      );
     }
   }, []);
 }

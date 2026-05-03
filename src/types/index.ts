@@ -41,6 +41,7 @@ export type CartItem = {
   status?: RentalItemStatus;
   apiItemId?: number;
   returnedQuantity?: number;
+  rentalFee?: number;
 };
 
 export type RentalRecord = {
