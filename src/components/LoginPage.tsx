@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Lock, User, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { loginRequest } from '../utils/auth';
-const LOGO_URL = "/WhatsApp_Image_2025-12-13_at_2.34.53_PM.jpg";
+const LOGO_URL = "./WhatsApp_Image_2025-12-13_at_2.34.53_PM.jpg";
 
 interface LoginPageProps {
   onLogin: () => void;

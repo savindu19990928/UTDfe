@@ -840,7 +840,7 @@ export function HistoryPage({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search by bill number..."
+              placeholder="Search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#f5a623] text-sm" />
@@ -1343,22 +1343,23 @@ export function HistoryPage({
                     className="overflow-hidden">
                     
                               <div className="p-4 border-t border-blue-100 bg-blue-50/30">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  {/* Add Deposit */}
-                                  <div className="bg-white p-3 rounded-lg border border-gray-200">
-                                    <h4 className="font-bold text-xs text-gray-700 mb-2 flex items-center gap-1.5">
-                                      <Banknote className="w-4 h-4 text-green-600" />
-                                      Add Deposit
-                                    </h4>
-                                    {actionError &&
+                                {bill.rentalStatus !== 'closed' ?
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {/* Add Deposit */}
+                                    <div className="bg-white p-3 rounded-lg border border-gray-200">
+                                      <h4 className="font-bold text-xs text-gray-700 mb-2 flex items-center gap-1.5">
+                                        <Banknote className="w-4 h-4 text-green-600" />
+                                        Add Deposit
+                                      </h4>
+                                      {actionError &&
                           editingBillId === bill.id &&
                           <div className="mb-2 bg-red-50 border border-red-200 rounded p-2 flex items-start gap-1.5 text-xs text-red-700">
-                                          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                                          <span>{actionError}</span>
-                                        </div>
+                                            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                                            <span>{actionError}</span>
+                                          </div>
                           }
-                                    <div className="flex gap-2">
-                                      <input
+                                      <div className="flex gap-2">
+                                        <input
                               type="number"
                               value={newDepositAmount}
                               onChange={(e) =>
@@ -1367,61 +1368,72 @@ export function HistoryPage({
                               placeholder="Amount"
                               className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-[#f5a623] outline-none" />
                             
-                                      <button
+                                        <button
                               onClick={() => handleAddDeposit(bill)}
                               disabled={
-                              actionLoading === `deposit-${bill.id}`
+                              actionLoading ===
+                              `deposit-${bill.id}`
                               }
                               className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-bold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5">
                               
-                                        {actionLoading ===
+                                          {actionLoading ===
                               `deposit-${bill.id}` &&
                               <Loader2 className="w-3.5 h-3.5 animate-spin" />
                               }
-                                        {actionLoading === `deposit-${bill.id}` ?
+                                          {actionLoading ===
+                              `deposit-${bill.id}` ?
                               'Adding...' :
                               'Add'}
-                                      </button>
-                                    </div>
-                                    {bill.depositHistory &&
+                                        </button>
+                                      </div>
+                                      {bill.depositHistory &&
                           bill.depositHistory.length > 0 &&
                           <div className="mt-2 space-y-1">
-                                          {bill.depositHistory.map((d, i) =>
+                                            {bill.depositHistory.map((d, i) =>
                             <div
                               key={i}
                               className="flex justify-between text-xs text-gray-500">
                               
-                                              <span>
-                                                {d.date}{' '}
-                                                {d.note && `· ${d.note}`}
-                                              </span>
-                                              <span className="font-mono font-medium">
-                                                {formatPrice(d.amount)}
-                                              </span>
-                                            </div>
+                                                <span>
+                                                  {d.date}{' '}
+                                                  {d.note && `· ${d.note}`}
+                                                </span>
+                                                <span className="font-mono font-medium">
+                                                  {formatPrice(d.amount)}
+                                                </span>
+                                              </div>
                             )}
-                                        </div>
+                                          </div>
                           }
-                                  </div>
+                                    </div>
 
-                                  {/* Add Item - opens modal */}
-                                  <div className="bg-white p-3 rounded-lg border border-gray-200">
-                                    <h4 className="font-bold text-xs text-gray-700 mb-2 flex items-center gap-1.5">
-                                      <Plus className="w-4 h-4 text-blue-600" />
-                                      Add Rental Item
-                                    </h4>
-                                    <button
+                                    {/* Add Item - opens modal */}
+                                    <div className="bg-white p-3 rounded-lg border border-gray-200">
+                                      <h4 className="font-bold text-xs text-gray-700 mb-2 flex items-center gap-1.5">
+                                        <Plus className="w-4 h-4 text-blue-600" />
+                                        Add Rental Item
+                                      </h4>
+                                      <button
                             onClick={() => {
                               setAddItemModalBillId(bill.id);
                               setProductSearch('');
                             }}
                             className="w-full px-3 py-2 bg-blue-600 text-white rounded-md text-sm font-bold hover:bg-blue-700 flex items-center justify-center gap-2 transition-colors">
                             
-                                      <Plus className="w-4 h-4" />
-                                      Select Product
-                                    </button>
+                                        <Plus className="w-4 h-4" />
+                                        Select Product
+                                      </button>
+                                    </div>
+                                  </div> :
+
+                      <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
+                                    <p className="text-sm text-gray-500 font-medium flex items-center justify-center gap-2">
+                                      <CheckCircle className="w-4 h-4 text-green-500" />
+                                      This bill is closed. You cannot add
+                                      deposits or rental items.
+                                    </p>
                                   </div>
-                                </div>
+                      }
                               </div>
                             </motion.div>
                   }
