@@ -38,6 +38,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
   const [items, setItems] = useState<RentalItem[]>([]);
   const [productSearch, setProductSearch] = useState('');
   const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [selectedProductIndex, setSelectedProductIndex] = useState(0);
   const [depositAmount, setDepositAmount] = useState<string>('');
   const [customerSearch, setCustomerSearch] = useState('');
   const [selectedCustomer, setSelectedCustomer] =
@@ -896,12 +897,28 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                   onChange={(e) => {
                     setProductSearch(e.target.value);
                     setShowProductDropdown(true);
+                    setSelectedProductIndex(0);
                   }}
                   onFocus={() => setShowProductDropdown(true)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && filteredProducts.length > 0) {
+                    if (e.key === 'ArrowDown') {
                       e.preventDefault();
-                      handleAddProduct(filteredProducts[0]);
+                      setSelectedProductIndex((prev) =>
+                      Math.min(prev + 1, filteredProducts.length - 1)
+                      );
+                    } else if (e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      setSelectedProductIndex((prev) => Math.max(prev - 1, 0));
+                    } else if (
+                    e.key === 'Enter' &&
+                    filteredProducts.length > 0)
+                    {
+                      e.preventDefault();
+                      const selectedProduct =
+                      filteredProducts[selectedProductIndex];
+                      if (selectedProduct) {
+                        handleAddProduct(selectedProduct);
+                      }
                     }
                   }}
                   className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-lg" />
@@ -933,7 +950,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                             Searching...
                           </div> :
                     filteredProducts.length > 0 ?
-                    filteredProducts.map((product) =>
+                    filteredProducts.map((product, idx) =>
                     <button
                       key={product.id}
                       onClick={() => handleAddProduct(product)}
@@ -942,7 +959,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                       product.stock > 0 &&
                       getUsedQty(product.id) >= product.stock
                       }
-                      className={`w-full text-left px-4 py-3 hover:bg-blue-50 flex items-center justify-between border-b border-gray-50 last:border-0 ${product.stock != null && product.stock > 0 && getUsedQty(product.id) >= product.stock ? 'opacity-40 cursor-not-allowed hover:bg-white' : ''}`}>
+                      className={`w-full text-left px-4 py-3 flex items-center justify-between border-b border-gray-50 last:border-0 ${idx === selectedProductIndex ? 'bg-blue-50' : 'hover:bg-blue-50'} ${product.stock != null && product.stock > 0 && getUsedQty(product.id) >= product.stock ? 'opacity-40 cursor-not-allowed hover:bg-white' : ''}`}>
                       
                               <div>
                                 <p className="font-bold text-[#1a1a2e]">

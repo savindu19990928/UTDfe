@@ -96,7 +96,7 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
           No. 200 Old Kottawa Road, Navinna, Maharagama <br />
           Tel: 011 4294 939 &nbsp;|&nbsp; Mobile: 077 917 7134 <br />
           E-mail: universaltooldepot@gmail.com <br />
-          නො. 200, පරණ කොට්ටව පාර, නාවින්න, මහරගම
+          නො. 200, පරණ කොට්ටාව පාර, නාවින්න, මහරගම
         </p>
         <div className="mt-4 font-bold text-sm border-y-2 border-dotted border-gray-400 py-1 inline-block px-4 uppercase">
           උපකරණ නිකුත් කිරීමේ කුවිතාන්සිය
@@ -291,22 +291,6 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
                 </tr>);
 
             })}
-            {Array.from({
-              length: Math.max(0, 6 - bill.items.length)
-            }).map((_, i) =>
-            <tr key={`empty-${i}`} className="h-6">
-                <td className="border border-black px-2 py-1"></td>
-                <td className="border border-black px-2 py-1"></td>
-                <td className="border border-black px-2 py-1"></td>
-                <td className="border border-black px-2 py-1"></td>
-                <td className="border border-black px-2 py-1"></td>
-                <td className="border border-black px-2 py-1"></td>
-                <td className="border border-black px-2 py-1"></td>
-                <td className="border border-black px-2 py-1"></td>
-                <td className="border border-black px-2 py-1"></td>
-                <td className="border border-black px-2 py-1"></td>
-              </tr>
-            )}
 
             {/* Fines section — joined directly to items table */}
             {hasFines &&
@@ -501,20 +485,6 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
                 </td>
               </tr>
             }
-            <tr>
-              <td
-                colSpan={8}
-                className="border border-black px-2 py-1 text-right font-bold text-xs">
-                
-                ඇප තැම්පතු මුදල
-              </td>
-              <td className="border border-black px-2 py-1 text-right font-bold text-xs">
-                {splitPrice(deposit).rupees}
-              </td>
-              <td className="border border-black px-2 py-1 text-right font-bold text-xs">
-                {splitPrice(deposit).cents}
-              </td>
-            </tr>
             {refund > 0 ?
             <tr className={isOpen ? 'text-green-600' : 'text-green-700'}>
                 <td
