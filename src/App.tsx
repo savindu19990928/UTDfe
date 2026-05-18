@@ -13,7 +13,6 @@ import { ExpenseTracker } from './components/ExpenseTracker';
 import { CustomerManager } from './components/CustomerManager';
 import { Bill, DamageRecord, CashTransaction } from './types';
 import { getToken, clearToken, getAuthHeaders } from './utils/auth';
-import { useDataPreloader } from './hooks/useDataPreloader';
 import { API_URL } from './utils/config';
 import { AlertTriangle, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -86,8 +85,6 @@ function AppContent() {
   );
   const [overdueMessage, setOverdueMessage] = useState<string | null>(null);
   const { clearCart } = useCart();
-  // Preload sales, rentals, and product data in background once logged in
-  useDataPreloader();
   // Check for overdue rentals after login
   useEffect(() => {
     if (!isLoggedIn) return;

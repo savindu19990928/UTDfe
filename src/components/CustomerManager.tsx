@@ -51,6 +51,33 @@ export function CustomerManager() {
   const [otpVerifying, setOtpVerifying] = useState(false);
   const [otpError, setOtpError] = useState<string | null>(null);
   const [otpSent, setOtpSent] = useState(false);
+  const [banningId, setBanningId] = useState<string | null>(null);
+  const [customerToBan, setCustomerToBan] = useState<CustomerRecord | null>(
+    null
+  );
+  const handleBanCustomer = (customer: CustomerRecord) => {
+    setCustomerToBan(customer);
+  };
+  const confirmBanCustomer = async () => {
+    if (!customerToBan || !customerToBan.id) return;
+    setBanningId(customerToBan.id);
+    try {
+      const res = await fetch(`${API_URL}customers/${customerToBan.id}/ban/`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+      if (!res.ok) {
+        throw new Error('Failed to ban customer');
+      }
+      refetch();
+      setCustomerToBan(null);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to ban customer');
+    } finally {
+      setBanningId(null);
+    }
+  };
   const handleSendOtp = async (mobileNumber: string) => {
     setOtpSending(true);
     setOtpError(null);
@@ -502,6 +529,83 @@ export function CustomerManager() {
         }
       </AnimatePresence>
 
+      {/* Ban Confirmation Modal */}
+      <AnimatePresence>
+        {customerToBan &&
+        <motion.div
+          initial={{
+            opacity: 0
+          }}
+          animate={{
+            opacity: 1
+          }}
+          exit={{
+            opacity: 0
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={() => setCustomerToBan(null)}>
+          
+            <motion.div
+            initial={{
+              scale: 0.9,
+              opacity: 0,
+              y: 20
+            }}
+            animate={{
+              scale: 1,
+              opacity: 1,
+              y: 0
+            }}
+            exit={{
+              scale: 0.9,
+              opacity: 0,
+              y: 20
+            }}
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-red-100"
+            onClick={(e) => e.stopPropagation()}>
+            
+              <div className="p-6 text-center">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Ban className="w-8 h-8 text-red-600" />
+                </div>
+                <h3 className="text-2xl font-bold text-[#1a1a2e] mb-2">
+                  Ban Customer?
+                </h3>
+                <p className="text-gray-600 mb-6">
+                  Are you sure you want to ban{' '}
+                  <span className="font-bold text-[#1a1a2e]">
+                    {customerToBan.name}
+                  </span>
+                  ? They will no longer be able to rent items. This action
+                  cannot be easily undone.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                  onClick={() => setCustomerToBan(null)}
+                  disabled={banningId === customerToBan.id}
+                  className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-colors disabled:opacity-50">
+                  
+                    Cancel
+                  </button>
+                  <button
+                  onClick={confirmBanCustomer}
+                  disabled={banningId === customerToBan.id}
+                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-red-600/20">
+                  
+                    {banningId === customerToBan.id ?
+                  <Loader2 className="w-5 h-5 animate-spin" /> :
+
+                  <Ban className="w-5 h-5" />
+                  }
+                    {banningId === customerToBan.id ? 'Banning...' : 'Yes, Ban'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        }
+      </AnimatePresence>
+
       {/* Loading */}
       {loading && customers.length === 0 &&
       <div className="flex items-center justify-center py-20">
@@ -629,8 +733,8 @@ export function CustomerManager() {
                   </div>
                 </div>
 
-                {/* Edit button */}
-                <div className="flex items-center pt-3 border-t border-gray-100">
+                {/* Actions */}
+                <div className="flex items-center justify-between pt-3 border-t border-gray-100">
                   <button
               onClick={() => handleEdit(customer)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-gray-600 bg-gray-50 hover:bg-gray-100 transition-colors">
@@ -638,6 +742,21 @@ export function CustomerManager() {
                     <Edit className="w-3.5 h-3.5" />
                     Edit
                   </button>
+
+                  {!customer.isBanned &&
+            <button
+              onClick={() => handleBanCustomer(customer)}
+              disabled={banningId === customer.id}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-50">
+              
+                      {banningId === customer.id ?
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> :
+
+              <Ban className="w-3.5 h-3.5" />
+              }
+                      Ban
+                    </button>
+            }
                 </div>
               </motion.div>
         )

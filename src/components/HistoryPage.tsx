@@ -118,7 +118,7 @@ export function HistoryPage({
     'all');
   // Fetch products from API
   const { products, rentProducts } = useProducts();
-  // Fetch rentals from API — always enabled, loads in background
+  // Fetch rentals from API
   const {
     rentals: apiRentalBills,
     loading: rentalsLoading,
@@ -126,9 +126,9 @@ export function HistoryPage({
     refetch: refetchRentals
   } = useRentals({
     search: activeTab === 'rentals' ? searchQuery : undefined,
-    enabled: true
+    enabled: activeTab === 'rentals'
   });
-  // Fetch sales from API — always enabled, loads in background
+  // Fetch sales from API
   const {
     sales: apiSaleBills,
     loading: salesLoading,
@@ -136,7 +136,7 @@ export function HistoryPage({
     refetch: refetchSales
   } = useSales({
     search: activeTab === 'sales' ? searchQuery : undefined,
-    enabled: true
+    enabled: activeTab === 'sales'
   });
   useEffect(() => {
     if (
@@ -362,16 +362,19 @@ export function HistoryPage({
       }
       const data = await res.json();
       setReturnSingleItemModal(null);
-      // Show return result
-      setRentalReturnResult({
-        refundAmount: parseFloat(data.refund_amount ?? 0),
-        totalRentalFee: parseFloat(data.total_rental_fee ?? 0),
-        paymentProcessed: parseFloat(data.payment_to_process ?? 0),
-        totalFines: parseFloat(data.rental?.total_fines ?? 0),
-        allReturned:
-        data.all_items_returned ?? data.all_items_being_returned ?? false,
-        billId: bill.id
-      });
+      // Show return result only if all items are returned
+      const isAllReturned =
+      data.all_items_returned ?? data.all_items_being_returned ?? false;
+      if (isAllReturned) {
+        setRentalReturnResult({
+          refundAmount: parseFloat(data.refund_amount ?? 0),
+          totalRentalFee: parseFloat(data.total_rental_fee ?? 0),
+          paymentProcessed: parseFloat(data.payment_to_process ?? 0),
+          totalFines: parseFloat(data.rental?.total_fines ?? 0),
+          allReturned: isAllReturned,
+          billId: bill.id
+        });
+      }
       // Optimistic local update
       setLocalReturnedItems((prev) =>
       new Set(prev).add(`${bill.id}-${itemIndex}`)
@@ -1055,7 +1058,7 @@ export function HistoryPage({
                           <div className="flex items-center gap-3">
                             <div className="text-right mr-2">
                               <p className="text-xs text-gray-500">
-                                Rental Fee
+                                Subtotal
                               </p>
                               <p className="font-bold text-[#1a1a2e]">
                                 {formatPrice(bill.total)}
@@ -1177,6 +1180,7 @@ export function HistoryPage({
                                   Return
                                 </th>
                                 <th className="px-4 py-2 text-center">Days</th>
+                                <th className="px-4 py-2 text-center">Qty</th>
                                 <th className="px-4 py-2 text-right">
                                   Rate/Day
                                 </th>
@@ -1272,6 +1276,9 @@ export function HistoryPage({
                                     </td>
                                     <td className="px-4 py-2.5 text-center font-medium">
                                       {days}
+                                    </td>
+                                    <td className="px-4 py-2.5 text-center font-medium">
+                                      {item.quantity}
                                     </td>
                                     <td className="px-4 py-2.5 text-right text-gray-600">
                                       {formatPrice(unitPrice)}
@@ -2126,7 +2133,9 @@ export function HistoryPage({
                               Cancel
                             </button>
                             <button
-                          onClick={handleSaleReturn}
+                          onClick={() => {
+                            handleSaleReturn();
+                          }}
                           disabled={totalReturning === 0 || returnLoading}
                           className="flex-1 px-4 py-2.5 bg-orange-500 text-white rounded-lg text-sm font-bold hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
                           
@@ -2386,7 +2395,6 @@ export function HistoryPage({
                           </button>
                         </div>
                   )}
-                      {/* Fines total preview */}
                       {returnFines.some((f) => parseFloat(f.fine) > 0) &&
                   <div className="flex justify-between text-xs font-bold text-orange-700 bg-orange-50 rounded-md px-2.5 py-1.5 border border-orange-200 mt-1">
                           <span>Total Fines</span>
@@ -2462,6 +2470,7 @@ export function HistoryPage({
               }
               </div>
 
+              {/* Footer */}
               <div className="p-4 border-t border-gray-200 bg-gray-50 flex gap-3 flex-shrink-0">
                 <button
                 onClick={() => {
