@@ -1,38 +1,45 @@
-// Lightweight in-memory cache for API responses
-// Prevents redundant fetches when navigating between pages
+// Lightweight in-memory cache for API responses.
+// No preloading, no sessionStorage persistence.
+// Data is cached only for the current browsing session in memory.
 
-const cache = new Map<string, {data: any;ts: number;}>();
+interface CacheEntry {
+  data: any;
+  ts: number;
+}
+
+const memory = new Map<string, CacheEntry>();
+
 const DEFAULT_TTL = 5 * 60_000; // 5 minutes
-const FRESH_TTL = 60_000; // 1 minute — considered "fresh" (skip network)
+const FRESH_TTL = 2 * 60_000; // 2 minutes — within this window, skip the network
 
 export { DEFAULT_TTL, FRESH_TTL };
 
 export function getCached<T = any>(key: string, ttl = DEFAULT_TTL): T | null {
-  const entry = cache.get(key);
+  const entry = memory.get(key);
   if (!entry) return null;
   if (Date.now() - entry.ts > ttl) {
-    // Stale but still return it — caller can decide to refetch
-    return entry.data;
+    memory.delete(key);
+    return null;
   }
-  return entry.data;
+  return entry.data as T;
 }
 
 export function isFresh(key: string, ttl = FRESH_TTL): boolean {
-  const entry = cache.get(key);
+  const entry = memory.get(key);
   if (!entry) return false;
   return Date.now() - entry.ts <= ttl;
 }
 
 export function setCache(key: string, data: any): void {
-  cache.set(key, { data, ts: Date.now() });
+  memory.set(key, { data, ts: Date.now() });
 }
 
 export function clearCache(prefix?: string): void {
   if (!prefix) {
-    cache.clear();
+    memory.clear();
     return;
   }
-  for (const key of cache.keys()) {
-    if (key.startsWith(prefix)) cache.delete(key);
+  for (const key of memory.keys()) {
+    if (key.startsWith(prefix)) memory.delete(key);
   }
 }

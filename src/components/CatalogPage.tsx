@@ -11,8 +11,6 @@ import {
 'lucide-react';
 import { useProducts } from '../hooks/useProducts';
 import { useCategories } from '../hooks/useCategories';
-import { useRentals } from '../hooks/useRentals';
-import { useSales } from '../hooks/useSales';
 import { ProductList } from './ProductList';
 import { useCart } from '../hooks/useCart';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -46,40 +44,13 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
   activeTab === 'sale' ? saleCategoryId : rentCategoryId;
   // Fetch categories for current tab
   const { categories } = useCategories(categoryType);
-  // Fetch products with category + pagination
+  // Fetch products: filter by category if selected, otherwise just by type + page
   const { products, loading, error, totalCount, totalPages, refetch } =
   useProducts({
     categoryType: activeCategoryId ? undefined : categoryType,
     categoryId: activeCategoryId || undefined,
     page: currentPage
   });
-  // Fetch all products once (cached) for barcode scanning + accurate type counts
-  const {
-    products: allProducts,
-    saleProducts: allSaleProducts,
-    rentProducts: allRentProducts,
-    loading: allProductsLoading
-  } = useProducts({
-    enabled: true
-  });
-  // Accurate counts from locally filtered all-products
-  const saleProductCount = allSaleProducts.length;
-  const rentProductCount = allRentProducts.length;
-  const countsLoading =
-  allProductsLoading && saleProductCount === 0 && rentProductCount === 0;
-  // Preloaded rental & sale bill counts (from cache via useDataPreloader)
-  const { rentals, loading: rentalsLoading } = useRentals({
-    enabled: true
-  });
-  const { sales, loading: salesLoading } = useSales({
-    enabled: true
-  });
-  // Compute active rental count (non-closed)
-  const activeRentalCount = rentals.filter(
-    (b) => b.rentalStatus !== 'closed'
-  ).length;
-  const totalRentalCount = rentals.length;
-  const totalSaleCount = sales.length;
   const handlePageChange = (newPage: number) => {
     if (activeTab === 'sale') setSalePage(newPage);else
     setRentPage(newPage);
@@ -88,7 +59,7 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
   const handleCategoryChange = (catId: string | number | null) => {
     if (activeTab === 'sale') {
       setSaleCategoryId(catId);
-      setSalePage(1); // Reset to page 1
+      setSalePage(1);
     } else {
       setRentCategoryId(catId);
       setRentPage(1);
@@ -112,7 +83,7 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
     (code: string) => {
       const trimmed = code.trim();
       if (!trimmed) return;
-      const product = allProducts.find(
+      const product = products.find(
         (p) =>
         p.barcode?.toLowerCase() === trimmed.toLowerCase() ||
         p.itemCode?.toLowerCase() === trimmed.toLowerCase()
@@ -123,10 +94,13 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
         if (success) showFeedback('success', `${product.name} added to cart`);else
         showFeedback('error', `Can't mix sale & rental items in cart`);
       } else {
-        showFeedback('error', `No product found for code: ${trimmed}`);
+        showFeedback(
+          'error',
+          `No product found for code: ${trimmed} in current view.`
+        );
       }
     },
-    [allProducts, addToCart, showFeedback]
+    [products, addToCart, showFeedback]
   );
   useEffect(() => {
     if (!scanMode) return;
@@ -307,11 +281,11 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
           
           <ShoppingCart className="w-4 h-4" />
           Sale Items
-          <span
-            className={`ml-1 text-xs px-1.5 py-0.5 rounded-full ${activeTab === 'sale' ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>
-            
-            {countsLoading ? '…' : saleProductCount}
-          </span>
+          {activeTab === 'sale' &&
+          <span className="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-white/20">
+              {loading ? '…' : totalCount}
+            </span>
+          }
         </button>
         <button
           onClick={() => handleTabChange('rent')}
@@ -319,51 +293,12 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
           
           <Clock className="w-4 h-4" />
           Rent Items
-          <span
-            className={`ml-1 text-xs px-1.5 py-0.5 rounded-full ${activeTab === 'rent' ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>
-            
-            {countsLoading ? '…' : rentProductCount}
-          </span>
+          {activeTab === 'rent' &&
+          <span className="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-white/20">
+              {loading ? '…' : totalCount}
+            </span>
+          }
         </button>
-
-        {/* Bill counts from preloaded data */}
-        <div className="ml-auto flex items-center gap-3">
-          <div className="flex items-center gap-1.5 text-xs text-gray-500">
-            <div
-              className={`w-2 h-2 rounded-full ${activeRentalCount > 0 ? 'bg-blue-500' : 'bg-gray-300'}`} />
-            
-            <span className="font-medium">
-              {rentalsLoading ?
-              '…' :
-
-              <>
-                  <span className="font-bold text-[#2d4059]">
-                    {activeRentalCount}
-                  </span>{' '}
-                  active rentals
-                </>
-              }
-            </span>
-          </div>
-          <div className="w-px h-4 bg-gray-200" />
-          <div className="flex items-center gap-1.5 text-xs text-gray-500">
-            <div
-              className={`w-2 h-2 rounded-full ${totalSaleCount > 0 ? 'bg-[#f5a623]' : 'bg-gray-300'}`} />
-            
-            <span className="font-medium">
-              {salesLoading ?
-              '…' :
-
-              <>
-                  <span className="font-bold text-[#2d4059]">
-                    {totalSaleCount}
-                  </span>{' '}
-                  sales
-                </>
-              }
-            </span>
-          </div>
-        </div>
       </div>
 
       {/* Loading */}

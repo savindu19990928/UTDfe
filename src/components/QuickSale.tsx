@@ -61,11 +61,6 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
     if (!searchQuery) return [];
     return searchResults.slice(0, 10);
   }, [searchQuery, searchResults]);
-  // Fetch sale products
-  const { saleProducts } = useProducts({
-    categoryType: 'sell',
-    enabled: true
-  });
   // Helper: get total quantity already in cart for a given product
   const getUsedQty = (productId: string, excludeIndex?: number) => {
     return items.reduce((sum, item, idx) => {

@@ -80,7 +80,7 @@ export function ProductList({
       }
     }
   };
-  const showPagination = totalCount > 20 && onPageChange;
+  const showPagination = totalPages > 1 && onPageChange;
   // Generate page numbers to show
   const getPageNumbers = () => {
     const pages: (number | '...')[] = [];
@@ -271,7 +271,7 @@ export function ProductList({
                         <button
                         onClick={() => {
                           setSearchQuery('');
-                          setActiveCategory('All');
+                          onCategoryChange?.(null);
                         }}
                         className="mt-4 text-[#f5a623] font-medium hover:underline text-sm">
                         

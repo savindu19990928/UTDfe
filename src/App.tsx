@@ -1,21 +1,62 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense, lazy } from 'react';
 import { CartProvider, useCart } from './hooks/useCart';
 import { Header } from './components/Header';
 import { CatalogPage } from './components/CatalogPage';
-import { Cart } from './components/Cart';
-import { BillPreview } from './components/BillPreview';
-import { HistoryPage } from './components/HistoryPage';
-import { QuickRental } from './components/QuickRental';
-import { QuickSale } from './components/QuickSale';
 import { LoginPage } from './components/LoginPage';
-import { DamageTracker } from './components/DamageTracker';
-import { ExpenseTracker } from './components/ExpenseTracker';
-import { CustomerManager } from './components/CustomerManager';
-import { Bill, DamageRecord, CashTransaction } from './types';
-import { getToken, clearToken, getAuthHeaders } from './utils/auth';
-import { API_URL } from './utils/config';
-import { AlertTriangle, X } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Bill,
+  DamageRecord,
+  CashTransaction,
+  CustomerRecord,
+  Expense } from
+'./types';
+import { getToken, clearToken } from './utils/auth';
+// Lazy load heavy/secondary pages — they're not needed for initial render
+const HistoryPage = lazy(() =>
+import('./components/HistoryPage').then((m) => ({
+  default: m.HistoryPage
+}))
+);
+const Cart = lazy(() =>
+import('./components/Cart').then((m) => ({
+  default: m.Cart
+}))
+);
+const BillPreview = lazy(() =>
+import('./components/BillPreview').then((m) => ({
+  default: m.BillPreview
+}))
+);
+const QuickRental = lazy(() =>
+import('./components/QuickRental').then((m) => ({
+  default: m.QuickRental
+}))
+);
+const QuickSale = lazy(() =>
+import('./components/QuickSale').then((m) => ({
+  default: m.QuickSale
+}))
+);
+const DamageTracker = lazy(() =>
+import('./components/DamageTracker').then((m) => ({
+  default: m.DamageTracker
+}))
+);
+const ExpenseTracker = lazy(() =>
+import('./components/ExpenseTracker').then((m) => ({
+  default: m.ExpenseTracker
+}))
+);
+const CustomerManager = lazy(() =>
+import('./components/CustomerManager').then((m) => ({
+  default: m.CustomerManager
+}))
+);
+const PageFallback = () =>
+<div className="flex items-center justify-center py-20">
+    <div className="w-8 h-8 border-3 border-gray-200 border-t-[#f5a623] rounded-full animate-spin" />
+  </div>;
+
 type Page =
 'catalog' |
 'history' |
@@ -26,52 +67,8 @@ type Page =
 'customers' |
 'quick-rental' |
 'quick-sale';
-const initialCustomers: CustomerRecord[] = [
-{
-  id: 'CUST-1',
-  name: 'Acme Construction',
-  phone: '(555) 123-4567',
-  address: '101 Builder Ln',
-  nicNumber: 'A1234567',
-  phoneVerified: true,
-  isBanned: false
-},
-{
-  id: 'CUST-2',
-  name: 'John Smith',
-  phone: '(555) 987-6543',
-  address: '42 Residential Rd',
-  nicNumber: 'B7654321',
-  phoneVerified: false,
-  isBanned: false
-}];
-
-const initialDamages: DamageRecord[] = [
-{
-  id: 'DMG-1',
-  productId: '1',
-  productName: 'Heavy Duty Concrete Mixer',
-  damagedQty: 1,
-  date: '2023-10-15',
-  severity: 'minor',
-  notes: 'Dented drum during transport',
-  estimatedLoss: 150
-}];
-
-const initialExpenses: Expense[] = [
-{
-  id: 'EXP-1',
-  description: 'Delivery Van Fuel',
-  amount: 85.5,
-  date: '2023-10-20'
-},
-{
-  id: 'EXP-2',
-  description: 'Shop Electricity Bill',
-  amount: 245.0,
-  date: '2023-10-01'
-}];
-
+const initialCustomers: CustomerRecord[] = [];
+const initialDamages: DamageRecord[] = [];
 function AppContent() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
@@ -83,30 +80,7 @@ function AppContent() {
   const [cashTransactions, setCashTransactions] = useState<CashTransaction[]>(
     []
   );
-  const [overdueMessage, setOverdueMessage] = useState<string | null>(null);
   const { clearCart } = useCart();
-  // Check for overdue rentals after login
-  useEffect(() => {
-    if (!isLoggedIn) return;
-    const checkOverdue = async () => {
-      try {
-        const res = await fetch(`${API_URL}rentals/check_overdue/`, {
-          headers: {
-            ...getAuthHeaders(),
-            'Content-Type': 'application/json'
-          }
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.message) {
-          setOverdueMessage(data.message);
-        }
-      } catch {
-
-        // Silent fail — non-critical
-      }};
-    checkOverdue();
-  }, [isLoggedIn]);
   const handleNavigate = (page: Page) => {
     setCurrentPage(page);
     window.scrollTo(0, 0);
@@ -136,22 +110,8 @@ function AppContent() {
     setCurrentPage('bill');
     window.scrollTo(0, 0);
   };
-  const handleAddCustomer = (customer: CustomerRecord) =>
-  setCustomers((prev) => [...prev, customer]);
-  const handleUpdateCustomer = (customer: CustomerRecord) =>
-  setCustomers((prev) =>
-  prev.map((c) => c.id === customer.id ? customer : c)
-  );
-  const handleDeleteCustomer = (id: string) =>
-  setCustomers((prev) => prev.filter((c) => c.id !== id));
   const handleAddDamage = (damage: DamageRecord) =>
   setDamages((prev) => [damage, ...prev]);
-  const handleDeleteDamage = (id: string) =>
-  setDamages((prev) => prev.filter((d) => d.id !== id));
-  const handleAddExpense = (expense: Expense) =>
-  setExpenses((prev) => [expense, ...prev]);
-  const handleDeleteExpense = (id: string) =>
-  setExpenses((prev) => prev.filter((e) => e.id !== id));
   const handleAddCashTransaction = (transaction: CashTransaction) =>
   setCashTransactions((prev) => [transaction, ...prev]);
   // Check for existing token on mount
@@ -178,27 +138,33 @@ function AppContent() {
   }
   if (currentPage === 'bill' && currentBill) {
     return (
-      <BillPreview
-        bill={currentBill}
-        onBack={() => setCurrentPage('history')}
-        onNewOrder={handleNewOrder} />);
-
+      <Suspense fallback={<PageFallback />}>
+        <BillPreview
+          bill={currentBill}
+          onBack={() => setCurrentPage('history')}
+          onNewOrder={handleNewOrder} />
+        
+      </Suspense>);
 
   }
   if (currentPage === 'quick-rental') {
     return (
-      <QuickRental
-        onGenerateBill={handleGenerateBill}
-        onCancel={() => setCurrentPage('catalog')} />);
-
+      <Suspense fallback={<PageFallback />}>
+        <QuickRental
+          onGenerateBill={handleGenerateBill}
+          onCancel={() => setCurrentPage('catalog')} />
+        
+      </Suspense>);
 
   }
   if (currentPage === 'quick-sale') {
     return (
-      <QuickSale
-        onGenerateBill={handleGenerateBill}
-        onCancel={() => setCurrentPage('catalog')} />);
-
+      <Suspense fallback={<PageFallback />}>
+        <QuickSale
+          onGenerateBill={handleGenerateBill}
+          onCancel={() => setCurrentPage('catalog')} />
+        
+      </Suspense>);
 
   }
   return (
@@ -209,76 +175,37 @@ function AppContent() {
         onLogout={handleLogout} />
       
 
-      {/* Overdue Rentals Banner */}
-      <AnimatePresence>
-        {overdueMessage &&
-        <motion.div
-          initial={{
-            height: 0,
-            opacity: 0
-          }}
-          animate={{
-            height: 'auto',
-            opacity: 1
-          }}
-          exit={{
-            height: 0,
-            opacity: 0
-          }}
-          transition={{
-            duration: 0.25
-          }}
-          className="overflow-hidden">
-          
-            <div className="bg-amber-50 border-b border-amber-200">
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
-                  <p className="text-sm font-medium text-amber-800 truncate">
-                    {overdueMessage}
-                  </p>
-                </div>
-                <button
-                onClick={() => setOverdueMessage(null)}
-                className="p-1 text-amber-500 hover:text-amber-700 hover:bg-amber-100 rounded transition-colors flex-shrink-0">
-                
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        }
-      </AnimatePresence>
-
       <main className="flex-grow">
         {currentPage === 'catalog' &&
         <CatalogPage onNavigate={handleNavigate} />
         }
 
-        {currentPage === 'history' &&
-        <HistoryPage
-          bills={bills}
-          cashTransactions={cashTransactions}
-          onUpdateBill={handleUpdateBill}
-          onViewBill={handleViewBill}
-          onAddCashTransaction={handleAddCashTransaction} />
+        <Suspense fallback={<PageFallback />}>
+          {currentPage === 'history' &&
+          <HistoryPage
+            bills={bills}
+            cashTransactions={cashTransactions}
+            onUpdateBill={handleUpdateBill}
+            onViewBill={handleViewBill}
+            onAddCashTransaction={handleAddCashTransaction} />
 
-        }
+          }
 
-        {currentPage === 'cart' &&
-        <Cart
-          onGenerateBill={handleGenerateBill}
-          onContinueShopping={() => handleNavigate('catalog')} />
+          {currentPage === 'cart' &&
+          <Cart
+            onGenerateBill={handleGenerateBill}
+            onContinueShopping={() => handleNavigate('catalog')} />
 
-        }
+          }
 
-        {currentPage === 'customers' && <CustomerManager />}
+          {currentPage === 'customers' && <CustomerManager />}
 
-        {currentPage === 'damages' &&
-        <DamageTracker damages={damages} onAddDamage={handleAddDamage} />
-        }
+          {currentPage === 'damages' &&
+          <DamageTracker damages={damages} onAddDamage={handleAddDamage} />
+          }
 
-        {currentPage === 'expenses' && <ExpenseTracker />}
+          {currentPage === 'expenses' && <ExpenseTracker />}
+        </Suspense>
       </main>
 
       <footer className="bg-[#1a1a2e] text-gray-400 py-8 mt-auto">

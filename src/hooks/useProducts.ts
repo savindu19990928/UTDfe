@@ -96,15 +96,16 @@ export function useProducts(options?: UseProductsOptions): UseProductsReturn {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
+  const [apiTotalPages, setApiTotalPages] = useState<number | null>(null);
 
   const categoryType = options?.categoryType;
   const categoryId = options?.categoryId;
-  const page = options?.page; // undefined means fetch all pages
+  const page = options?.page;
   const search = options?.search;
   const enabled = options?.enabled !== false;
 
-  // Track current request to avoid stale responses
   const requestIdRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   const { url, cacheKey } = useMemo(
     () => buildApiUrl(options),
@@ -116,19 +117,31 @@ export function useProducts(options?: UseProductsOptions): UseProductsReturn {
 
     const currentRequestId = ++requestIdRef.current;
 
-    // Stale-while-revalidate from cache
-    const cached = getCached<{products: Product[];totalCount: number;}>(
-      cacheKey,
-      5 * 60_000
-    );
+    // If cache is fresh, use it and skip network entirely
+    const cached = getCached<{
+      products: Product[];
+      totalCount: number;
+      totalPages: number | null;
+    }>(cacheKey);
+    if (cached && isFresh(cacheKey)) {
+      setProducts(cached.products);
+      setTotalCount(cached.totalCount);
+      setApiTotalPages(cached.totalPages ?? null);
+      setLoading(false);
+      return;
+    }
+
     if (cached) {
       setProducts(cached.products);
       setTotalCount(cached.totalCount);
-      setLoading(false);
-      if (isFresh(cacheKey, 60_000)) return;
-    } else {
-      setLoading(true);
+      setApiTotalPages(cached.totalPages ?? null);
     }
+
+    setLoading(true);
+
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     setError(null);
     try {
@@ -137,9 +150,8 @@ export function useProducts(options?: UseProductsOptions): UseProductsReturn {
         'Content-Type': 'application/json'
       };
 
-      const res = await fetch(url, { headers });
+      const res = await fetch(url, { headers, signal: controller.signal });
 
-      // Abort if a newer request has been made
       if (currentRequestId !== requestIdRef.current) return;
 
       if (!res.ok) throw new Error(`Failed to fetch products (${res.status})`);
@@ -147,6 +159,7 @@ export function useProducts(options?: UseProductsOptions): UseProductsReturn {
 
       let allResults: any[];
       let count: number;
+      let pagesFromApi: number | null = null;
 
       if (Array.isArray(data)) {
         allResults = data;
@@ -154,34 +167,8 @@ export function useProducts(options?: UseProductsOptions): UseProductsReturn {
       } else {
         allResults = [...(data.results || [])];
         count = data.count ?? allResults.length;
-
-        // If no specific page requested, fetch ALL remaining pages
-        if (page == null && data.next) {
-          const pageSize = data.results?.length || 20;
-          const totalPages = Math.ceil(count / pageSize);
-          const pageUrls: string[] = [];
-          for (let p = 2; p <= totalPages; p++) {
-            const separator = url.includes('?') ? '&' : '?';
-            pageUrls.push(`${url}${separator}page=${p}`);
-          }
-
-          if (pageUrls.length > 0) {
-            const pageResults = await Promise.all(
-              pageUrls.map(async (pageUrl) => {
-                try {
-                  const r = await fetch(pageUrl, { headers });
-                  if (!r.ok) return [];
-                  const d = await r.json();
-                  return d.results || [];
-                } catch {
-                  return [];
-                }
-              })
-            );
-            for (const results of pageResults) {
-              allResults = [...allResults, ...results];
-            }
-          }
+        if (typeof data.total_pages === 'number') {
+          pagesFromApi = data.total_pages;
         }
       }
 
@@ -191,8 +178,14 @@ export function useProducts(options?: UseProductsOptions): UseProductsReturn {
 
       setProducts(mapped);
       setTotalCount(count);
-      setCache(cacheKey, { products: mapped, totalCount: count });
+      setApiTotalPages(pagesFromApi);
+      setCache(cacheKey, {
+        products: mapped,
+        totalCount: count,
+        totalPages: pagesFromApi
+      });
     } catch (err: any) {
+      if (err.name === 'AbortError') return;
       if (currentRequestId === requestIdRef.current) {
         if (!cached) {
           setError(err.message || 'Failed to load products');
@@ -210,9 +203,12 @@ export function useProducts(options?: UseProductsOptions): UseProductsReturn {
     if (enabled) {
       fetchProducts();
     }
+    return () => {
+      if (abortRef.current) abortRef.current.abort();
+    };
   }, [fetchProducts, enabled]);
 
-  // Derived convenience lists (only meaningful when no filters applied)
+  // Derived lists
   const saleProducts = useMemo(
     () => products.filter((p) => p.listingType === 'sale'),
     [products]
@@ -222,7 +218,11 @@ export function useProducts(options?: UseProductsOptions): UseProductsReturn {
     [products]
   );
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / PER_PAGE));
+  // Prefer API-provided total_pages; fall back to count / PER_PAGE
+  const totalPages =
+  apiTotalPages != null ?
+  Math.max(1, apiTotalPages) :
+  Math.max(1, Math.ceil(totalCount / PER_PAGE));
   const currentPage = page ?? 1;
 
   return {

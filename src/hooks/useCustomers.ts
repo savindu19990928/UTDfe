@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { CustomerRecord } from '../types';
 import { API_URL } from '../utils/config';
 import { getAuthHeaders } from '../utils/auth';
@@ -60,27 +60,47 @@ const CACHE_KEY = 'customers:all';
 export function useCustomers(
 options?: UseCustomersOptions)
 : UseCustomersReturn {
-  const [allCustomers, setAllCustomers] = useState<CustomerRecord[]>([]);
+  const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
 
   const search = options?.search;
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+  const abortRef = useRef<AbortController | null>(null);
 
-  // Fetch ALL customers once — no search param to API
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   const fetchCustomers = useCallback(async () => {
-    const url = `${API_URL}customers/`;
+    let url = `${API_URL}customers/`;
+    if (debouncedSearch && debouncedSearch.trim()) {
+      url += `?search=${encodeURIComponent(debouncedSearch.trim())}`;
+    }
 
-    // Stale-while-revalidate from cache
-    const cached = getCached<CustomerRecord[]>(CACHE_KEY, 5 * 60_000);
+    const cacheKey = `customers:${url}`;
+
+    const cached = getCached<{
+      customers: CustomerRecord[];
+      totalCount: number;
+    }>(cacheKey, 5 * 60_000);
     if (cached) {
-      setAllCustomers(cached);
+      setCustomers(cached.customers);
+      setTotalCount(cached.totalCount);
       setLoading(false);
-      // If still fresh, skip network entirely
-      if (isFresh(CACHE_KEY, 60_000)) return;
+      if (isFresh(cacheKey, 60_000)) return;
     } else {
       setLoading(true);
     }
+
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     setError(null);
     try {
@@ -88,41 +108,45 @@ options?: UseCustomersOptions)
         headers: {
           ...getAuthHeaders(),
           'Content-Type': 'application/json'
-        }
+        },
+        signal: controller.signal
       });
       if (!res.ok) throw new Error(`Failed to fetch customers (${res.status})`);
       const data = await res.json();
 
-      const rawList: any[] = Array.isArray(data) ? data : data.results || [];
+      let rawList: any[];
+      let count: number;
+      if (Array.isArray(data)) {
+        rawList = data;
+        count = data.length;
+      } else {
+        rawList = data.results || [];
+        count = data.count ?? rawList.length;
+      }
+
       const mapped = rawList.map(mapApiCustomer);
-      setAllCustomers(mapped);
-      setCache(CACHE_KEY, mapped);
+      setCustomers(mapped);
+      setTotalCount(count);
+      setCache(cacheKey, { customers: mapped, totalCount: count });
     } catch (err: any) {
+      if (err.name === 'AbortError') return;
       if (!cached) {
         setError(err.message || 'Failed to load customers');
       }
       console.error('Customer fetch error:', err);
     } finally {
-      setLoading(false);
+      if (abortRef.current === controller) {
+        setLoading(false);
+      }
     }
-  }, []);
+  }, [debouncedSearch]);
 
   useEffect(() => {
     fetchCustomers();
+    return () => {
+      if (abortRef.current) abortRef.current.abort();
+    };
   }, [fetchCustomers]);
-
-  // Filter locally based on search — instant, no API call
-  const customers = useMemo(() => {
-    if (!search || !search.trim()) return allCustomers;
-    const q = search.toLowerCase().trim();
-    return allCustomers.filter(
-      (c) =>
-      c.name && c.name.toLowerCase().includes(q) ||
-      c.phone && c.phone.toLowerCase().includes(q) ||
-      c.nicNumber && c.nicNumber.toLowerCase().includes(q) ||
-      c.address && c.address.toLowerCase().includes(q)
-    );
-  }, [allCustomers, search]);
 
   const addCustomer = useCallback(
     async (data: CustomerFormData): Promise<boolean> => {
@@ -190,7 +214,7 @@ options?: UseCustomersOptions)
     customers,
     loading,
     error,
-    totalCount: allCustomers.length,
+    totalCount,
     submitting,
     addCustomer,
     updateCustomer,

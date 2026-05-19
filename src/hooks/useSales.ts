@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Bill, CartItem, Customer } from '../types';
 import { API_URL } from '../utils/config';
 import { getAuthHeaders } from '../utils/auth';
@@ -75,10 +75,12 @@ export function useSales(options?: UseSalesOptions): UseSalesReturn {
   const enabled = options?.enabled !== false;
   const [debouncedSearch, setDebouncedSearch] = useState(search);
 
+  const abortRef = useRef<AbortController | null>(null);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
-    }, 400);
+    }, 200);
     return () => clearTimeout(timer);
   }, [search]);
 
@@ -88,7 +90,6 @@ export function useSales(options?: UseSalesOptions): UseSalesReturn {
     let baseUrl = `${API_URL}sales/`;
     if (debouncedSearch && debouncedSearch.trim()) {
       let searchVal = debouncedSearch.trim();
-      // Auto-prepend SALE- prefix if user only typed the number
       if (/^\d+$/.test(searchVal)) {
         searchVal = `SALE-${searchVal}`;
       }
@@ -97,19 +98,22 @@ export function useSales(options?: UseSalesOptions): UseSalesReturn {
 
     const cacheKey = `sales:${baseUrl}`;
 
-    // Stale-while-revalidate
     const cached = getCached<{sales: Bill[];totalCount: number;}>(
       cacheKey,
-      60_000
+      5 * 60_000
     );
     if (cached) {
       setSales(cached.sales);
       setTotalCount(cached.totalCount);
       setLoading(false);
-      if (isFresh(cacheKey, 20_000)) return;
+      if (isFresh(cacheKey, 30_000)) return;
     } else {
       setLoading(true);
     }
+
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     setError(null);
     try {
@@ -117,49 +121,16 @@ export function useSales(options?: UseSalesOptions): UseSalesReturn {
         ...getAuthHeaders(),
         'Content-Type': 'application/json'
       };
-      const firstRes = await fetch(baseUrl, { headers });
-      if (!firstRes.ok)
-      throw new Error(`Failed to fetch sales (${firstRes.status})`);
-      const firstData = await firstRes.json();
+      const res = await fetch(baseUrl, { headers, signal: controller.signal });
+      if (!res.ok) throw new Error(`Failed to fetch sales (${res.status})`);
+      const data = await res.json();
 
       let allResults: any[];
 
-      if (Array.isArray(firstData)) {
-        allResults = firstData;
+      if (Array.isArray(data)) {
+        allResults = data;
       } else {
-        allResults = [...(firstData.results || [])];
-        const total = firstData.count ?? allResults.length;
-
-        // Fetch remaining pages in PARALLEL
-        if (firstData.next) {
-          const pageSize = firstData.results?.length || 20;
-          const totalPages = Math.ceil(total / pageSize);
-          const pageUrls: string[] = [];
-          for (let p = 2; p <= totalPages; p++) {
-            const separator = baseUrl.includes('?') ? '&' : '?';
-            pageUrls.push(`${baseUrl}${separator}page=${p}`);
-          }
-
-          if (pageUrls.length > 0) {
-            const pageResults = await Promise.all(
-              pageUrls.map(async (url) => {
-                try {
-                  const res = await fetch(url, { headers });
-                  if (!res.ok) return [];
-                  const data = await res.json();
-                  return data.results || [];
-                } catch {
-                  return [];
-                }
-              })
-            );
-            for (const results of pageResults) {
-              allResults = [...allResults, ...results];
-            }
-          }
-        }
-
-        setTotalCount(total);
+        allResults = [...(data.results || [])];
       }
 
       const mapped = allResults.map(mapApiSale);
@@ -167,12 +138,15 @@ export function useSales(options?: UseSalesOptions): UseSalesReturn {
       setTotalCount(allResults.length);
       setCache(cacheKey, { sales: mapped, totalCount: allResults.length });
     } catch (err: any) {
+      if (err.name === 'AbortError') return;
       if (!cached) {
         setError(err.message || 'Failed to load sales');
       }
       console.error('Sales fetch error:', err);
     } finally {
-      setLoading(false);
+      if (abortRef.current === controller) {
+        setLoading(false);
+      }
     }
   }, [debouncedSearch, enabled]);
 
@@ -180,6 +154,9 @@ export function useSales(options?: UseSalesOptions): UseSalesReturn {
     if (enabled) {
       fetchSales();
     }
+    return () => {
+      if (abortRef.current) abortRef.current.abort();
+    };
   }, [fetchSales, enabled]);
 
   return {

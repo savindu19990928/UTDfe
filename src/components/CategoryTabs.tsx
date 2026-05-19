@@ -14,7 +14,7 @@ export function CategoryTabs({
   return (
     <div className="w-full overflow-x-auto pb-2 no-scrollbar">
       <div className="flex space-x-2 min-w-max px-1">
-        {/* "All" tab */}
+        {/* "All" tab — shows products with only page filtering */}
         <button
           onClick={() => onSelectCategory(null)}
           className={`relative px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200 ${activeCategoryId === null ? 'text-[#1a1a2e]' : 'text-gray-500 hover:text-[#1a1a2e] hover:bg-gray-100'}`}>

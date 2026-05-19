@@ -9,13 +9,6 @@ export type Product = {
   name: string;
   category: string;
   categoryId?: number | string;
-  category:
-  'Power Tools' |
-  'Hand Tools' |
-  'Safety Equipment' |
-  'Building Materials' |
-  'Heavy Equipment' |
-  'Fasteners';
   listingType: 'sale' | 'rent';
   salePrice: number;
   rentPricePerDay: number | null;

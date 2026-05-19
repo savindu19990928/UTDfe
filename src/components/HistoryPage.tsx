@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  useRef,
+  useDeferredValue } from
+'react';
 import {
   ShoppingCart,
   Clock,
@@ -46,6 +52,8 @@ export function HistoryPage({
 }: HistoryPageProps) {
   const [activeTab, setActiveTab] = useState<'sales' | 'rentals'>('rentals');
   const [searchQuery, setSearchQuery] = useState('');
+  // Deferred value keeps the input snappy when filtering large result sets
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [editingBillId, setEditingBillId] = useState<string | null>(null);
   const [newDepositAmount, setNewDepositAmount] = useState('');
   // Modal state for adding products
@@ -116,8 +124,12 @@ export function HistoryPage({
   const [rentalFilter, setRentalFilter] = useState<
     'all' | 'open' | 'overdue' | 'unpaid' | 'closed'>(
     'all');
-  // Fetch products from API
-  const { products, rentProducts } = useProducts();
+  // Fetch products from API only when modal is open and user searches
+  const { products: rentProducts } = useProducts({
+    categoryType: 'rent',
+    search: addItemModalBillId && productSearch ? productSearch : undefined,
+    enabled: !!addItemModalBillId && productSearch.length > 0
+  });
   // Fetch rentals from API
   const {
     rentals: apiRentalBills,
@@ -207,27 +219,27 @@ export function HistoryPage({
   // Separate bills by type
   const saleBills = apiSaleBills;
   const rentalBills = patchedRentalBills;
-  // Search filter
+  // Search filter — use deferred value so typing stays instant
   const filteredSaleBills = useMemo(() => {
-    if (!searchQuery.trim()) return saleBills;
-    const q = searchQuery.toLowerCase();
+    if (!deferredSearchQuery.trim()) return saleBills;
+    const q = deferredSearchQuery.toLowerCase();
     return saleBills.filter(
       (b) =>
       b.id.toLowerCase().includes(q) ||
       b.customer.name.toLowerCase().includes(q) ||
       b.items.some((i) => i.product.name.toLowerCase().includes(q))
     );
-  }, [saleBills, searchQuery]);
+  }, [saleBills, deferredSearchQuery]);
   const filteredRentalBills = useMemo(() => {
-    if (!searchQuery.trim()) return rentalBills;
-    const q = searchQuery.toLowerCase();
+    if (!deferredSearchQuery.trim()) return rentalBills;
+    const q = deferredSearchQuery.toLowerCase();
     return rentalBills.filter(
       (b) =>
       b.id.toLowerCase().includes(q) ||
       b.customer.name.toLowerCase().includes(q) ||
       b.items.some((i) => i.product.name.toLowerCase().includes(q))
     );
-  }, [rentalBills, searchQuery]);
+  }, [rentalBills, deferredSearchQuery]);
   // Rental stats
   const rentalStats = useMemo(() => {
     const helper = (bills: Bill[]) => {
@@ -647,11 +659,7 @@ export function HistoryPage({
       rentalStatus: newStatus
     });
   };
-  const filteredProducts = rentProducts.filter(
-    (p) =>
-    p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-    p.itemCode?.toLowerCase().includes(productSearch.toLowerCase())
-  );
+  const filteredProducts = rentProducts;
   const getStatusBadge = (status?: string, bill?: Bill) => {
     // Check special states for partially_closed bills
     if (bill && status === 'partially_closed') {
@@ -1057,9 +1065,7 @@ export function HistoryPage({
                           </div>
                           <div className="flex items-center gap-3">
                             <div className="text-right mr-2">
-                              <p className="text-xs text-gray-500">
-                                Subtotal
-                              </p>
+                              <p className="text-xs text-gray-500">Subtotal</p>
                               <p className="font-bold text-[#1a1a2e]">
                                 {formatPrice(bill.total)}
                               </p>
