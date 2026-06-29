@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { motion } from 'framer-motion';
 import { ApiCategory } from '../types';
 interface CategoryTabsProps {
@@ -6,7 +6,7 @@ interface CategoryTabsProps {
   activeCategoryId: string | number | null;
   onSelectCategory: (categoryId: string | number | null) => void;
 }
-export function CategoryTabs({
+function CategoryTabsImpl({
   categories,
   activeCategoryId,
   onSelectCategory
@@ -60,3 +60,4 @@ export function CategoryTabs({
     </div>);
 
 }
+export const CategoryTabs = memo(CategoryTabsImpl);

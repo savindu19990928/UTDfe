@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, memo } from 'react';
 import {
   Search,
   PackageOpen,
@@ -26,7 +26,7 @@ interface ProductListProps {
   totalCount?: number;
   onPageChange?: (page: number) => void;
 }
-export function ProductList({
+function ProductListImpl({
   products,
   title,
   listingType,
@@ -337,3 +337,4 @@ export function ProductList({
     </div>);
 
 }
+export const ProductList = memo(ProductListImpl);

@@ -5,4 +5,4 @@
 export const API_URL =
 typeof import.meta !== 'undefined' &&
 (import.meta as any).env?.VITE_API_URL ||
-'https://tdpos-727633019198.europe-west1.run.app/api/';
+'https://tdpos-762230283653.us-central1.run.app/api/';

@@ -66,6 +66,14 @@ export function HistoryPage({
   const [selectedProductForAdd, setSelectedProductForAdd] =
   useState<Product | null>(null);
   const [newItemReturnDate, setNewItemReturnDate] = useState('');
+  // Machine number selection for adding an item to an existing rental bill
+  const [availableMachines, setAvailableMachines] = useState<string[]>([]);
+  const [selectedMachines, setSelectedMachines] = useState<string[]>([]);
+  const [machinesLoading, setMachinesLoading] = useState(false);
+  const [machinesError, setMachinesError] = useState<string | null>(null);
+  const [machineSearch, setMachineSearch] = useState('');
+  const [addItemLoading, setAddItemLoading] = useState(false);
+  const [addItemError, setAddItemError] = useState<string | null>(null);
   // Single item return modal state
   const [returnSingleItemModal, setReturnSingleItemModal] = useState<{
     bill: Bill;
@@ -124,11 +132,11 @@ export function HistoryPage({
   const [rentalFilter, setRentalFilter] = useState<
     'all' | 'open' | 'overdue' | 'unpaid' | 'closed'>(
     'all');
-  // Fetch products from API only when modal is open and user searches
+  // Fetch products from API only when modal is open
   const { products: rentProducts } = useProducts({
     categoryType: 'rent',
     search: addItemModalBillId && productSearch ? productSearch : undefined,
-    enabled: !!addItemModalBillId && productSearch.length > 0
+    enabled: !!addItemModalBillId
   });
   // Fetch rentals from API
   const {
@@ -558,28 +566,112 @@ export function HistoryPage({
       setActionLoading(null);
     }
   };
-  const handleAddItem = (bill: Bill, product: Product) => {
-    const today = new Date();
-    const returnDate = newItemReturnDate ?
-    new Date(newItemReturnDate) :
-    new Date(today.getTime() + 86400000);
-    const diffTime = Math.abs(returnDate.getTime() - today.getTime());
-    const rentalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-    const newItem: CartItem = {
-      product,
-      quantity: 1,
-      type: 'rent',
-      rentalDays,
-      borrowedDate: today.toLocaleDateString(),
-      expectedReturnDate: returnDate.toLocaleDateString(),
-      status: 'active'
-    };
-    const updatedItems = [...bill.items, newItem];
-    recalcAndUpdate(bill, updatedItems, bill.depositHistory || []);
+  // Reset the add-item modal back to a clean state
+  const resetAddItemModal = () => {
     setAddItemModalBillId(null);
     setProductSearch('');
     setSelectedProductForAdd(null);
     setNewItemReturnDate('');
+    setAvailableMachines([]);
+    setSelectedMachines([]);
+    setMachineSearch('');
+    setMachinesError(null);
+    setMachinesLoading(false);
+    setAddItemError(null);
+    setAddItemLoading(false);
+  };
+  // Fetch available machine numbers for a product (for the add-item flow)
+  const fetchAvailableMachines = async (product: Product) => {
+    setSelectedMachines([]);
+    setAvailableMachines([]);
+    setMachinesError(null);
+    setMachinesLoading(true);
+    try {
+      const res = await fetch(
+        `${API_URL}products/${product.id}/available_machines/`,
+        {
+          headers: {
+            ...getAuthHeaders(),
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      if (!res.ok) {
+        throw new Error(`Failed to load machine numbers (${res.status})`);
+      }
+      const data = await res.json();
+      const machines: string[] = (data?.available_machine_numbers || []).map(
+        (m: any) => String(m)
+      );
+      setAvailableMachines(machines);
+    } catch (err: any) {
+      setMachinesError(err.message || 'Failed to load machine numbers');
+    } finally {
+      setMachinesLoading(false);
+    }
+  };
+  const toggleAddItemMachine = (machine: string) => {
+    setSelectedMachines((prev) =>
+    prev.includes(machine) ?
+    prev.filter((m) => m !== machine) :
+    [...prev, machine]
+    );
+  };
+  // Add a rental product to an EXISTING rental bill via the API,
+  // including the selected machine numbers.
+  const handleAddItem = async (bill: Bill, product: Product) => {
+    if (!bill.apiId) {
+      setAddItemError('This bill cannot be edited (missing reference).');
+      return;
+    }
+    if (!newItemReturnDate) {
+      setAddItemError('Please select an expected return date.');
+      return;
+    }
+    if (selectedMachines.length === 0) {
+      setAddItemError('Please select at least one machine number.');
+      return;
+    }
+    setAddItemLoading(true);
+    setAddItemError(null);
+    const today = new Date().toISOString().split('T')[0];
+    try {
+      const res = await fetch(`${API_URL}rentals/${bill.apiId}/add_item/`, {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          product: parseInt(product.id),
+          quantity: selectedMachines.length,
+          rental_start_date: today,
+          rental_end_date: newItemReturnDate,
+          machine_numbers: selectedMachines
+        })
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        const msg = errData ?
+        typeof errData === 'string' ?
+        errData :
+        errData.detail ||
+        errData.message ||
+        errData.error ||
+        JSON.stringify(errData) :
+        `Failed to add item (${res.status})`;
+        throw new Error(msg);
+      }
+      // Refresh the rentals list to reflect the newly added item
+      clearCache('rentals:');
+      refetchRentals();
+      resetAddItemModal();
+    } catch (err: any) {
+      setAddItemError(err.message || 'Failed to add item');
+      console.error('Add item error:', err);
+    } finally {
+      setAddItemLoading(false);
+    }
   };
   const handleCashTransaction = () => {
     const amount = parseFloat(cashAmount);
@@ -721,7 +813,7 @@ export function HistoryPage({
   };
   // Get the bill for the modal
   const modalBill = addItemModalBillId ?
-  bills.find((b) => b.id === addItemModalBillId) :
+  rentalBills.find((b) => b.id === addItemModalBillId) :
   null;
   // Handle sale item return
   const handleSaleReturn = async () => {
@@ -1655,12 +1747,7 @@ export function HistoryPage({
             opacity: 0
           }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => {
-            setAddItemModalBillId(null);
-            setProductSearch('');
-            setSelectedProductForAdd(null);
-            setNewItemReturnDate('');
-          }}>
+          onClick={() => resetAddItemModal()}>
           
             <motion.div
             initial={{
@@ -1694,12 +1781,7 @@ export function HistoryPage({
                   </p>
                 </div>
                 <button
-                onClick={() => {
-                  setAddItemModalBillId(null);
-                  setProductSearch('');
-                  setSelectedProductForAdd(null);
-                  setNewItemReturnDate('');
-                }}
+                onClick={() => resetAddItemModal()}
                 className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
                 
                   <X className="w-5 h-5" />
@@ -1708,88 +1790,69 @@ export function HistoryPage({
 
               {/* Step 2: Set return date for selected product */}
               {selectedProductForAdd ?
-            <div className="p-5 space-y-5">
-                  {/* Selected product info */}
-                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <p className="font-bold text-[#1a1a2e] text-base">
-                      {selectedProductForAdd.name}
-                    </p>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                      <span className="font-mono">
-                        {selectedProductForAdd.itemCode}
-                      </span>
-                      <span>·</span>
-                      <span>{selectedProductForAdd.category}</span>
-                      <span>·</span>
-                      <span className="font-bold text-[#1a1a2e]">
-                        {formatPrice(
-                      selectedProductForAdd.rentPricePerDay || 0
-                    )}
-                        /day
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Date fields */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                        Start Date
-                      </label>
-                      <input
-                    type="date"
-                    value={new Date().toISOString().split('T')[0]}
-                    disabled
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500" />
-                  
-                      <p className="text-[10px] text-gray-400 mt-1">
-                        Today (auto)
+            <>
+                  <div className="p-5 space-y-5 overflow-y-auto flex-1">
+                    {/* Selected product info */}
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                      <p className="font-bold text-[#1a1a2e] text-base">
+                        {selectedProductForAdd.name}
                       </p>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                        Expected Return Date
-                      </label>
-                      <input
-                    type="date"
-                    value={newItemReturnDate}
-                    onChange={(e) => setNewItemReturnDate(e.target.value)}
-                    min={new Date().toISOString().split('T')[0]}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#f5a623] outline-none"
-                    autoFocus />
-                  
-                    </div>
-                  </div>
-
-                  {/* Days preview */}
-                  {newItemReturnDate &&
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-blue-700 font-medium">
-                          Rental Days:
+                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                        <span className="font-mono">
+                          {selectedProductForAdd.itemCode}
                         </span>
-                        <span className="font-bold text-blue-800">
-                          {Math.max(
-                      1,
-                      Math.ceil(
-                        Math.abs(
-                          new Date(newItemReturnDate).getTime() -
-                          new Date().getTime()
-                        ) / (
-                        1000 * 60 * 60 * 24)
-                      )
-                    )}{' '}
-                          days
+                        <span>·</span>
+                        <span>{selectedProductForAdd.category}</span>
+                        <span>·</span>
+                        <span className="font-bold text-[#1a1a2e]">
+                          {formatPrice(
+                        selectedProductForAdd.rentPricePerDay || 0
+                      )}
+                          /day
                         </span>
                       </div>
-                      <div className="flex justify-between mt-1">
-                        <span className="text-blue-700 font-medium">
-                          Estimated Cost:
-                        </span>
-                        <span className="font-bold text-blue-800">
-                          {formatPrice(
-                      (selectedProductForAdd.rentPricePerDay || 0) *
-                      Math.max(
+                    </div>
+
+                    {/* Date fields */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                          Start Date
+                        </label>
+                        <input
+                      type="date"
+                      value={new Date().toISOString().split('T')[0]}
+                      disabled
+                      className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500" />
+                    
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          Today (auto)
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                          Expected Return Date
+                        </label>
+                        <input
+                      type="date"
+                      value={newItemReturnDate}
+                      onChange={(e) => setNewItemReturnDate(e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#f5a623] outline-none"
+                      autoFocus />
+                    
+                      </div>
+                    </div>
+
+                    {/* Days preview */}
+                    {newItemReturnDate &&
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-blue-700 font-medium">
+                            Rental Days:
+                          </span>
+                          <span className="font-bold text-blue-800">
+                            {Math.max(
                         1,
                         Math.ceil(
                           Math.abs(
@@ -1798,38 +1861,167 @@ export function HistoryPage({
                           ) / (
                           1000 * 60 * 60 * 24)
                         )
-                      )
-                    )}
-                        </span>
+                      )}{' '}
+                            days
+                          </span>
+                        </div>
+                        <div className="flex justify-between mt-1">
+                          <span className="text-blue-700 font-medium">
+                            Estimated Cost:
+                          </span>
+                          <span className="font-bold text-blue-800">
+                            {formatPrice(
+                        (selectedProductForAdd.rentPricePerDay || 0) *
+                        Math.max(
+                          1,
+                          Math.ceil(
+                            Math.abs(
+                              new Date(newItemReturnDate).getTime() -
+                              new Date().getTime()
+                            ) / (
+                            1000 * 60 * 60 * 24)
+                          )
+                        )
+                      )}
+                          </span>
+                        </div>
                       </div>
+                }
+
+                    {/* Machine number selection */}
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-2">
+                        Select Machine Numbers
+                      </label>
+                      {machinesLoading ?
+                  <div className="flex items-center justify-center gap-2 py-6 text-gray-400">
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <span className="text-sm font-medium">
+                            Loading available machines...
+                          </span>
+                        </div> :
+                  machinesError ?
+                  <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm flex items-start gap-2">
+                          <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                          {machinesError}
+                        </div> :
+                  availableMachines.length === 0 ?
+                  <div className="text-center py-6 text-gray-500 border border-dashed border-gray-200 rounded-lg">
+                          <AlertTriangle className="w-7 h-7 text-gray-300 mx-auto mb-2" />
+                          <p className="font-medium text-sm">
+                            No machines available
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            All units of this product are currently rented out.
+                          </p>
+                        </div> :
+
+                  <>
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-[10px] text-gray-400 uppercase font-bold">
+                              Click a number to select
+                            </p>
+                            <div className="relative w-1/2">
+                              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                              <input
+                          type="text"
+                          placeholder="Search machine..."
+                          value={machineSearch}
+                          onChange={(e) =>
+                          setMachineSearch(e.target.value)
+                          }
+                          className="w-full pl-7 pr-2 py-1.5 border border-gray-300 rounded-md text-xs focus:ring-1 focus:ring-[#f5a623] outline-none" />
+                        
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-5 gap-2">
+                            {availableMachines.
+                      filter((m) =>
+                      m.
+                      toLowerCase().
+                      includes(machineSearch.toLowerCase())
+                      ).
+                      map((machine) => {
+                        const isSelected =
+                        selectedMachines.includes(machine);
+                        return (
+                          <button
+                            key={machine}
+                            type="button"
+                            onClick={() =>
+                            toggleAddItemMachine(machine)
+                            }
+                            className={`relative px-2 py-2.5 rounded-lg text-sm font-mono font-bold border-2 transition-colors ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-[#1a1a2e] hover:border-blue-400 hover:bg-blue-50'}`}>
+                            
+                                    {machine}
+                                    {isSelected &&
+                            <CheckCircle className="w-3.5 h-3.5 absolute top-1 right-1" />
+                            }
+                                  </button>);
+
+                      })}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-2">
+                            <span className="font-bold text-[#1a1a2e]">
+                              {selectedMachines.length}
+                            </span>{' '}
+                            selected · Quantity will be set to{' '}
+                            {selectedMachines.length || 0}
+                          </p>
+                        </>
+                  }
                     </div>
-              }
+
+                    {addItemError &&
+                <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                        {addItemError}
+                      </div>
+                }
+                  </div>
 
                   {/* Actions */}
-                  <div className="flex gap-3">
+                  <div className="p-4 border-t border-gray-200 flex gap-3 bg-gray-50">
                     <button
                   onClick={() => {
                     setSelectedProductForAdd(null);
                     setNewItemReturnDate('');
+                    setAvailableMachines([]);
+                    setSelectedMachines([]);
+                    setMachineSearch('');
+                    setMachinesError(null);
+                    setAddItemError(null);
                   }}
-                  className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors">
+                  disabled={addItemLoading}
+                  className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-200 disabled:opacity-50 transition-colors">
                   
                       Back
                     </button>
                     <button
-                  onClick={() => {
-                    if (newItemReturnDate) {
-                      handleAddItem(modalBill, selectedProductForAdd);
-                    }
-                  }}
-                  disabled={!newItemReturnDate}
+                  onClick={() =>
+                  handleAddItem(modalBill, selectedProductForAdd)
+                  }
+                  disabled={
+                  !newItemReturnDate ||
+                  selectedMachines.length === 0 ||
+                  addItemLoading
+                  }
                   className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
                   
-                      <Plus className="w-4 h-4" />
-                      Add to Bill
+                      {addItemLoading ?
+                  <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Adding...
+                        </> :
+
+                  <>
+                          <Plus className="w-4 h-4" />
+                          Add to Bill
+                        </>
+                  }
                     </button>
                   </div>
-                </div> :
+                </> :
 
             <>
                   {/* Step 1: Search and select product */}
@@ -1858,12 +2050,15 @@ export function HistoryPage({
                   key={p.id}
                   onClick={() => {
                     setSelectedProductForAdd(p);
+                    setAddItemError(null);
                     // Default to tomorrow
                     const tomorrow = new Date();
                     tomorrow.setDate(tomorrow.getDate() + 1);
                     setNewItemReturnDate(
                       tomorrow.toISOString().split('T')[0]
                     );
+                    // Fetch available machine numbers for this product
+                    fetchAvailableMachines(p);
                   }}
                   className="w-full text-left px-4 py-3 hover:bg-[#f5a623]/10 border-b border-gray-50 last:border-0 flex items-center justify-between transition-colors">
                   

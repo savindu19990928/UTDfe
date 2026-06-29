@@ -180,8 +180,8 @@ export function useRentals(options?: UseRentalsOptions): UseRentalsReturn {
       setRentals(cached.rentals);
       setTotalCount(cached.totalCount);
       setLoading(false);
-      // If fresh, skip network entirely
-      if (isFresh(cacheKey, 30_000)) return;
+      // If fresh, skip network entirely (60s window)
+      if (isFresh(cacheKey, 60_000)) return;
     } else {
       setLoading(true);
     }

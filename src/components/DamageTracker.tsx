@@ -47,7 +47,15 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
   const [apiDamages, setApiDamages] = useState<ApiDamageRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const { products } = useProducts();
+  // Search products via API across both sell + rent (no categoryType filter)
+  const searchQuery =
+  productSearchQuery.trim().length >= 2 ?
+  productSearchQuery.trim() :
+  undefined;
+  const { products, loading: productsLoading } = useProducts({
+    search: searchQuery,
+    enabled: isFormOpen
+  });
   // Fetch damaged products from API
   const fetchDamages = useCallback(async () => {
     setLoading(true);
@@ -83,15 +91,8 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-  const filteredFormProducts = products.filter((p) => {
-    if (!productSearchQuery.trim()) return true;
-    const q = productSearchQuery.toLowerCase();
-    return (
-      p.name.toLowerCase().includes(q) ||
-      p.barcode && p.barcode.toLowerCase().includes(q) ||
-      p.itemCode && p.itemCode.toLowerCase().includes(q));
-
-  });
+  // Server already filters by search; just show what came back
+  const filteredFormProducts = products;
   const handleSelectProduct = (product: Product) => {
     setSelectedProduct(product.id);
     setSelectedProductData(product);
@@ -289,7 +290,16 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
                         }}
                         className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
                         
-                              {filteredFormProducts.length > 0 ?
+                              {productSearchQuery.trim().length < 2 ?
+                        <div className="px-3 py-6 text-center text-sm text-gray-400">
+                                  Type at least 2 characters to search…
+                                </div> :
+                        productsLoading ?
+                        <div className="px-3 py-6 text-center text-sm text-gray-400 flex items-center justify-center gap-2">
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  Searching…
+                                </div> :
+                        filteredFormProducts.length > 0 ?
                         filteredFormProducts.map((p) =>
                         <button
                           key={p.id}
@@ -301,12 +311,21 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
                                       <span className="text-sm font-bold text-[#1a1a2e]">
                                         {p.name}
                                       </span>
-                                      <div className="text-xs text-gray-500">
-                                        {p.barcode ?
-                              p.barcode :
-                              p.itemCode ?
-                              p.itemCode :
-                              'No code'}
+                                      <div className="text-xs text-gray-500 flex items-center gap-2">
+                                        <span>
+                                          {p.barcode ?
+                                p.barcode :
+                                p.itemCode ?
+                                p.itemCode :
+                                'No code'}
+                                        </span>
+                                        <span
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${p.listingType === 'sale' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                                
+                                          {p.listingType === 'sale' ?
+                                'Sale' :
+                                'Rent'}
+                                        </span>
                                       </div>
                                     </div>
                                   </button>

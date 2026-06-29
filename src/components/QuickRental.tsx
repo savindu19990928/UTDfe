@@ -31,6 +31,7 @@ type RentalItem = {
   product: Product;
   quantity: number;
   days: number;
+  machineNumbers: string[];
 };
 type Stage = 'customer' | 'items' | 'deposit';
 export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
@@ -46,6 +47,13 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Machine number selection popup state
+  const [machineModalProduct, setMachineModalProduct] =
+  useState<Product | null>(null);
+  const [availableMachines, setAvailableMachines] = useState<string[]>([]);
+  const [machinesLoading, setMachinesLoading] = useState(false);
+  const [machinesError, setMachinesError] = useState<string | null>(null);
+  const [selectedMachines, setSelectedMachines] = useState<string[]>([]);
   // Custom bill number state
   const [customBillNumber, setCustomBillNumber] = useState('');
   const [billNumberError, setBillNumberError] = useState<string | null>(null);
@@ -125,7 +133,9 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
       }, 200);
     }
   }, [showNewCustomerForm]);
-  const handleAddProduct = (product: Product) => {
+  // Open the machine-number selection popup for a product and fetch its
+  // currently available machine numbers.
+  const openMachineModal = async (product: Product) => {
     // Check stock availability (stock > 0 means limited stock)
     if (product.stock != null && product.stock > 0) {
       const usedQty = getUsedQty(product.id);
@@ -136,20 +146,72 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
         return;
       }
     }
-    const newItem: RentalItem = {
-      product,
-      quantity: 1,
-      days: 1
-    };
-    setItems((prev) => [...prev, newItem]);
+    setError(null);
     setProductSearch('');
     setShowProductDropdown(false);
+    setMachineModalProduct(product);
+    setSelectedMachines([]);
+    setAvailableMachines([]);
+    setMachinesError(null);
+    setMachinesLoading(true);
+    try {
+      const res = await fetch(
+        `${API_URL}products/${product.id}/available_machines/`,
+        {
+          headers: {
+            ...getAuthHeaders(),
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      if (!res.ok) {
+        throw new Error(`Failed to load machine numbers (${res.status})`);
+      }
+      const data = await res.json();
+      const machines: string[] = (data?.available_machine_numbers || []).map(
+        (m: any) => String(m)
+      );
+      setAvailableMachines(machines);
+    } catch (err: any) {
+      setMachinesError(err.message || 'Failed to load machine numbers');
+    } finally {
+      setMachinesLoading(false);
+    }
+  };
+  const closeMachineModal = () => {
+    setMachineModalProduct(null);
+    setAvailableMachines([]);
+    setSelectedMachines([]);
+    setMachinesError(null);
+    setMachinesLoading(false);
+  };
+  const toggleMachine = (machine: string) => {
+    setSelectedMachines((prev) =>
+    prev.includes(machine) ?
+    prev.filter((m) => m !== machine) :
+    [...prev, machine]
+    );
+  };
+  // Confirm machine selection — adds the product to the bill with the
+  // selected machine numbers. Quantity is derived from machines selected.
+  const confirmMachineSelection = () => {
+    if (!machineModalProduct || selectedMachines.length === 0) return;
+    const product = machineModalProduct;
+    const machineNumbers = [...selectedMachines];
+    const newItem: RentalItem = {
+      product,
+      quantity: machineNumbers.length,
+      days: 1,
+      machineNumbers
+    };
+    setItems((prev) => [...prev, newItem]);
+    closeMachineModal();
     setError(null);
-    // Focus the quantity input of the new item after render
+    // Focus the days input of the new item after render
     setTimeout(() => {
       const index = items.length; // Index of the new item
-      qtyRefs.current[index]?.focus();
-      qtyRefs.current[index]?.select();
+      daysRefs.current[index]?.focus();
+      daysRefs.current[index]?.select();
     }, 50);
   };
   const handleRemoveItem = (index: number) => {
@@ -228,7 +290,8 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
           rental_start_date: startDate,
           rental_end_date: endDate.toISOString().split('T')[0],
           quantity: item.quantity,
-          product: parseInt(item.product.id)
+          product: parseInt(item.product.id),
+          machine_numbers: item.machineNumbers
         };
       }),
       payment_method: 'cash',
@@ -917,7 +980,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                       const selectedProduct =
                       filteredProducts[selectedProductIndex];
                       if (selectedProduct) {
-                        handleAddProduct(selectedProduct);
+                        openMachineModal(selectedProduct);
                       }
                     }
                   }}
@@ -953,7 +1016,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                     filteredProducts.map((product, idx) =>
                     <button
                       key={product.id}
-                      onClick={() => handleAddProduct(product)}
+                      onClick={() => openMachineModal(product)}
                       disabled={
                       product.stock != null &&
                       product.stock > 0 &&
@@ -1008,7 +1071,19 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                           {item.product.itemCode || '-'}
                         </td>
                         <td className="px-4 py-3 font-medium text-[#1a1a2e]">
-                          {item.product.name}
+                          <div>{item.product.name}</div>
+                          {item.machineNumbers.length > 0 &&
+                      <div className="mt-1 flex flex-wrap gap-1">
+                              {item.machineNumbers.map((m) =>
+                        <span
+                          key={m}
+                          className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                          
+                                  #{m}
+                                </span>
+                        )}
+                            </div>
+                      }
                         </td>
                         <td className="px-4 py-3 text-right text-gray-600">
                           {formatPrice(item.product.rentPricePerDay || 0)}
@@ -1016,34 +1091,12 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-center gap-1.5">
                             <div className="flex flex-col items-center">
-                              <input
-                            ref={(el) => qtyRefs.current[index] = el}
-                            type="number"
-                            min="1"
-                            max={
-                            item.product.stock != null &&
-                            item.product.stock > 0 ?
-                            item.product.stock -
-                            getUsedQty(item.product.id, index) :
-                            undefined
-                            }
-                            value={item.quantity}
-                            onChange={(e) =>
-                            handleItemChange(
-                              index,
-                              'quantity',
-                              e.target.value
-                            )
-                            }
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === 'Tab') {
-                                e.preventDefault();
-                                daysRefs.current[index]?.focus();
-                                daysRefs.current[index]?.select();
-                              }
-                            }}
-                            className="w-14 text-center border border-gray-300 rounded px-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none" />
-                          
+                              <span
+                            title="Quantity is determined by selected machine numbers"
+                            className="w-14 text-center border border-gray-200 bg-gray-100 text-gray-600 rounded px-1 py-1 font-bold cursor-not-allowed select-none">
+                            
+                                {item.quantity}
+                              </span>
                             </div>
                             <span className="text-gray-400 text-xs font-bold">
                               ×
@@ -1314,6 +1367,140 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
           }
         </div>
       </div>
+
+      {/* MACHINE NUMBER SELECTION POPUP */}
+      <AnimatePresence>
+        {machineModalProduct &&
+        <motion.div
+          initial={{
+            opacity: 0
+          }}
+          animate={{
+            opacity: 1
+          }}
+          exit={{
+            opacity: 0
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={closeMachineModal}>
+          
+            <motion.div
+            initial={{
+              opacity: 0,
+              scale: 0.96,
+              y: 12
+            }}
+            animate={{
+              opacity: 1,
+              scale: 1,
+              y: 0
+            }}
+            exit={{
+              opacity: 0,
+              scale: 0.96,
+              y: 12
+            }}
+            transition={{
+              type: 'spring',
+              bounce: 0.2,
+              duration: 0.4
+            }}
+            className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden"
+            onClick={(e) => e.stopPropagation()}>
+            
+              <div className="flex items-start justify-between px-6 py-4 border-b border-gray-100">
+                <div>
+                  <h3 className="text-lg font-bold text-[#1a1a2e]">
+                    Select Machine Numbers
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    {machineModalProduct.name}
+                  </p>
+                </div>
+                <button
+                onClick={closeMachineModal}
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                aria-label="Close">
+                
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="px-6 py-5 min-h-[140px]">
+                {machinesLoading ?
+              <div className="flex items-center justify-center gap-2 py-8 text-gray-400">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span className="text-sm font-medium">
+                      Loading available machines...
+                    </span>
+                  </div> :
+              machinesError ?
+              <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    {machinesError}
+                  </div> :
+              availableMachines.length === 0 ?
+              <div className="text-center py-8 text-gray-500">
+                    <AlertTriangle className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                    <p className="font-medium">No machines available</p>
+                    <p className="text-sm text-gray-400 mt-1">
+                      All units of this product are currently rented out.
+                    </p>
+                  </div> :
+
+              <>
+                    <p className="text-xs font-bold text-gray-500 uppercase mb-3">
+                      Click a number to select
+                    </p>
+                    <div className="grid grid-cols-4 gap-2">
+                      {availableMachines.map((machine) => {
+                    const isSelected = selectedMachines.includes(machine);
+                    return (
+                      <button
+                        key={machine}
+                        onClick={() => toggleMachine(machine)}
+                        className={`relative px-2 py-3 rounded-lg text-sm font-mono font-bold border-2 transition-colors ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-[#1a1a2e] hover:border-blue-400 hover:bg-blue-50'}`}>
+                        
+                            {machine}
+                            {isSelected &&
+                        <CheckCircle className="w-3.5 h-3.5 absolute top-1 right-1" />
+                        }
+                          </button>);
+
+                  })}
+                    </div>
+                  </>
+              }
+              </div>
+
+              <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
+                <span className="text-sm text-gray-500">
+                  <span className="font-bold text-[#1a1a2e]">
+                    {selectedMachines.length}
+                  </span>{' '}
+                  selected
+                </span>
+                <div className="flex items-center gap-3">
+                  <button
+                  onClick={closeMachineModal}
+                  className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-50 text-sm">
+                  
+                    Cancel
+                  </button>
+                  <button
+                  onClick={confirmMachineSelection}
+                  disabled={selectedMachines.length === 0}
+                  className="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm flex items-center gap-2">
+                  
+                    <Plus className="w-4 h-4" />
+                    Add to Bill
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        }
+      </AnimatePresence>
     </div>);
 
 }

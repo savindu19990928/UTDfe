@@ -106,7 +106,7 @@ export function useSales(options?: UseSalesOptions): UseSalesReturn {
       setSales(cached.sales);
       setTotalCount(cached.totalCount);
       setLoading(false);
-      if (isFresh(cacheKey, 30_000)) return;
+      if (isFresh(cacheKey, 60_000)) return;
     } else {
       setLoading(true);
     }

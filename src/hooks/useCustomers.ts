@@ -7,6 +7,7 @@ import { getCached, setCache, isFresh, clearCache } from '../utils/apiCache';
 
 interface UseCustomersOptions {
   search?: string;
+  enabled?: boolean;
 }
 
 interface CustomerFormData {
@@ -67,6 +68,7 @@ options?: UseCustomersOptions)
   const [totalCount, setTotalCount] = useState(0);
 
   const search = options?.search;
+  const enabled = options?.enabled !== false;
   const [debouncedSearch, setDebouncedSearch] = useState(search);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -78,6 +80,8 @@ options?: UseCustomersOptions)
   }, [search]);
 
   const fetchCustomers = useCallback(async () => {
+    if (!enabled) return;
+
     let url = `${API_URL}customers/`;
     if (debouncedSearch && debouncedSearch.trim()) {
       url += `?search=${encodeURIComponent(debouncedSearch.trim())}`;
@@ -93,7 +97,8 @@ options?: UseCustomersOptions)
       setCustomers(cached.customers);
       setTotalCount(cached.totalCount);
       setLoading(false);
-      if (isFresh(cacheKey, 60_000)) return;
+      // Extended fresh window — skip network for 2 minutes after a successful fetch
+      if (isFresh(cacheKey, 120_000)) return;
     } else {
       setLoading(true);
     }
@@ -139,14 +144,16 @@ options?: UseCustomersOptions)
         setLoading(false);
       }
     }
-  }, [debouncedSearch]);
+  }, [debouncedSearch, enabled]);
 
   useEffect(() => {
-    fetchCustomers();
+    if (enabled) {
+      fetchCustomers();
+    }
     return () => {
       if (abortRef.current) abortRef.current.abort();
     };
-  }, [fetchCustomers]);
+  }, [fetchCustomers, enabled]);
 
   const addCustomer = useCallback(
     async (data: CustomerFormData): Promise<boolean> => {
