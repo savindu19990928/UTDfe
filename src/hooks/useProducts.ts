@@ -55,7 +55,8 @@ function mapApiProduct(raw: any): Product {
     raw.rentPricePerDay ?? null,
     stock: parseInt(raw.current_stock ?? raw.stock ?? raw.quantity ?? 0, 10),
     itemCode: raw.item_number || raw.item_code || raw.itemCode || undefined,
-    barcode: raw.barcode || undefined
+    barcode: raw.barcode || undefined,
+    isStockTracked: raw.is_stock_tracked ?? true
   };
 }
 

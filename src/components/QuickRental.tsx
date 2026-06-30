@@ -54,9 +54,11 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
   const [machinesLoading, setMachinesLoading] = useState(false);
   const [machinesError, setMachinesError] = useState<string | null>(null);
   const [selectedMachines, setSelectedMachines] = useState<string[]>([]);
+  const [manualQuantity, setManualQuantity] = useState(1);
   // Custom bill number state
   const [customBillNumber, setCustomBillNumber] = useState('');
   const [billNumberError, setBillNumberError] = useState<string | null>(null);
+  const [nicTaken, setNicTaken] = useState(false);
   // New customer form state
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
   const [newName, setNewName] = useState('');
@@ -182,6 +184,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
     setMachineModalProduct(null);
     setAvailableMachines([]);
     setSelectedMachines([]);
+    setManualQuantity(1);
     setMachinesError(null);
     setMachinesLoading(false);
   };
@@ -195,14 +198,18 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
   // Confirm machine selection — adds the product to the bill with the
   // selected machine numbers. Quantity is derived from machines selected.
   const confirmMachineSelection = () => {
-    if (!machineModalProduct || selectedMachines.length === 0) return;
+    if (!machineModalProduct) return;
     const product = machineModalProduct;
-    const machineNumbers = [...selectedMachines];
+    const isTracked =
+    product.isStockTracked !== false && availableMachines.length > 0;
+    if (isTracked && selectedMachines.length === 0) return;
+    if (!isTracked && manualQuantity <= 0) return;
+    const machineNumbers = isTracked ? [...selectedMachines] : [];
     const newItem: RentalItem = {
       product,
-      quantity: machineNumbers.length,
+      quantity: isTracked ? machineNumbers.length : manualQuantity,
       days: 1,
-      machineNumbers
+      machineNumbers: machineNumbers.length > 0 ? machineNumbers : undefined
     };
     setItems((prev) => [...prev, newItem]);
     closeMachineModal();
@@ -282,17 +289,21 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
       initial_deposit: depositVal.toFixed(2),
       initial_deposit_date: today,
       status: 'active',
+      nic_taken: nicTaken,
       items: items.map((item) => {
         const startDate = today;
         const endDate = new Date();
         endDate.setDate(endDate.getDate() + item.days);
-        return {
+        const apiItem: any = {
           rental_start_date: startDate,
           rental_end_date: endDate.toISOString().split('T')[0],
           quantity: item.quantity,
-          product: parseInt(item.product.id),
-          machine_numbers: item.machineNumbers
+          product: parseInt(item.product.id)
         };
+        if (item.machineNumbers && item.machineNumbers.length > 0) {
+          apiItem.machine_numbers = item.machineNumbers;
+        }
+        return apiItem;
       }),
       payment_method: 'cash',
       discount: 0
@@ -365,6 +376,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
         depositHistory: deposits,
         customerPhotoUrl: getPhotoUrl(data.customer_photo) || customer.photoUrl,
         customerNic: data.customer_nic || customer.nicNumber,
+        nicTaken: data.nic_taken || nicTaken,
         rentalStatus: 'open'
       };
       onGenerateBill(bill);
@@ -1292,6 +1304,23 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                       </p>
                   }
                   </div>
+
+                  <div className="pt-4 mt-4 border-t border-gray-200">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                      type="checkbox"
+                      checked={nicTaken}
+                      onChange={(e) => setNicTaken(e.target.checked)}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                    
+                      <span className="text-sm font-medium text-gray-700">
+                        NIC Taken
+                      </span>
+                    </label>
+                    <p className="text-[10px] text-gray-500 mt-1 ml-6">
+                      Check this if the physical NIC card has been collected.
+                    </p>
+                  </div>
                 </div>
 
                 {error &&
@@ -1427,7 +1456,41 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
               </div>
 
               <div className="px-6 py-5 min-h-[140px]">
-                {machinesLoading ?
+                {machineModalProduct.isStockTracked === false ||
+              !machinesLoading &&
+              !machinesError &&
+              availableMachines.length === 0 ?
+              <div>
+                    {machineModalProduct.isStockTracked !== false &&
+                <div className="mb-4 bg-amber-50 text-amber-700 p-3 rounded-lg text-sm flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="font-bold">No machines available</p>
+                          <p className="text-xs mt-0.5">
+                            You can still add this item by specifying the
+                            quantity manually.
+                          </p>
+                        </div>
+                      </div>
+                }
+                    <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                      Quantity
+                    </label>
+                    <input
+                  type="number"
+                  min="1"
+                  max={machineModalProduct.stock}
+                  value={manualQuantity}
+                  onChange={(e) =>
+                  setManualQuantity(parseInt(e.target.value) || 1)
+                  }
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#f5a623] outline-none" />
+                
+                    <p className="text-xs text-gray-500 mt-1">
+                      Available stock: {machineModalProduct.stock}
+                    </p>
+                  </div> :
+              machinesLoading ?
               <div className="flex items-center justify-center gap-2 py-8 text-gray-400">
                     <Loader2 className="w-5 h-5 animate-spin" />
                     <span className="text-sm font-medium">
@@ -1438,14 +1501,6 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
               <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm flex items-start gap-2">
                     <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                     {machinesError}
-                  </div> :
-              availableMachines.length === 0 ?
-              <div className="text-center py-8 text-gray-500">
-                    <AlertTriangle className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                    <p className="font-medium">No machines available</p>
-                    <p className="text-sm text-gray-400 mt-1">
-                      All units of this product are currently rented out.
-                    </p>
                   </div> :
 
               <>
@@ -1476,7 +1531,12 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
               <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
                 <span className="text-sm text-gray-500">
                   <span className="font-bold text-[#1a1a2e]">
-                    {selectedMachines.length}
+                    {machineModalProduct.isStockTracked === false ||
+                  !machinesLoading &&
+                  !machinesError &&
+                  availableMachines.length === 0 ?
+                  manualQuantity :
+                  selectedMachines.length}
                   </span>{' '}
                   selected
                 </span>
@@ -1489,7 +1549,15 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                   </button>
                   <button
                   onClick={confirmMachineSelection}
-                  disabled={selectedMachines.length === 0}
+                  disabled={
+                  machinesLoading ||
+                  machineModalProduct.isStockTracked !== false &&
+                  availableMachines.length > 0 &&
+                  selectedMachines.length === 0 ||
+                  (machineModalProduct.isStockTracked === false ||
+                  !machinesLoading && availableMachines.length === 0) &&
+                  manualQuantity <= 0
+                  }
                   className="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm flex items-center gap-2">
                   
                     <Plus className="w-4 h-4" />

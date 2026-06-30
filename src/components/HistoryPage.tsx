@@ -72,6 +72,7 @@ export function HistoryPage({
   const [machinesLoading, setMachinesLoading] = useState(false);
   const [machinesError, setMachinesError] = useState<string | null>(null);
   const [machineSearch, setMachineSearch] = useState('');
+  const [manualQuantity, setManualQuantity] = useState(1);
   const [addItemLoading, setAddItemLoading] = useState(false);
   const [addItemError, setAddItemError] = useState<string | null>(null);
   // Single item return modal state
@@ -575,6 +576,7 @@ export function HistoryPage({
     setAvailableMachines([]);
     setSelectedMachines([]);
     setMachineSearch('');
+    setManualQuantity(1);
     setMachinesError(null);
     setMachinesLoading(false);
     setAddItemError(null);
@@ -628,27 +630,37 @@ export function HistoryPage({
       setAddItemError('Please select an expected return date.');
       return;
     }
-    if (selectedMachines.length === 0) {
+    // If it's tracked but no machines are available, we fallback to manual quantity
+    const isTracked =
+    product.isStockTracked !== false && availableMachines.length > 0;
+    if (isTracked && selectedMachines.length === 0) {
       setAddItemError('Please select at least one machine number.');
+      return;
+    }
+    if (!isTracked && manualQuantity <= 0) {
+      setAddItemError('Please enter a valid quantity.');
       return;
     }
     setAddItemLoading(true);
     setAddItemError(null);
     const today = new Date().toISOString().split('T')[0];
     try {
+      const payload: any = {
+        product: parseInt(product.id),
+        quantity: isTracked ? selectedMachines.length : manualQuantity,
+        rental_start_date: today,
+        rental_end_date: newItemReturnDate
+      };
+      if (isTracked) {
+        payload.machine_numbers = selectedMachines;
+      }
       const res = await fetch(`${API_URL}rentals/${bill.apiId}/add_item/`, {
         method: 'POST',
         headers: {
           ...getAuthHeaders(),
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          product: parseInt(product.id),
-          quantity: selectedMachines.length,
-          rental_start_date: today,
-          rental_end_date: newItemReturnDate,
-          machine_numbers: selectedMachines
-        })
+        body: JSON.stringify(payload)
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => null);
@@ -1153,6 +1165,13 @@ export function HistoryPage({
                             <p className="text-xs text-gray-400 mt-0.5">
                               {bill.date} · {returnedCount}/{bill.items.length}{' '}
                               items returned
+                              {bill.nicTaken !== undefined &&
+                      <span
+                        className={`ml-2 px-1.5 py-0.5 rounded ${bill.nicTaken ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600'}`}>
+                        
+                                  NIC: {bill.nicTaken ? 'Taken' : 'Not Taken'}
+                                </span>
+                      }
                             </p>
                           </div>
                           <div className="flex items-center gap-3">
@@ -1888,86 +1907,116 @@ export function HistoryPage({
                       </div>
                 }
 
-                    {/* Machine number selection */}
+                    {/* Machine number or Quantity selection */}
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-2">
-                        Select Machine Numbers
-                      </label>
-                      {machinesLoading ?
-                  <div className="flex items-center justify-center gap-2 py-6 text-gray-400">
-                          <Loader2 className="w-5 h-5 animate-spin" />
-                          <span className="text-sm font-medium">
-                            Loading available machines...
-                          </span>
-                        </div> :
-                  machinesError ?
-                  <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm flex items-start gap-2">
-                          <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                          {machinesError}
-                        </div> :
+                      {selectedProductForAdd.isStockTracked === false ||
+                  !machinesLoading &&
+                  !machinesError &&
                   availableMachines.length === 0 ?
-                  <div className="text-center py-6 text-gray-500 border border-dashed border-gray-200 rounded-lg">
-                          <AlertTriangle className="w-7 h-7 text-gray-300 mx-auto mb-2" />
-                          <p className="font-medium text-sm">
-                            No machines available
-                          </p>
-                          <p className="text-xs text-gray-400 mt-1">
-                            All units of this product are currently rented out.
+                  <div>
+                          {selectedProductForAdd.isStockTracked !== false &&
+                    <div className="mb-4 bg-amber-50 text-amber-700 p-3 rounded-lg text-sm flex items-start gap-2">
+                              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                              <div>
+                                <p className="font-bold">
+                                  No machines available
+                                </p>
+                                <p className="text-xs mt-0.5">
+                                  You can still add this item by specifying the
+                                  quantity manually.
+                                </p>
+                              </div>
+                            </div>
+                    }
+                          <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                            Quantity
+                          </label>
+                          <input
+                      type="number"
+                      min="1"
+                      max={selectedProductForAdd.stock}
+                      value={manualQuantity}
+                      onChange={(e) =>
+                      setManualQuantity(parseInt(e.target.value) || 1)
+                      }
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#f5a623] outline-none" />
+                    
+                          <p className="text-xs text-gray-500 mt-1">
+                            Available stock: {selectedProductForAdd.stock}
                           </p>
                         </div> :
 
                   <>
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="text-[10px] text-gray-400 uppercase font-bold">
-                              Click a number to select
-                            </p>
-                            <div className="relative w-1/2">
-                              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
-                              <input
-                          type="text"
-                          placeholder="Search machine..."
-                          value={machineSearch}
-                          onChange={(e) =>
-                          setMachineSearch(e.target.value)
-                          }
-                          className="w-full pl-7 pr-2 py-1.5 border border-gray-300 rounded-md text-xs focus:ring-1 focus:ring-[#f5a623] outline-none" />
-                        
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-5 gap-2">
-                            {availableMachines.
-                      filter((m) =>
-                      m.
-                      toLowerCase().
-                      includes(machineSearch.toLowerCase())
-                      ).
-                      map((machine) => {
-                        const isSelected =
-                        selectedMachines.includes(machine);
-                        return (
-                          <button
-                            key={machine}
-                            type="button"
-                            onClick={() =>
-                            toggleAddItemMachine(machine)
-                            }
-                            className={`relative px-2 py-2.5 rounded-lg text-sm font-mono font-bold border-2 transition-colors ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-[#1a1a2e] hover:border-blue-400 hover:bg-blue-50'}`}>
-                            
-                                    {machine}
-                                    {isSelected &&
-                            <CheckCircle className="w-3.5 h-3.5 absolute top-1 right-1" />
-                            }
-                                  </button>);
+                          <label className="block text-xs font-bold text-gray-700 mb-2">
+                            Select Machine Numbers
+                          </label>
+                          {machinesLoading ?
+                    <div className="flex items-center justify-center gap-2 py-6 text-gray-400">
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                              <span className="text-sm font-medium">
+                                Loading available machines...
+                              </span>
+                            </div> :
+                    machinesError ?
+                    <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm flex items-start gap-2">
+                              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                              {machinesError}
+                            </div> :
 
-                      })}
-                          </div>
-                          <p className="text-xs text-gray-500 mt-2">
-                            <span className="font-bold text-[#1a1a2e]">
-                              {selectedMachines.length}
-                            </span>{' '}
-                            selected · Quantity will be set to{' '}
-                            {selectedMachines.length || 0}
-                          </p>
+                    <>
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="text-[10px] text-gray-400 uppercase font-bold">
+                                  Click a number to select
+                                </p>
+                                <div className="relative w-1/2">
+                                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                                  <input
+                            type="text"
+                            placeholder="Search machine..."
+                            value={machineSearch}
+                            onChange={(e) =>
+                            setMachineSearch(e.target.value)
+                            }
+                            className="w-full pl-7 pr-2 py-1.5 border border-gray-300 rounded-md text-xs focus:ring-1 focus:ring-[#f5a623] outline-none" />
+                          
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-5 gap-2">
+                                {availableMachines.
+                        filter((m) =>
+                        m.
+                        toLowerCase().
+                        includes(machineSearch.toLowerCase())
+                        ).
+                        map((machine) => {
+                          const isSelected =
+                          selectedMachines.includes(machine);
+                          return (
+                            <button
+                              key={machine}
+                              type="button"
+                              onClick={() =>
+                              toggleAddItemMachine(machine)
+                              }
+                              className={`relative px-2 py-2.5 rounded-lg text-sm font-mono font-bold border-2 transition-colors ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-[#1a1a2e] hover:border-blue-400 hover:bg-blue-50'}`}>
+                              
+                                        {machine}
+                                        {isSelected &&
+                              <CheckCircle className="w-3.5 h-3.5 absolute top-1 right-1" />
+                              }
+                                      </button>);
+
+                        })}
+                              </div>
+                              <p className="text-xs text-gray-500 mt-2">
+                                <span className="font-bold text-[#1a1a2e]">
+                                  {selectedMachines.length}
+                                </span>{' '}
+                                selected · Quantity will be set to{' '}
+                                {selectedMachines.length || 0}
+                              </p>
+                            </>
+                    }
                         </>
                   }
                     </div>
@@ -2003,7 +2052,13 @@ export function HistoryPage({
                   }
                   disabled={
                   !newItemReturnDate ||
+                  machinesLoading ||
+                  selectedProductForAdd.isStockTracked !== false &&
+                  availableMachines.length > 0 &&
                   selectedMachines.length === 0 ||
+                  (selectedProductForAdd.isStockTracked === false ||
+                  availableMachines.length === 0) &&
+                  manualQuantity <= 0 ||
                   addItemLoading
                   }
                   className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">

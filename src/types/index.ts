@@ -15,6 +15,7 @@ export type Product = {
   stock: number;
   itemCode?: string;
   barcode?: string;
+  isStockTracked?: boolean;
 };
 
 export type CartItemType = 'sale' | 'rent';
@@ -137,6 +138,7 @@ export type Bill = {
   fines?: RentalFine[];
   customerPhotoUrl?: string;
   customerNic?: string;
+  nicTaken?: boolean;
   rentalStatus?: RentalBillStatus;
 };
 

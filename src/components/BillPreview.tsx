@@ -119,6 +119,10 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
             <span className="font-bold">{bill.customerNic || '-'}</span>
           </p>
           <p>
+            <span className="inline-block w-32">NIC Taken:</span>
+            <span className="font-bold">{bill.nicTaken ? 'Yes' : 'No'}</span>
+          </p>
+          <p>
             <span className="inline-block w-32">ජංගම:</span>
             <span className="font-bold">{bill.customer.phone}</span>
           </p>

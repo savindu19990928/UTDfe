@@ -41,6 +41,7 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
     'cash');
   const [customBillNumber, setCustomBillNumber] = useState('');
   const [billNumberError, setBillNumberError] = useState<string | null>(null);
+  const [nicTaken, setNicTaken] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   // Fetch customers from API with search
   const { customers, loading: customersLoading } = useCustomers({
@@ -121,6 +122,7 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
         initial_deposit: depositAmount.toFixed(2),
         initial_deposit_date: today,
         status: 'active',
+        nic_taken: nicTaken,
         items: cartItems.
         filter((item) => item.type === 'rent').
         map((item) => {
@@ -225,6 +227,7 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
           undefined,
           customerNic:
           data.customer_nic || selectedCustomerData.nicNumber || undefined,
+          nicTaken: data.nic_taken || nicTaken,
           rentalStatus: 'open'
         };
         onGenerateBill(bill);
@@ -544,6 +547,26 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
                       Deposit must be at least {formatPrice(grandTotal)}
                     </p>
                 }
+                </div>
+              }
+
+              {/* NIC Taken Checkbox — Only for Rentals */}
+              {hasRentals &&
+              <div className="pt-4 mt-4 border-t border-gray-200">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                    type="checkbox"
+                    checked={nicTaken}
+                    onChange={(e) => setNicTaken(e.target.checked)}
+                    className="w-4 h-4 text-[#f5a623] border-gray-300 rounded focus:ring-[#f5a623]" />
+                  
+                    <span className="text-sm font-medium text-gray-700">
+                      NIC Taken
+                    </span>
+                  </label>
+                  <p className="text-[10px] text-gray-500 mt-1 ml-6">
+                    Check this if the physical NIC card has been collected.
+                  </p>
                 </div>
               }
             </div>

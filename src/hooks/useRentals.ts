@@ -133,6 +133,7 @@ function mapApiRental(raw: any): Bill {
     fines,
     customerPhotoUrl: getPhotoUrl(raw.customer_photo),
     customerNic: raw.customer_nic || undefined,
+    nicTaken: raw.nic_taken || false,
     rentalStatus
   };
 }
