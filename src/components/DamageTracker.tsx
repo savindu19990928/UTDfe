@@ -9,7 +9,8 @@ import {
   Loader2,
   RefreshCw,
   User,
-  Hash } from
+  Hash,
+  CheckCircle } from
 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useProducts } from '../hooks/useProducts';
@@ -43,6 +44,15 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // Machine number selection (for machine-tracked products)
+  const [availableMachines, setAvailableMachines] = useState<string[]>([]);
+  const [rentedOutMachines, setRentedOutMachines] = useState<string[]>([]);
+  const [damagedMachines, setDamagedMachines] = useState<string[]>([]);
+  const [selectedMachines, setSelectedMachines] = useState<string[]>([]);
+  const [machinesLoading, setMachinesLoading] = useState(false);
+  const [machinesError, setMachinesError] = useState<string | null>(null);
+  const [machineSearch, setMachineSearch] = useState('');
+  const [isMachineProduct, setIsMachineProduct] = useState(false);
   // API fetch state
   const [apiDamages, setApiDamages] = useState<ApiDamageRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,17 +103,81 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
   }, []);
   // Server already filters by search; just show what came back
   const filteredFormProducts = products;
+  // Fetch machine numbers for a product being marked as damaged
+  const fetchMachinesForProduct = async (product: Product) => {
+    setSelectedMachines([]);
+    setAvailableMachines([]);
+    setRentedOutMachines([]);
+    setDamagedMachines([]);
+    setMachineSearch('');
+    setMachinesError(null);
+    setIsMachineProduct(false);
+    // Products explicitly not stock-tracked never have machine numbers
+    if (product.isStockTracked === false) return;
+    setMachinesLoading(true);
+    try {
+      const res = await fetch(
+        `${API_URL}products/${product.id}/available_machines/`,
+        {
+          headers: {
+            ...getAuthHeaders(),
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      if (!res.ok) {
+        throw new Error(`Failed to load machine numbers (${res.status})`);
+      }
+      const data = await res.json();
+      const available: string[] = (data?.available_machine_numbers || []).map(
+        (m: any) => String(m)
+      );
+      const rentedOut: string[] = (data?.rented_out_machine_numbers || []).map(
+        (m: any) => String(m)
+      );
+      const damaged: string[] = (data?.damaged_machine_numbers || []).map(
+        (m: any) => String(m)
+      );
+      setAvailableMachines(available);
+      setRentedOutMachines(rentedOut);
+      setDamagedMachines(damaged);
+      // A product is machine-tracked if it exposes any machine numbers
+      setIsMachineProduct(
+        available.length > 0 || rentedOut.length > 0 || damaged.length > 0
+      );
+    } catch (err: any) {
+      setMachinesError(err.message || 'Failed to load machine numbers');
+    } finally {
+      setMachinesLoading(false);
+    }
+  };
+  const toggleMachine = (machine: string) => {
+    setSelectedMachines((prev) =>
+    prev.includes(machine) ?
+    prev.filter((m) => m !== machine) :
+    [...prev, machine]
+    );
+  };
   const handleSelectProduct = (product: Product) => {
     setSelectedProduct(product.id);
     setSelectedProductData(product);
     setProductSearchQuery('');
     setIsProductDropdownOpen(false);
     setSubmitError(null);
+    setQty(1);
+    fetchMachinesForProduct(product);
   };
   const handleClearProduct = () => {
     setSelectedProduct('');
     setSelectedProductData(null);
     setProductSearchQuery('');
+    setAvailableMachines([]);
+    setRentedOutMachines([]);
+    setDamagedMachines([]);
+    setSelectedMachines([]);
+    setMachineSearch('');
+    setMachinesError(null);
+    setIsMachineProduct(false);
   };
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,20 +189,43 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
       setSubmitError('Selected product has no barcode or item code.');
       return;
     }
+    // For machine-tracked products, the machine_numbers array length MUST
+    // match the quantity — so quantity is derived from the selection.
+    const effectiveQty = isMachineProduct ? selectedMachines.length : qty;
+    if (isMachineProduct && selectedMachines.length === 0) {
+      setSubmitError(
+        'Please select at least one machine number to mark as damaged.'
+      );
+      return;
+    }
+    if (!isMachineProduct && (!effectiveQty || effectiveQty < 1)) {
+      setSubmitError('Please enter a valid quantity.');
+      return;
+    }
+    if (!isMachineProduct && effectiveQty > selectedProductData.stock) {
+      setSubmitError(
+        `Cannot add more than available stock (${selectedProductData.stock}).`
+      );
+      return;
+    }
     setSubmitting(true);
     setSubmitError(null);
     try {
+      const requestBody: any = {
+        quantity: effectiveQty,
+        reason: notes || 'Damaged',
+        identifier
+      };
+      if (isMachineProduct) {
+        requestBody.machine_numbers = selectedMachines;
+      }
       const res = await fetch(`${API_URL}damaged-products/mark_damaged/`, {
         method: 'POST',
         headers: {
           ...getAuthHeaders(),
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          quantity: qty,
-          reason: notes || 'Damaged',
-          identifier
-        })
+        body: JSON.stringify(requestBody)
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => null);
@@ -140,15 +237,17 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
           `Failed to report damage (${res.status})`
         );
       }
-      // Read response to capture backend ID
+      // Read response to capture backend ID. For machine products the API
+      // returns an array of records (one per machine).
       const resData = await res.json().catch(() => null);
-      const backendId = resData?.id || resData?.damage_id || null;
+      const firstRecord = Array.isArray(resData) ? resData[0] : resData;
+      const backendId = firstRecord?.id || firstRecord?.damage_id || null;
       // Use backend ID if available, otherwise fall back to local ID
       const newDamage: DamageRecord = {
         id: backendId ? String(backendId) : `DMG-${Date.now()}`,
         productId: product.id,
         productName: product.name,
-        damagedQty: qty,
+        damagedQty: effectiveQty,
         date: new Date().toISOString().split('T')[0],
         severity: 'minor',
         notes,
@@ -171,6 +270,13 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
     setProductSearchQuery('');
     setQty(1);
     setNotes('');
+    setAvailableMachines([]);
+    setRentedOutMachines([]);
+    setDamagedMachines([]);
+    setSelectedMachines([]);
+    setMachineSearch('');
+    setMachinesError(null);
+    setIsMachineProduct(false);
   };
   const stats = {
     totalReports: apiDamages.length,
@@ -220,17 +326,22 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
         <motion.div
           initial={{
             height: 0,
-            opacity: 0
+            opacity: 0,
+            overflow: 'hidden'
           }}
           animate={{
             height: 'auto',
-            opacity: 1
+            opacity: 1,
+            transitionEnd: {
+              overflow: 'visible'
+            }
           }}
           exit={{
             height: 0,
-            opacity: 0
+            opacity: 0,
+            overflow: 'hidden'
           }}
-          className="overflow-hidden mb-8">
+          className="mb-8 relative z-20">
           
             <form
             onSubmit={handleSubmit}
@@ -384,14 +495,24 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
                   <label className="block text-xs font-bold text-gray-500 mb-1">
                     Quantity *
                   </label>
-                  <input
+                  {isMachineProduct ?
+                <div
+                  title="Quantity is set by the machine numbers you select below"
+                  className="w-full p-2.5 border border-gray-200 bg-gray-100 text-gray-600 rounded-lg font-bold select-none cursor-not-allowed">
+                  
+                      {selectedMachines.length}
+                    </div> :
+
+                <input
                   type="number"
                   min="1"
+                  max={selectedProductData?.stock}
                   value={qty}
                   onChange={(e) => setQty(parseInt(e.target.value))}
                   className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f5a623] outline-none"
                   required />
-                
+
+                }
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 mb-1">
@@ -406,6 +527,94 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
                 
                 </div>
               </div>
+
+              {/* Machine number selection (machine-tracked products) */}
+              {selectedProductData && machinesLoading &&
+            <div className="mb-4 flex items-center gap-2 text-sm text-gray-400">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Loading machine numbers...
+                </div>
+            }
+              {selectedProductData && machinesError &&
+            <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2 text-sm text-red-700">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  {machinesError}
+                </div>
+            }
+              {selectedProductData && !machinesLoading && isMachineProduct &&
+            <div className="mb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-bold text-gray-500">
+                      Select Machine Numbers to Mark Damaged *
+                    </label>
+                    <div className="relative w-1/2 max-w-[220px]">
+                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                      <input
+                    type="text"
+                    placeholder="Search machine..."
+                    value={machineSearch}
+                    onChange={(e) => setMachineSearch(e.target.value)}
+                    className="w-full pl-7 pr-2 py-1.5 border border-gray-300 rounded-md text-xs focus:ring-1 focus:ring-[#f5a623] outline-none" />
+                  
+                    </div>
+                  </div>
+                  {availableMachines.length === 0 &&
+              rentedOutMachines.length === 0 &&
+              <div className="mb-2 bg-amber-50 text-amber-700 p-3 rounded-lg text-sm flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                        No machines are available to mark as damaged (all are
+                        already damaged).
+                      </div>
+              }
+                  <div className="grid grid-cols-5 sm:grid-cols-8 gap-2 max-h-40 overflow-y-auto pr-1">
+                    {[
+                ...availableMachines,
+                ...rentedOutMachines,
+                ...damagedMachines].
+
+                sort().
+                filter((m) =>
+                m.toLowerCase().includes(machineSearch.toLowerCase())
+                ).
+                map((machine) => {
+                  const isRentedOut = rentedOutMachines.includes(machine);
+                  const isDamaged = damagedMachines.includes(machine);
+                  const isUnavailable = isDamaged;
+                  const isSelected = selectedMachines.includes(machine);
+                  return (
+                    <button
+                      key={machine}
+                      type="button"
+                      disabled={isUnavailable}
+                      onClick={() =>
+                      !isUnavailable && toggleMachine(machine)
+                      }
+                      title={
+                      isDamaged ?
+                      'Already marked as damaged' :
+                      isRentedOut ?
+                      'Currently rented out (can be marked as damaged)' :
+                      undefined
+                      }
+                      className={`relative px-2 py-2.5 rounded-lg text-sm font-mono font-bold border-2 transition-colors ${isDamaged ? 'bg-red-50 border-red-200 text-red-500 cursor-not-allowed opacity-60' : isSelected ? 'bg-[#f5a623] border-[#f5a623] text-[#1a1a2e]' : isRentedOut ? 'bg-blue-50 border-blue-200 text-blue-700 hover:border-[#f5a623] hover:bg-orange-50' : 'bg-white border-gray-200 text-[#1a1a2e] hover:border-[#f5a623] hover:bg-orange-50'}`}>
+                      
+                            {machine}
+                            {isSelected &&
+                      <CheckCircle className="w-3.5 h-3.5 absolute top-1 right-1" />
+                      }
+                          </button>);
+
+                })}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    <span className="font-bold text-[#1a1a2e]">
+                      {selectedMachines.length}
+                    </span>{' '}
+                    machine(s) selected · quantity will be set to{' '}
+                    {selectedMachines.length}
+                  </p>
+                </div>
+            }
               <div className="flex justify-end gap-3">
                 <button
                 type="button"
@@ -419,7 +628,12 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
                 </button>
                 <button
                 type="submit"
-                disabled={submitting}
+                disabled={
+                submitting ||
+                !selectedProductData ||
+                machinesLoading ||
+                isMachineProduct && selectedMachines.length === 0
+                }
                 className="px-6 py-2 bg-[#1a1a2e] text-white rounded-lg font-bold hover:bg-[#2d4059] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
                 
                   {submitting && <Loader2 className="w-4 h-4 animate-spin" />}

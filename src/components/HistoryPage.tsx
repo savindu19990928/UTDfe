@@ -69,6 +69,7 @@ export function HistoryPage({
   // Machine number selection for adding an item to an existing rental bill
   const [availableMachines, setAvailableMachines] = useState<string[]>([]);
   const [rentedOutMachines, setRentedOutMachines] = useState<string[]>([]);
+  const [damagedMachines, setDamagedMachines] = useState<string[]>([]);
   const [selectedMachines, setSelectedMachines] = useState<string[]>([]);
   const [machinesLoading, setMachinesLoading] = useState(false);
   const [machinesError, setMachinesError] = useState<string | null>(null);
@@ -576,6 +577,7 @@ export function HistoryPage({
     setNewItemReturnDate('');
     setAvailableMachines([]);
     setRentedOutMachines([]);
+    setDamagedMachines([]);
     setSelectedMachines([]);
     setMachineSearch('');
     setManualQuantity(1);
@@ -589,6 +591,7 @@ export function HistoryPage({
     setSelectedMachines([]);
     setAvailableMachines([]);
     setRentedOutMachines([]);
+    setDamagedMachines([]);
     setMachinesError(null);
     setMachinesLoading(true);
     try {
@@ -611,8 +614,12 @@ export function HistoryPage({
       const rentedOut: string[] = (data?.rented_out_machine_numbers || []).map(
         (m: any) => String(m)
       );
+      const damaged: string[] = (data?.damaged_machine_numbers || []).map(
+        (m: any) => String(m)
+      );
       setAvailableMachines(available);
       setRentedOutMachines(rentedOut);
+      setDamagedMachines(damaged);
     } catch (err: any) {
       setMachinesError(err.message || 'Failed to load machine numbers');
     } finally {
@@ -640,6 +647,22 @@ export function HistoryPage({
     // If it's tracked but no machines are available, we fallback to manual quantity
     const isTracked =
     product.isStockTracked !== false && availableMachines.length > 0;
+    // Block: machine-tracked product with every machine rented out or damaged
+    if (
+    product.isStockTracked !== false &&
+    availableMachines.length === 0 && (
+    rentedOutMachines.length > 0 || damagedMachines.length > 0))
+    {
+      setAddItemError(
+        `All machines for "${product.name}" are currently unavailable.`
+      );
+      return;
+    }
+    // Block: non-machine product that is out of stock
+    if (!isTracked && product.stock != null && product.stock <= 0) {
+      setAddItemError(`"${product.name}" is currently out of stock.`);
+      return;
+    }
     if (isTracked && selectedMachines.length === 0) {
       setAddItemError('Please select at least one machine number.');
       return;
@@ -1920,7 +1943,8 @@ export function HistoryPage({
                   !machinesLoading &&
                   !machinesError &&
                   availableMachines.length === 0 &&
-                  rentedOutMachines.length === 0 ?
+                  rentedOutMachines.length === 0 &&
+                  damagedMachines.length === 0 ?
                   <div>
                           <label className="block text-xs font-bold text-gray-700 mb-1.5">
                             Quantity
@@ -1938,6 +1962,14 @@ export function HistoryPage({
                           <p className="text-xs text-gray-500 mt-1">
                             Available stock: {selectedProductForAdd.stock}
                           </p>
+                          {selectedProductForAdd.stock != null &&
+                    selectedProductForAdd.stock <= 0 &&
+                    <div className="mt-3 bg-red-50 text-red-700 p-3 rounded-lg text-sm flex items-start gap-2">
+                                <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                                This product is out of stock and cannot be
+                                added.
+                              </div>
+                    }
                         </div> :
 
                   <>
@@ -1958,11 +1990,13 @@ export function HistoryPage({
                             </div> :
 
                     <>
-                              {availableMachines.length === 0 &&
-                      rentedOutMachines.length > 0 &&
+                              {availableMachines.length === 0 && (
+                      rentedOutMachines.length > 0 ||
+                      damagedMachines.length > 0) &&
                       <div className="mb-3 bg-red-50 text-red-700 p-3 rounded-lg text-sm flex items-start gap-2">
                                     <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                                    All machines are currently rented out.
+                                    All machines are currently rented out or
+                                    damaged.
                                   </div>
                       }
                               <div className="flex items-center justify-between mb-2">
@@ -1983,7 +2017,11 @@ export function HistoryPage({
                                 </div>
                               </div>
                               <div className="grid grid-cols-5 gap-2 max-h-40 overflow-y-auto pr-1">
-                                {[...availableMachines, ...rentedOutMachines].
+                                {[
+                        ...availableMachines,
+                        ...rentedOutMachines,
+                        ...damagedMachines].
+
                         sort().
                         filter((m) =>
                         m.
@@ -1993,18 +2031,22 @@ export function HistoryPage({
                         map((machine) => {
                           const isRentedOut =
                           rentedOutMachines.includes(machine);
+                          const isDamaged =
+                          damagedMachines.includes(machine);
+                          const isUnavailable =
+                          isRentedOut || isDamaged;
                           const isSelected =
                           selectedMachines.includes(machine);
                           return (
                             <button
                               key={machine}
                               type="button"
-                              disabled={isRentedOut}
+                              disabled={isUnavailable}
                               onClick={() =>
-                              !isRentedOut &&
+                              !isUnavailable &&
                               toggleAddItemMachine(machine)
                               }
-                              className={`relative px-2 py-2.5 rounded-lg text-sm font-mono font-bold border-2 transition-colors ${isRentedOut ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-60' : isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-[#1a1a2e] hover:border-blue-400 hover:bg-blue-50'}`}>
+                              className={`relative px-2 py-2.5 rounded-lg text-sm font-mono font-bold border-2 transition-colors ${isDamaged ? 'bg-red-50 border-red-200 text-red-500 cursor-not-allowed opacity-60' : isRentedOut ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-60' : isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-[#1a1a2e] hover:border-blue-400 hover:bg-blue-50'}`}>
                               
                                         {machine}
                                         {isSelected &&
@@ -2065,6 +2107,20 @@ export function HistoryPage({
                   (selectedProductForAdd.isStockTracked === false ||
                   availableMachines.length === 0) &&
                   manualQuantity <= 0 ||
+                  // All machines rented out or damaged (machine-tracked product)
+                  selectedProductForAdd.isStockTracked !== false &&
+                  !machinesLoading &&
+                  availableMachines.length === 0 && (
+                  rentedOutMachines.length > 0 ||
+                  damagedMachines.length > 0) ||
+                  // Out of stock (non-machine product)
+                  (selectedProductForAdd.isStockTracked === false ||
+                  !machinesLoading &&
+                  availableMachines.length === 0 &&
+                  rentedOutMachines.length === 0 &&
+                  damagedMachines.length === 0) &&
+                  selectedProductForAdd.stock != null &&
+                  selectedProductForAdd.stock <= 0 ||
                   addItemLoading
                   }
                   className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">

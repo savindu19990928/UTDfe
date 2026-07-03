@@ -52,6 +52,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
   useState<Product | null>(null);
   const [availableMachines, setAvailableMachines] = useState<string[]>([]);
   const [rentedOutMachines, setRentedOutMachines] = useState<string[]>([]);
+  const [damagedMachines, setDamagedMachines] = useState<string[]>([]);
   const [machinesLoading, setMachinesLoading] = useState(false);
   const [machinesError, setMachinesError] = useState<string | null>(null);
   const [selectedMachines, setSelectedMachines] = useState<string[]>([]);
@@ -156,6 +157,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
     setSelectedMachines([]);
     setAvailableMachines([]);
     setRentedOutMachines([]);
+    setDamagedMachines([]);
     setMachinesError(null);
     setMachinesLoading(true);
     try {
@@ -178,8 +180,12 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
       const rentedOut: string[] = (data?.rented_out_machine_numbers || []).map(
         (m: any) => String(m)
       );
+      const damaged: string[] = (data?.damaged_machine_numbers || []).map(
+        (m: any) => String(m)
+      );
       setAvailableMachines(available);
       setRentedOutMachines(rentedOut);
+      setDamagedMachines(damaged);
     } catch (err: any) {
       setMachinesError(err.message || 'Failed to load machine numbers');
     } finally {
@@ -190,6 +196,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
     setMachineModalProduct(null);
     setAvailableMachines([]);
     setRentedOutMachines([]);
+    setDamagedMachines([]);
     setSelectedMachines([]);
     setManualQuantity(1);
     setMachinesError(null);
@@ -209,6 +216,20 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
     const product = machineModalProduct;
     const isTracked =
     product.isStockTracked !== false && availableMachines.length > 0;
+    // Block: machine-tracked product with every machine rented out or damaged
+    if (
+    product.isStockTracked !== false &&
+    availableMachines.length === 0 && (
+    rentedOutMachines.length > 0 || damagedMachines.length > 0))
+    {
+      setError(`All machines for "${product.name}" are currently unavailable.`);
+      return;
+    }
+    // Block: non-machine product that is out of stock
+    if (!isTracked && product.stock != null && product.stock <= 0) {
+      setError(`"${product.name}" is currently out of stock.`);
+      return;
+    }
     if (isTracked && selectedMachines.length === 0) return;
     if (!isTracked && manualQuantity <= 0) return;
     const machineNumbers = isTracked ? [...selectedMachines] : [];
@@ -1468,7 +1489,8 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
               !machinesLoading &&
               !machinesError &&
               availableMachines.length === 0 &&
-              rentedOutMachines.length === 0 ?
+              rentedOutMachines.length === 0 &&
+              damagedMachines.length === 0 ?
               <div>
                     <label className="block text-xs font-bold text-gray-700 mb-1.5">
                       Quantity
@@ -1486,6 +1508,13 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                     <p className="text-xs text-gray-500 mt-1">
                       Available stock: {machineModalProduct.stock}
                     </p>
+                    {machineModalProduct.stock != null &&
+                machineModalProduct.stock <= 0 &&
+                <div className="mt-3 bg-red-50 text-red-700 p-3 rounded-lg text-sm flex items-start gap-2">
+                          <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                          This product is out of stock and cannot be added.
+                        </div>
+                }
                   </div> :
               machinesLoading ?
               <div className="flex items-center justify-center gap-2 py-8 text-gray-400">
@@ -1501,31 +1530,38 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                   </div> :
 
               <>
-                    {availableMachines.length === 0 &&
-                rentedOutMachines.length > 0 &&
+                    {availableMachines.length === 0 && (
+                rentedOutMachines.length > 0 ||
+                damagedMachines.length > 0) &&
                 <div className="mb-4 bg-red-50 text-red-700 p-3 rounded-lg text-sm flex items-start gap-2">
                           <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                          All machines are currently rented out.
+                          All machines are currently rented out or damaged.
                         </div>
                 }
                     <p className="text-xs font-bold text-gray-500 uppercase mb-3">
                       Click a number to select
                     </p>
                     <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto pr-1">
-                      {[...availableMachines, ...rentedOutMachines].
+                      {[
+                  ...availableMachines,
+                  ...rentedOutMachines,
+                  ...damagedMachines].
+
                   sort().
                   map((machine) => {
                     const isRentedOut =
                     rentedOutMachines.includes(machine);
+                    const isDamaged = damagedMachines.includes(machine);
+                    const isUnavailable = isRentedOut || isDamaged;
                     const isSelected = selectedMachines.includes(machine);
                     return (
                       <button
                         key={machine}
-                        disabled={isRentedOut}
+                        disabled={isUnavailable}
                         onClick={() =>
-                        !isRentedOut && toggleMachine(machine)
+                        !isUnavailable && toggleMachine(machine)
                         }
-                        className={`relative px-2 py-3 rounded-lg text-sm font-mono font-bold border-2 transition-colors ${isRentedOut ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-60' : isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-[#1a1a2e] hover:border-blue-400 hover:bg-blue-50'}`}>
+                        className={`relative px-2 py-3 rounded-lg text-sm font-mono font-bold border-2 transition-colors ${isDamaged ? 'bg-red-50 border-red-200 text-red-500 cursor-not-allowed opacity-60' : isRentedOut ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-60' : isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-[#1a1a2e] hover:border-blue-400 hover:bg-blue-50'}`}>
                         
                               {machine}
                               {isSelected &&
@@ -1546,7 +1582,8 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                   !machinesLoading &&
                   !machinesError &&
                   availableMachines.length === 0 &&
-                  rentedOutMachines.length === 0 ?
+                  rentedOutMachines.length === 0 &&
+                  damagedMachines.length === 0 ?
                   manualQuantity :
                   selectedMachines.length}
                   </span>{' '}
@@ -1568,7 +1605,21 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                   selectedMachines.length === 0 ||
                   (machineModalProduct.isStockTracked === false ||
                   !machinesLoading && availableMachines.length === 0) &&
-                  manualQuantity <= 0
+                  manualQuantity <= 0 ||
+                  // All machines rented out or damaged (machine-tracked product)
+                  machineModalProduct.isStockTracked !== false &&
+                  !machinesLoading &&
+                  availableMachines.length === 0 && (
+                  rentedOutMachines.length > 0 ||
+                  damagedMachines.length > 0) ||
+                  // Out of stock (non-machine product)
+                  (machineModalProduct.isStockTracked === false ||
+                  !machinesLoading &&
+                  availableMachines.length === 0 &&
+                  rentedOutMachines.length === 0 &&
+                  damagedMachines.length === 0) &&
+                  machineModalProduct.stock != null &&
+                  machineModalProduct.stock <= 0
                   }
                   className="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm flex items-center gap-2">
                   
