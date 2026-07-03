@@ -671,6 +671,12 @@ export function HistoryPage({
       setAddItemError('Please enter a valid quantity.');
       return;
     }
+    if (!isTracked && product.stock != null && manualQuantity > product.stock) {
+      setAddItemError(
+        `Cannot add more than available stock (${product.stock}).`
+      );
+      return;
+    }
     setAddItemLoading(true);
     setAddItemError(null);
     const today = new Date().toISOString().split('T')[0];
@@ -742,22 +748,7 @@ export function HistoryPage({
     items.forEach((item) => {
       if (item.type === 'rent') {
         const price = item.product.rentPricePerDay || 0;
-        let days = item.rentalDays || 1;
-        if (
-        item.status === 'returned' &&
-        item.actualReturnDate &&
-        item.borrowedDate)
-        {
-          const start = new Date(item.borrowedDate);
-          const end = new Date(item.actualReturnDate);
-          const diffTime = Math.abs(end.getTime() - start.getTime());
-          days = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-        } else if (item.status === 'active' && item.borrowedDate) {
-          const start = new Date(item.borrowedDate);
-          const now = new Date();
-          const diffTime = Math.abs(now.getTime() - start.getTime());
-          days = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-        }
+        const days = item.rentalDays || 1;
         newSubtotal +=
         item.rentalFee !== undefined ?
         item.rentalFee :
@@ -1346,39 +1337,7 @@ export function HistoryPage({
                               {bill.items.map((item, idx) => {
                         const unitPrice =
                         item.product.rentPricePerDay || 0;
-                        let days = item.rentalDays || 1;
-                        if (
-                        item.status === 'returned' &&
-                        item.actualReturnDate &&
-                        item.borrowedDate)
-                        {
-                          const start = new Date(item.borrowedDate);
-                          const end = new Date(item.actualReturnDate);
-                          days = Math.max(
-                            1,
-                            Math.ceil(
-                              Math.abs(
-                                end.getTime() - start.getTime()
-                              ) / (
-                              1000 * 60 * 60 * 24)
-                            )
-                          );
-                        } else if (
-                        item.status === 'active' &&
-                        item.borrowedDate)
-                        {
-                          const start = new Date(item.borrowedDate);
-                          const now = new Date();
-                          days = Math.max(
-                            1,
-                            Math.ceil(
-                              Math.abs(
-                                now.getTime() - start.getTime()
-                              ) / (
-                              1000 * 60 * 60 * 24)
-                            )
-                          );
-                        }
+                        const days = item.rentalDays || 1;
                         const lineTotal =
                         item.rentalFee !== undefined ?
                         item.rentalFee :
@@ -1930,7 +1889,16 @@ export function HistoryPage({
                             ) / (
                             1000 * 60 * 60 * 24)
                           )
-                        )
+                        ) * (
+                        selectedProductForAdd.isStockTracked ===
+                        false ||
+                        !machinesLoading &&
+                        !machinesError &&
+                        availableMachines.length === 0 &&
+                        rentedOutMachines.length === 0 &&
+                        damagedMachines.length === 0 ?
+                        manualQuantity :
+                        Math.max(1, selectedMachines.length))
                       )}
                           </span>
                         </div>
@@ -1954,9 +1922,17 @@ export function HistoryPage({
                       min="1"
                       max={selectedProductForAdd.stock}
                       value={manualQuantity}
-                      onChange={(e) =>
-                      setManualQuantity(parseInt(e.target.value) || 1)
-                      }
+                      onChange={(e) => {
+                        let val = parseInt(e.target.value) || 1;
+                        if (val < 1) val = 1;
+                        if (
+                        selectedProductForAdd.stock != null &&
+                        val > selectedProductForAdd.stock)
+                        {
+                          val = selectedProductForAdd.stock;
+                        }
+                        setManualQuantity(val);
+                      }}
                       className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#f5a623] outline-none" />
                     
                           <p className="text-xs text-gray-500 mt-1">

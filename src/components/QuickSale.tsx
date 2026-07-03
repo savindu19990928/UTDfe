@@ -118,9 +118,9 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
     let num = parseInt(value) || 0;
     // Enforce stock limit
     const product = items[index]?.product;
-    if (product && product.stock != null && product.stock > 0) {
+    if (product && product.stock != null) {
       const usedByOthers = getUsedQty(product.id, index);
-      const maxAllowed = product.stock - usedByOthers;
+      const maxAllowed = Math.max(0, product.stock - usedByOthers);
       if (num > maxAllowed) {
         num = maxAllowed;
       }
@@ -373,10 +373,12 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
                         type="number"
                         min="1"
                         max={
-                        item.product.stock != null &&
-                        item.product.stock > 0 ?
-                        item.product.stock -
-                        getUsedQty(item.product.id, index) :
+                        item.product.stock != null ?
+                        Math.max(
+                          0,
+                          item.product.stock -
+                          getUsedQty(item.product.id, index)
+                        ) :
                         undefined
                         }
                         value={item.quantity}

@@ -508,7 +508,17 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
                   min="1"
                   max={selectedProductData?.stock}
                   value={qty}
-                  onChange={(e) => setQty(parseInt(e.target.value))}
+                  onChange={(e) => {
+                    let val = parseInt(e.target.value) || 1;
+                    if (val < 1) val = 1;
+                    if (
+                    selectedProductData?.stock != null &&
+                    val > selectedProductData.stock)
+                    {
+                      val = selectedProductData.stock;
+                    }
+                    setQty(val);
+                  }}
                   className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f5a623] outline-none"
                   required />
 

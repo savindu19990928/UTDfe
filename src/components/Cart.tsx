@@ -41,7 +41,7 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
     'cash');
   const [customBillNumber, setCustomBillNumber] = useState('');
   const [billNumberError, setBillNumberError] = useState<string | null>(null);
-  const [nicTaken, setNicTaken] = useState(false);
+  const [nicTaken, setNicTaken] = useState(true);
   const dropdownRef = useRef<HTMLDivElement>(null);
   // Fetch customers from API with search
   const { customers, loading: customersLoading } = useCustomers({
@@ -558,6 +558,12 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
                     type="checkbox"
                     checked={nicTaken}
                     onChange={(e) => setNicTaken(e.target.checked)}
+                    onKeyDown={(e) => {
+                      if (e.key.toLowerCase() === 'n') {
+                        e.preventDefault();
+                        setNicTaken((prev) => !prev);
+                      }
+                    }}
                     className="w-4 h-4 text-[#f5a623] border-gray-300 rounded focus:ring-[#f5a623]" />
                   
                     <span className="text-sm font-medium text-gray-700">

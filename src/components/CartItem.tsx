@@ -90,10 +90,12 @@ export function CartItem({ item, index }: CartItemProps) {
             max={item.product.stock}
             value={item.quantity}
             onChange={(e) => {
-              const val = parseInt(e.target.value);
-              if (!isNaN(val) && val >= 1 && val <= item.product.stock) {
-                updateQuantity(index, val);
+              let val = parseInt(e.target.value) || 1;
+              if (val < 1) val = 1;
+              if (item.product.stock != null && val > item.product.stock) {
+                val = item.product.stock;
               }
+              updateQuantity(index, val);
             }}
             className="w-14 bg-transparent text-center font-bold text-[#1a1a2e] focus:outline-none focus:ring-1 focus:ring-[#f5a623] rounded" />
           

@@ -60,7 +60,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
   // Custom bill number state
   const [customBillNumber, setCustomBillNumber] = useState('');
   const [billNumberError, setBillNumberError] = useState<string | null>(null);
-  const [nicTaken, setNicTaken] = useState(false);
+  const [nicTaken, setNicTaken] = useState(true);
   // New customer form state
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
   const [newName, setNewName] = useState('');
@@ -70,6 +70,10 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
   const [newPhoto, setNewPhoto] = useState<File | null>(null);
   const [newPhotoPreview, setNewPhotoPreview] = useState<string | null>(null);
   const [newPhoneVerified, setNewPhoneVerified] = useState(false);
+  const [showSmsModal, setShowSmsModal] = useState(false);
+  const [smsCode, setSmsCode] = useState('');
+  const [smsError, setSmsError] = useState<string | null>(null);
+  const [isSendingSms, setIsSendingSms] = useState(false);
   const [addingCustomer, setAddingCustomer] = useState(false);
   // Refs for focus management
   const productSearchRef = useRef<HTMLInputElement>(null);
@@ -261,9 +265,9 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
     // Enforce stock limit for quantity changes
     if (field === 'quantity') {
       const product = items[index]?.product;
-      if (product && product.stock != null && product.stock > 0) {
+      if (product && product.stock != null) {
         const usedByOthers = getUsedQty(product.id, index);
-        const maxAllowed = product.stock - usedByOthers;
+        const maxAllowed = Math.max(0, product.stock - usedByOthers);
         if (num > maxAllowed) {
           num = maxAllowed;
         }
@@ -282,7 +286,12 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'End') {
       e.preventDefault();
-      if (stage === 'customer' && selectedCustomer) setStage('items');else
+      if (showSmsModal) {
+        setShowSmsModal(false);
+        setSmsCode('');
+        setSmsError(null);
+        setStage('items');
+      } else if (stage === 'customer' && selectedCustomer) setStage('items');else
       if (stage === 'items' && items.length > 0) setStage('deposit');else
       if (stage === 'deposit') handleFinalSubmit();
     }
@@ -481,8 +490,30 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
       setSelectedCustomer(newCustomer);
       setShowNewCustomerForm(false);
       setAddingCustomer(false);
-      // Move to items stage
-      setStage('items');
+      // Trigger OTP and show modal instead of going directly to items stage
+      setIsSendingSms(true);
+      setShowSmsModal(true);
+      setSmsError(null);
+      try {
+        const otpRes = await fetch(`${API_URL}customers/resend_otp/`, {
+          method: 'POST',
+          headers: {
+            ...getAuthHeaders(),
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            mobile_number: newCustomer.phone
+          })
+        });
+        if (!otpRes.ok) {
+          const errData = await otpRes.json().catch(() => null);
+          throw new Error(errData?.detail || 'Failed to send OTP');
+        }
+      } catch (err: any) {
+        setSmsError(err.message);
+      } finally {
+        setIsSendingSms(false);
+      }
     } catch (err: any) {
       setError(err.message);
       setAddingCustomer(false);
@@ -824,16 +855,6 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                               {newPhoto ? 'Change Photo' : 'Add Photo'}
                             </span>
                           </label>
-                          <button
-                        type="button"
-                        onClick={() =>
-                        setNewPhoneVerified(!newPhoneVerified)
-                        }
-                        className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full border transition-colors ${newPhoneVerified ? 'bg-green-50 border-green-300 text-green-700' : 'bg-gray-50 border-gray-200 text-gray-400 hover:border-gray-300'}`}>
-                        
-                            <ShieldCheck className="w-3.5 h-3.5" />
-                            {newPhoneVerified ? 'Verified' : 'Not Verified'}
-                          </button>
                         </div>
                       </div>
                     </motion.div>
@@ -1340,6 +1361,12 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                       type="checkbox"
                       checked={nicTaken}
                       onChange={(e) => setNicTaken(e.target.checked)}
+                      onKeyDown={(e) => {
+                        if (e.key.toLowerCase() === 'n') {
+                          e.preventDefault();
+                          setNicTaken((prev) => !prev);
+                        }
+                      }}
                       className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
                     
                       <span className="text-sm font-medium text-gray-700">
@@ -1426,6 +1453,186 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
         </div>
       </div>
 
+      {/* SMS VERIFICATION MODAL */}
+      <AnimatePresence>
+        {showSmsModal &&
+        <motion.div
+          initial={{
+            opacity: 0
+          }}
+          animate={{
+            opacity: 1
+          }}
+          exit={{
+            opacity: 0
+          }}
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+          
+            <motion.div
+            initial={{
+              scale: 0.95,
+              y: 10
+            }}
+            animate={{
+              scale: 1,
+              y: 0
+            }}
+            exit={{
+              scale: 0.95,
+              y: 10
+            }}
+            className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden">
+            
+              <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+                <h3 className="font-bold text-[#1a1a2e]">
+                  Verify Phone Number
+                </h3>
+                <button
+                onClick={() => {
+                  setShowSmsModal(false);
+                  setSmsCode('');
+                  setSmsError(null);
+                }}
+                className="text-gray-400 hover:text-gray-600">
+                
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6">
+                {isSendingSms ?
+              <div className="flex flex-col items-center justify-center py-8">
+                    <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-4" />
+                    <p className="text-sm text-gray-600">
+                      Sending verification code to {newPhone}...
+                    </p>
+                  </div> :
+
+              <>
+                    <p className="text-sm text-gray-600 mb-4">
+                      We've sent a 6-digit verification code to{' '}
+                      <span className="font-bold text-[#1a1a2e]">
+                        {newPhone}
+                      </span>
+                      .
+                    </p>
+                    <input
+                  type="text"
+                  maxLength={6}
+                  value={smsCode}
+                  onChange={(e) => {
+                    setSmsCode(e.target.value.replace(/\D/g, ''));
+                    setSmsError(null);
+                  }}
+                  onKeyDown={async (e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (smsCode.length === 6) {
+                        setSmsError(null);
+                        try {
+                          const res = await fetch(
+                            `${API_URL}customers/verify_phone/`,
+                            {
+                              method: 'POST',
+                              headers: {
+                                ...getAuthHeaders(),
+                                'Content-Type': 'application/json'
+                              },
+                              body: JSON.stringify({
+                                mobile_number: newPhone.trim(),
+                                otp: smsCode
+                              })
+                            }
+                          );
+                          if (!res.ok) {
+                            const errData = await res.
+                            json().
+                            catch(() => null);
+                            throw new Error(
+                              errData?.detail || 'Invalid OTP'
+                            );
+                          }
+                          setNewPhoneVerified(true);
+                          setShowSmsModal(false);
+                          setSmsCode('');
+                          setStage('items');
+                        } catch (err: any) {
+                          setSmsError(err.message);
+                        }
+                      } else {
+                        setSmsError('Please enter a valid 6-digit code.');
+                      }
+                    }
+                  }}
+                  placeholder="------"
+                  className="w-full px-4 py-3 text-center tracking-[0.5em] text-2xl font-mono border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none mb-2" />
+                
+                    {smsError &&
+                <p className="text-xs text-red-500 mb-4">{smsError}</p>
+                }
+                    <div className="flex gap-3">
+                      <button
+                    onClick={async () => {
+                      if (smsCode.length === 6) {
+                        setSmsError(null);
+                        try {
+                          const res = await fetch(
+                            `${API_URL}customers/verify_phone/`,
+                            {
+                              method: 'POST',
+                              headers: {
+                                ...getAuthHeaders(),
+                                'Content-Type': 'application/json'
+                              },
+                              body: JSON.stringify({
+                                mobile_number: newPhone.trim(),
+                                otp: smsCode
+                              })
+                            }
+                          );
+                          if (!res.ok) {
+                            const errData = await res.
+                            json().
+                            catch(() => null);
+                            throw new Error(
+                              errData?.detail || 'Invalid OTP'
+                            );
+                          }
+                          setNewPhoneVerified(true);
+                          setShowSmsModal(false);
+                          setSmsCode('');
+                          setStage('items');
+                        } catch (err: any) {
+                          setSmsError(err.message);
+                        }
+                      } else {
+                        setSmsError('Please enter a valid 6-digit code.');
+                      }
+                    }}
+                    disabled={smsCode.length !== 6}
+                    className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:bg-gray-300 transition-colors">
+                    
+                        Verify
+                      </button>
+                      <button
+                    onClick={() => {
+                      setShowSmsModal(false);
+                      setSmsCode('');
+                      setSmsError(null);
+                      setStage('items');
+                    }}
+                    className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200 transition-colors">
+                    
+                        Skip
+                      </button>
+                    </div>
+                  </>
+              }
+              </div>
+            </motion.div>
+          </motion.div>
+        }
+      </AnimatePresence>
+
       {/* MACHINE NUMBER SELECTION POPUP */}
       <AnimatePresence>
         {machineModalProduct &&
@@ -1500,9 +1707,17 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                   min="1"
                   max={machineModalProduct.stock}
                   value={manualQuantity}
-                  onChange={(e) =>
-                  setManualQuantity(parseInt(e.target.value) || 1)
-                  }
+                  onChange={(e) => {
+                    let val = parseInt(e.target.value) || 1;
+                    if (val < 1) val = 1;
+                    if (
+                    machineModalProduct.stock != null &&
+                    val > machineModalProduct.stock)
+                    {
+                      val = machineModalProduct.stock;
+                    }
+                    setManualQuantity(val);
+                  }}
                   className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#f5a623] outline-none" />
                 
                     <p className="text-xs text-gray-500 mt-1">

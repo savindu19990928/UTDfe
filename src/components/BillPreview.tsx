@@ -233,18 +233,7 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
               item.type === 'rent' ?
               item.product.rentPricePerDay || 0 :
               item.product.salePrice;
-              let days = item.rentalDays || 1;
-              if (
-              item.type === 'rent' &&
-              item.status === 'returned' &&
-              item.actualReturnDate &&
-              item.borrowedDate)
-              {
-                const start = new Date(item.borrowedDate);
-                const end = new Date(item.actualReturnDate);
-                const diffTime = Math.abs(end.getTime() - start.getTime());
-                days = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-              }
+              const days = item.rentalDays || 1;
               const lineTotal =
               item.rentalFee !== undefined ?
               item.rentalFee :
