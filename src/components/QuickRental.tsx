@@ -31,7 +31,7 @@ type RentalItem = {
   product: Product;
   quantity: number;
   days: number;
-  machineNumbers: string[];
+  machineNumbers?: string[];
 };
 type Stage = 'customer' | 'items' | 'deposit';
 export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
@@ -51,6 +51,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
   const [machineModalProduct, setMachineModalProduct] =
   useState<Product | null>(null);
   const [availableMachines, setAvailableMachines] = useState<string[]>([]);
+  const [rentedOutMachines, setRentedOutMachines] = useState<string[]>([]);
   const [machinesLoading, setMachinesLoading] = useState(false);
   const [machinesError, setMachinesError] = useState<string | null>(null);
   const [selectedMachines, setSelectedMachines] = useState<string[]>([]);
@@ -154,6 +155,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
     setMachineModalProduct(product);
     setSelectedMachines([]);
     setAvailableMachines([]);
+    setRentedOutMachines([]);
     setMachinesError(null);
     setMachinesLoading(true);
     try {
@@ -170,10 +172,14 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
         throw new Error(`Failed to load machine numbers (${res.status})`);
       }
       const data = await res.json();
-      const machines: string[] = (data?.available_machine_numbers || []).map(
+      const available: string[] = (data?.available_machine_numbers || []).map(
         (m: any) => String(m)
       );
-      setAvailableMachines(machines);
+      const rentedOut: string[] = (data?.rented_out_machine_numbers || []).map(
+        (m: any) => String(m)
+      );
+      setAvailableMachines(available);
+      setRentedOutMachines(rentedOut);
     } catch (err: any) {
       setMachinesError(err.message || 'Failed to load machine numbers');
     } finally {
@@ -183,6 +189,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
   const closeMachineModal = () => {
     setMachineModalProduct(null);
     setAvailableMachines([]);
+    setRentedOutMachines([]);
     setSelectedMachines([]);
     setManualQuantity(1);
     setMachinesError(null);
@@ -1084,17 +1091,18 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                         </td>
                         <td className="px-4 py-3 font-medium text-[#1a1a2e]">
                           <div>{item.product.name}</div>
-                          {item.machineNumbers.length > 0 &&
+                          {item.machineNumbers &&
+                      item.machineNumbers.length > 0 &&
                       <div className="mt-1 flex flex-wrap gap-1">
-                              {item.machineNumbers.map((m) =>
+                                {item.machineNumbers.map((m) =>
                         <span
                           key={m}
                           className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200">
                           
-                                  #{m}
-                                </span>
+                                    #{m}
+                                  </span>
                         )}
-                            </div>
+                              </div>
                       }
                         </td>
                         <td className="px-4 py-3 text-right text-gray-600">
@@ -1459,20 +1467,9 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                 {machineModalProduct.isStockTracked === false ||
               !machinesLoading &&
               !machinesError &&
-              availableMachines.length === 0 ?
+              availableMachines.length === 0 &&
+              rentedOutMachines.length === 0 ?
               <div>
-                    {machineModalProduct.isStockTracked !== false &&
-                <div className="mb-4 bg-amber-50 text-amber-700 p-3 rounded-lg text-sm flex items-start gap-2">
-                        <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <p className="font-bold">No machines available</p>
-                          <p className="text-xs mt-0.5">
-                            You can still add this item by specifying the
-                            quantity manually.
-                          </p>
-                        </div>
-                      </div>
-                }
                     <label className="block text-xs font-bold text-gray-700 mb-1.5">
                       Quantity
                     </label>
@@ -1504,23 +1501,37 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                   </div> :
 
               <>
+                    {availableMachines.length === 0 &&
+                rentedOutMachines.length > 0 &&
+                <div className="mb-4 bg-red-50 text-red-700 p-3 rounded-lg text-sm flex items-start gap-2">
+                          <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                          All machines are currently rented out.
+                        </div>
+                }
                     <p className="text-xs font-bold text-gray-500 uppercase mb-3">
                       Click a number to select
                     </p>
-                    <div className="grid grid-cols-4 gap-2">
-                      {availableMachines.map((machine) => {
+                    <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto pr-1">
+                      {[...availableMachines, ...rentedOutMachines].
+                  sort().
+                  map((machine) => {
+                    const isRentedOut =
+                    rentedOutMachines.includes(machine);
                     const isSelected = selectedMachines.includes(machine);
                     return (
                       <button
                         key={machine}
-                        onClick={() => toggleMachine(machine)}
-                        className={`relative px-2 py-3 rounded-lg text-sm font-mono font-bold border-2 transition-colors ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-[#1a1a2e] hover:border-blue-400 hover:bg-blue-50'}`}>
+                        disabled={isRentedOut}
+                        onClick={() =>
+                        !isRentedOut && toggleMachine(machine)
+                        }
+                        className={`relative px-2 py-3 rounded-lg text-sm font-mono font-bold border-2 transition-colors ${isRentedOut ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-60' : isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-[#1a1a2e] hover:border-blue-400 hover:bg-blue-50'}`}>
                         
-                            {machine}
-                            {isSelected &&
+                              {machine}
+                              {isSelected &&
                         <CheckCircle className="w-3.5 h-3.5 absolute top-1 right-1" />
                         }
-                          </button>);
+                            </button>);
 
                   })}
                     </div>
@@ -1534,7 +1545,8 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                     {machineModalProduct.isStockTracked === false ||
                   !machinesLoading &&
                   !machinesError &&
-                  availableMachines.length === 0 ?
+                  availableMachines.length === 0 &&
+                  rentedOutMachines.length === 0 ?
                   manualQuantity :
                   selectedMachines.length}
                   </span>{' '}

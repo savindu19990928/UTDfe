@@ -68,6 +68,7 @@ export function HistoryPage({
   const [newItemReturnDate, setNewItemReturnDate] = useState('');
   // Machine number selection for adding an item to an existing rental bill
   const [availableMachines, setAvailableMachines] = useState<string[]>([]);
+  const [rentedOutMachines, setRentedOutMachines] = useState<string[]>([]);
   const [selectedMachines, setSelectedMachines] = useState<string[]>([]);
   const [machinesLoading, setMachinesLoading] = useState(false);
   const [machinesError, setMachinesError] = useState<string | null>(null);
@@ -574,6 +575,7 @@ export function HistoryPage({
     setSelectedProductForAdd(null);
     setNewItemReturnDate('');
     setAvailableMachines([]);
+    setRentedOutMachines([]);
     setSelectedMachines([]);
     setMachineSearch('');
     setManualQuantity(1);
@@ -586,6 +588,7 @@ export function HistoryPage({
   const fetchAvailableMachines = async (product: Product) => {
     setSelectedMachines([]);
     setAvailableMachines([]);
+    setRentedOutMachines([]);
     setMachinesError(null);
     setMachinesLoading(true);
     try {
@@ -602,10 +605,14 @@ export function HistoryPage({
         throw new Error(`Failed to load machine numbers (${res.status})`);
       }
       const data = await res.json();
-      const machines: string[] = (data?.available_machine_numbers || []).map(
+      const available: string[] = (data?.available_machine_numbers || []).map(
         (m: any) => String(m)
       );
-      setAvailableMachines(machines);
+      const rentedOut: string[] = (data?.rented_out_machine_numbers || []).map(
+        (m: any) => String(m)
+      );
+      setAvailableMachines(available);
+      setRentedOutMachines(rentedOut);
     } catch (err: any) {
       setMachinesError(err.message || 'Failed to load machine numbers');
     } finally {
@@ -1912,22 +1919,9 @@ export function HistoryPage({
                       {selectedProductForAdd.isStockTracked === false ||
                   !machinesLoading &&
                   !machinesError &&
-                  availableMachines.length === 0 ?
+                  availableMachines.length === 0 &&
+                  rentedOutMachines.length === 0 ?
                   <div>
-                          {selectedProductForAdd.isStockTracked !== false &&
-                    <div className="mb-4 bg-amber-50 text-amber-700 p-3 rounded-lg text-sm flex items-start gap-2">
-                              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                              <div>
-                                <p className="font-bold">
-                                  No machines available
-                                </p>
-                                <p className="text-xs mt-0.5">
-                                  You can still add this item by specifying the
-                                  quantity manually.
-                                </p>
-                              </div>
-                            </div>
-                    }
                           <label className="block text-xs font-bold text-gray-700 mb-1.5">
                             Quantity
                           </label>
@@ -1964,6 +1958,13 @@ export function HistoryPage({
                             </div> :
 
                     <>
+                              {availableMachines.length === 0 &&
+                      rentedOutMachines.length > 0 &&
+                      <div className="mb-3 bg-red-50 text-red-700 p-3 rounded-lg text-sm flex items-start gap-2">
+                                    <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                                    All machines are currently rented out.
+                                  </div>
+                      }
                               <div className="flex items-center justify-between mb-2">
                                 <p className="text-[10px] text-gray-400 uppercase font-bold">
                                   Click a number to select
@@ -1981,24 +1982,29 @@ export function HistoryPage({
                           
                                 </div>
                               </div>
-                              <div className="grid grid-cols-5 gap-2">
-                                {availableMachines.
+                              <div className="grid grid-cols-5 gap-2 max-h-40 overflow-y-auto pr-1">
+                                {[...availableMachines, ...rentedOutMachines].
+                        sort().
                         filter((m) =>
                         m.
                         toLowerCase().
                         includes(machineSearch.toLowerCase())
                         ).
                         map((machine) => {
+                          const isRentedOut =
+                          rentedOutMachines.includes(machine);
                           const isSelected =
                           selectedMachines.includes(machine);
                           return (
                             <button
                               key={machine}
                               type="button"
+                              disabled={isRentedOut}
                               onClick={() =>
+                              !isRentedOut &&
                               toggleAddItemMachine(machine)
                               }
-                              className={`relative px-2 py-2.5 rounded-lg text-sm font-mono font-bold border-2 transition-colors ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-[#1a1a2e] hover:border-blue-400 hover:bg-blue-50'}`}>
+                              className={`relative px-2 py-2.5 rounded-lg text-sm font-mono font-bold border-2 transition-colors ${isRentedOut ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-60' : isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-[#1a1a2e] hover:border-blue-400 hover:bg-blue-50'}`}>
                               
                                         {machine}
                                         {isSelected &&
