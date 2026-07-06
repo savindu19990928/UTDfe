@@ -39,6 +39,10 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
   const [paymentMethod, setPaymentMethod] = useState<
     'cash' | 'card' | 'bank_transfer'>(
     'cash');
+  // Rental payment method uses the API values directly (cash | card | transfer)
+  const [rentalPaymentMethod, setRentalPaymentMethod] = useState<
+    'cash' | 'card' | 'transfer'>(
+    'cash');
   const [customBillNumber, setCustomBillNumber] = useState('');
   const [billNumberError, setBillNumberError] = useState<string | null>(null);
   const [nicTaken, setNicTaken] = useState(true);
@@ -136,7 +140,7 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
             product: parseInt(item.product.id)
           };
         }),
-        payment_method: 'cash',
+        payment_method: rentalPaymentMethod,
         discount: discountPercent.toFixed(2)
       };
       // Only send bill_number if user entered one
@@ -218,7 +222,9 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
           tax: 0,
           total: totalRentalFee,
           type: 'invoice',
-          paymentMethod: 'cash',
+          paymentMethod:
+          data.payment_method as Bill['paymentMethod'] ||
+          rentalPaymentMethod,
           deposit: totalDeposit,
           depositHistory: deposits,
           customerPhotoUrl:
@@ -547,6 +553,46 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
                       Deposit must be at least {formatPrice(grandTotal)}
                     </p>
                 }
+                </div>
+              }
+
+              {/* Payment Method — Only for Rentals */}
+              {hasRentals &&
+              <div className="pt-4 mt-4 border-t border-gray-200">
+                  <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">
+                    Payment Method
+                  </h3>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(
+                  [
+                  {
+                    value: 'cash',
+                    label: 'Cash'
+                  },
+                  {
+                    value: 'card',
+                    label: 'Card'
+                  },
+                  {
+                    value: 'transfer',
+                    label: 'Bank Transfer'
+                  }] as
+                  const).
+                  map((method) =>
+                  <button
+                    key={method.value}
+                    type="button"
+                    onClick={() => setRentalPaymentMethod(method.value)}
+                    className={`py-2.5 px-3 rounded-lg text-sm font-bold border transition-colors ${rentalPaymentMethod === method.value ? 'bg-[#f5a623] border-[#f5a623] text-[#1a1a2e]' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                    
+                        {method.label}
+                      </button>
+                  )}
+                  </div>
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    All deposits and refunds for this bill use this payment
+                    method.
+                  </p>
                 </div>
               }
 

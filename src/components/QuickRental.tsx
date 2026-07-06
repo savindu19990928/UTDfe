@@ -61,6 +61,10 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
   const [customBillNumber, setCustomBillNumber] = useState('');
   const [billNumberError, setBillNumberError] = useState<string | null>(null);
   const [nicTaken, setNicTaken] = useState(true);
+  // Payment method uses the API values directly (cash | card | transfer)
+  const [paymentMethod, setPaymentMethod] = useState<
+    'cash' | 'card' | 'transfer'>(
+    'cash');
   // New customer form state
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
   const [newName, setNewName] = useState('');
@@ -342,7 +346,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
         }
         return apiItem;
       }),
-      payment_method: 'cash',
+      payment_method: paymentMethod,
       discount: 0
     };
     // Only send bill_number if user entered one
@@ -408,7 +412,8 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
         tax: 0,
         total: parseFloat(data.total_rental_fee ?? 0),
         type: 'invoice',
-        paymentMethod: 'cash',
+        paymentMethod:
+        data.payment_method as Bill['paymentMethod'] || paymentMethod,
         deposit: parseFloat(data.total_deposit ?? 0),
         depositHistory: deposits,
         customerPhotoUrl: getPhotoUrl(data.customer_photo) || customer.photoUrl,
@@ -1353,6 +1358,43 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                         Minimum required: {formatPrice(total)}
                       </p>
                   }
+                  </div>
+
+                  <div className="pt-4 mt-4 border-t border-gray-200">
+                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                      Payment Method
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(
+                    [
+                    {
+                      value: 'cash',
+                      label: 'Cash'
+                    },
+                    {
+                      value: 'card',
+                      label: 'Card'
+                    },
+                    {
+                      value: 'transfer',
+                      label: 'Bank Transfer'
+                    }] as
+                    const).
+                    map((method) =>
+                    <button
+                      key={method.value}
+                      type="button"
+                      onClick={() => setPaymentMethod(method.value)}
+                      className={`py-2.5 px-3 rounded-lg text-sm font-bold border transition-colors ${paymentMethod === method.value ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                      
+                          {method.label}
+                        </button>
+                    )}
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      All deposits and refunds for this bill use this payment
+                      method.
+                    </p>
                   </div>
 
                   <div className="pt-4 mt-4 border-t border-gray-200">

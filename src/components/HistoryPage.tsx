@@ -1701,8 +1701,9 @@ export function HistoryPage({
                               <span className="text-xs font-bold px-2 py-1 rounded bg-gray-100 text-gray-700 uppercase">
                                 {bill.paymentMethod === 'card' ?
                           'Card' :
-                          bill.paymentMethod === 'bank_transfer' ?
-                          'Transfer' :
+                          bill.paymentMethod === 'bank_transfer' ||
+                          bill.paymentMethod === 'transfer' ?
+                          'Bank Transfer' :
                           'Cash'}
                               </span>
                             </td>

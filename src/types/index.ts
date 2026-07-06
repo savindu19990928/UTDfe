@@ -132,7 +132,7 @@ export type Bill = {
   tax: number;
   total: number;
   type: 'invoice';
-  paymentMethod?: 'cash' | 'card' | 'bank_transfer';
+  paymentMethod?: 'cash' | 'card' | 'bank_transfer' | 'transfer';
   deposit?: number;
   depositHistory?: DepositEntry[];
   fines?: RentalFine[];

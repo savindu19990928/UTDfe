@@ -127,7 +127,7 @@ function mapApiRental(raw: any): Bill {
     tax: 0,
     total: totalRentalFee,
     type: 'invoice',
-    paymentMethod: 'cash',
+    paymentMethod: raw.payment_method as Bill['paymentMethod'] || 'cash',
     deposit: totalDeposit,
     depositHistory: deposits,
     fines,

@@ -72,6 +72,14 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
   const hasDiscount = discountPercent > 0;
   const hasFines = bill.fines && bill.fines.length > 0;
   const printedTime = new Date().toLocaleString('en-GB');
+  // Map the API/stored payment method to a readable label
+  const paymentLabel =
+  bill.paymentMethod === 'card' ?
+  'CARD' :
+  bill.paymentMethod === 'transfer' ||
+  bill.paymentMethod === 'bank_transfer' ?
+  'BANK TRANSFER' :
+  'CASH';
   // Helper to split a number into rupees and cents
   const splitPrice = (amount: number) => {
     const abs = Math.abs(amount);
@@ -128,7 +136,7 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
           </p>
           <p>
             <span className="inline-block w-32">ගෙවීමේ ක්‍රමය:</span>
-            <span className="font-bold">CASH</span>
+            <span className="font-bold">{paymentLabel}</span>
           </p>
         </div>
 
