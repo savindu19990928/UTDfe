@@ -2,7 +2,7 @@ export function formatPrice(amount: number): string {
   return `Rs. ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-const MEDIA_BASE_URL = 'https://storage.googleapis.com/utdpos/media/';
+const MEDIA_BASE_URL = 'https://storage.googleapis.com/utdposcs/media/';
 
 export function getPhotoUrl(
 path: string | null | undefined)
