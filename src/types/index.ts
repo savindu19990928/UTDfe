@@ -4,6 +4,18 @@ export type ApiCategory = {
   category_type?: 'sell' | 'rent';
 };
 
+export type Machine = {
+  id: number;
+  product: number;
+  machine_number: string;
+  max_use_count: number;
+  used_count: number;
+  needs_reset: boolean;
+  is_currently_rented: boolean;
+  is_damaged: boolean;
+  is_active: boolean;
+};
+
 export type Product = {
   id: string;
   name: string;
@@ -16,6 +28,8 @@ export type Product = {
   itemCode?: string;
   barcode?: string;
   isStockTracked?: boolean;
+  isActive?: boolean;
+  machines?: Machine[];
 };
 
 export type CartItemType = 'sale' | 'rent';
@@ -139,6 +153,8 @@ export type Bill = {
   customerPhotoUrl?: string;
   customerNic?: string;
   nicTaken?: boolean;
+  isPassportTaken?: boolean;
+  isDrivingLicenceTaken?: boolean;
   rentalStatus?: RentalBillStatus;
 };
 

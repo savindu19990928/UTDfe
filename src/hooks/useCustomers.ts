@@ -8,6 +8,8 @@ import { getCached, setCache, isFresh, clearCache } from '../utils/apiCache';
 interface UseCustomersOptions {
   search?: string;
   enabled?: boolean;
+  page?: number;
+  pageSize?: number;
 }
 
 interface CustomerFormData {
@@ -23,6 +25,10 @@ interface UseCustomersReturn {
   loading: boolean;
   error: string | null;
   totalCount: number;
+  currentPage: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
   submitting: boolean;
   addCustomer: (data: CustomerFormData) => Promise<boolean>;
   updateCustomer: (
@@ -66,9 +72,14 @@ options?: UseCustomersOptions)
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(options?.page || 1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [hasNext, setHasNext] = useState(false);
+  const [hasPrevious, setHasPrevious] = useState(false);
 
   const search = options?.search;
   const enabled = options?.enabled !== false;
+  const pageSize = options?.pageSize || 20;
   const [debouncedSearch, setDebouncedSearch] = useState(search);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -79,23 +90,42 @@ options?: UseCustomersOptions)
     return () => clearTimeout(timer);
   }, [search]);
 
+  // Update current page when options.page changes
+  useEffect(() => {
+    if (options?.page) {
+      setCurrentPage(options.page);
+    }
+  }, [options?.page]);
+
   const fetchCustomers = useCallback(async () => {
     if (!enabled) return;
 
     let url = `${API_URL}customers/`;
+    const params = new URLSearchParams();
+    params.append('page', currentPage.toString());
+    params.append('page_size', pageSize.toString());
+
     if (debouncedSearch && debouncedSearch.trim()) {
-      url += `?search=${encodeURIComponent(debouncedSearch.trim())}`;
+      params.append('search', debouncedSearch.trim());
     }
+
+    url += `?${params.toString()}`;
 
     const cacheKey = `customers:${url}`;
 
     const cached = getCached<{
       customers: CustomerRecord[];
       totalCount: number;
+      totalPages: number;
+      hasNext: boolean;
+      hasPrevious: boolean;
     }>(cacheKey, 5 * 60_000);
     if (cached) {
       setCustomers(cached.customers);
       setTotalCount(cached.totalCount);
+      setTotalPages(cached.totalPages);
+      setHasNext(cached.hasNext);
+      setHasPrevious(cached.hasPrevious);
       setLoading(false);
       // Extended fresh window — skip network for 2 minutes after a successful fetch
       if (isFresh(cacheKey, 120_000)) return;
@@ -121,18 +151,34 @@ options?: UseCustomersOptions)
 
       let rawList: any[];
       let count: number;
+      let next = false;
+      let prev = false;
+      let pages = 1;
+
       if (Array.isArray(data)) {
         rawList = data;
         count = data.length;
       } else {
         rawList = data.results || [];
         count = data.count ?? rawList.length;
+        next = !!data.next;
+        prev = !!data.previous;
+        pages = data.total_pages || Math.ceil(count / pageSize) || 1;
       }
 
       const mapped = rawList.map(mapApiCustomer);
       setCustomers(mapped);
       setTotalCount(count);
-      setCache(cacheKey, { customers: mapped, totalCount: count });
+      setTotalPages(pages);
+      setHasNext(next);
+      setHasPrevious(prev);
+      setCache(cacheKey, {
+        customers: mapped,
+        totalCount: count,
+        totalPages: pages,
+        hasNext: next,
+        hasPrevious: prev
+      });
     } catch (err: any) {
       if (err.name === 'AbortError') return;
       if (!cached) {
@@ -144,7 +190,7 @@ options?: UseCustomersOptions)
         setLoading(false);
       }
     }
-  }, [debouncedSearch, enabled]);
+  }, [debouncedSearch, enabled, currentPage, pageSize]);
 
   useEffect(() => {
     if (enabled) {
@@ -222,6 +268,10 @@ options?: UseCustomersOptions)
     loading,
     error,
     totalCount,
+    currentPage,
+    totalPages,
+    hasNext,
+    hasPrevious,
     submitting,
     addCustomer,
     updateCustomer,

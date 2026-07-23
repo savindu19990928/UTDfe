@@ -10,7 +10,13 @@ import {
   CustomerRecord,
   Expense } from
 './types';
-import { getToken, clearToken } from './utils/auth';
+import { getToken, clearToken, isSuperUser as checkSuperUser } from './utils/auth';
+import { AdminSection } from './components/management/adminSections';
+const ManagementDashboard = lazy(() =>
+import('./components/management/ManagementDashboard').then((m) => ({
+  default: m.ManagementDashboard
+}))
+);
 // Lazy load heavy/secondary pages — they're not needed for initial render
 const HistoryPage = lazy(() =>
 import('./components/HistoryPage').then((m) => ({
@@ -37,11 +43,6 @@ import('./components/QuickSale').then((m) => ({
   default: m.QuickSale
 }))
 );
-const DamageTracker = lazy(() =>
-import('./components/DamageTracker').then((m) => ({
-  default: m.DamageTracker
-}))
-);
 const ExpenseTracker = lazy(() =>
 import('./components/ExpenseTracker').then((m) => ({
   default: m.ExpenseTracker
@@ -62,7 +63,6 @@ type Page =
 'history' |
 'cart' |
 'bill' |
-'damages' |
 'expenses' |
 'customers' |
 'quick-rental' |
@@ -72,6 +72,9 @@ const initialDamages: DamageRecord[] = [];
 function AppContent() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
+  const [superUser, setSuperUser] = useState(false);
+  const [managementMode, setManagementMode] = useState(false);
+  const [adminSection, setAdminSection] = useState<AdminSection>('products');
   const [currentPage, setCurrentPage] = useState<Page>('catalog');
   const [currentBill, setCurrentBill] = useState<Bill | null>(null);
   const [bills, setBills] = useState<Bill[]>([]);
@@ -119,12 +122,15 @@ function AppContent() {
     const token = getToken();
     if (token) {
       setIsLoggedIn(true);
+      setSuperUser(checkSuperUser());
     }
     setAuthChecked(true);
   }, []);
   const handleLogout = () => {
     clearToken();
     setIsLoggedIn(false);
+    setSuperUser(false);
+    setManagementMode(false);
   };
   if (!authChecked) {
     return (
@@ -134,7 +140,14 @@ function AppContent() {
 
   }
   if (!isLoggedIn) {
-    return <LoginPage onLogin={() => setIsLoggedIn(true)} />;
+    return (
+      <LoginPage
+        onLogin={(su) => {
+          setIsLoggedIn(true);
+          setSuperUser(su);
+        }} />);
+
+
   }
   if (currentPage === 'bill' && currentBill) {
     return (
@@ -172,40 +185,63 @@ function AppContent() {
       <Header
         currentPage={currentPage}
         onNavigate={handleNavigate}
-        onLogout={handleLogout} />
+        onLogout={handleLogout}
+        isSuperUser={superUser}
+        managementMode={managementMode}
+        onToggleManagement={() => {
+          setManagementMode((prev) => !prev);
+          setAdminSection('products');
+          window.scrollTo(0, 0);
+        }}
+        adminSection={adminSection}
+        onAdminSectionChange={(s) => {
+          setAdminSection(s);
+          window.scrollTo(0, 0);
+        }} />
       
 
       <main className="flex-grow">
+        {managementMode && superUser ?
+        <Suspense fallback={<PageFallback />}>
+            <ManagementDashboard
+            section={adminSection}
+            onSectionChange={setAdminSection}
+            onExit={() => setManagementMode(false)}
+            onViewBill={handleViewBill}
+            damages={damages}
+            onAddDamage={handleAddDamage} />
+          
+          </Suspense> :
+
+        <>
         {currentPage === 'catalog' &&
-        <CatalogPage onNavigate={handleNavigate} />
-        }
+          <CatalogPage onNavigate={handleNavigate} />
+          }
 
         <Suspense fallback={<PageFallback />}>
           {currentPage === 'history' &&
-          <HistoryPage
-            bills={bills}
-            cashTransactions={cashTransactions}
-            onUpdateBill={handleUpdateBill}
-            onViewBill={handleViewBill}
-            onAddCashTransaction={handleAddCashTransaction} />
+            <HistoryPage
+              bills={bills}
+              cashTransactions={cashTransactions}
+              onUpdateBill={handleUpdateBill}
+              onViewBill={handleViewBill}
+              onAddCashTransaction={handleAddCashTransaction} />
 
-          }
+            }
 
           {currentPage === 'cart' &&
-          <Cart
-            onGenerateBill={handleGenerateBill}
-            onContinueShopping={() => handleNavigate('catalog')} />
+            <Cart
+              onGenerateBill={handleGenerateBill}
+              onContinueShopping={() => handleNavigate('catalog')} />
 
-          }
+            }
 
           {currentPage === 'customers' && <CustomerManager />}
 
-          {currentPage === 'damages' &&
-          <DamageTracker damages={damages} onAddDamage={handleAddDamage} />
-          }
-
           {currentPage === 'expenses' && <ExpenseTracker />}
         </Suspense>
+        </>
+        }
       </main>
 
       <footer className="bg-[#1a1a2e] text-gray-400 py-8 mt-auto">

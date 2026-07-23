@@ -7,7 +7,10 @@ import { getCached, setCache, isFresh } from '../utils/apiCache';
 
 interface UseRentalsOptions {
   search?: string;
+  status?: string;
   enabled?: boolean;
+  page?: number;
+  pageSize?: number;
 }
 
 interface UseRentalsReturn {
@@ -15,7 +18,19 @@ interface UseRentalsReturn {
   loading: boolean;
   error: string | null;
   totalCount: number;
+  currentPage: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+  stats: {
+    total: number;
+    open: number;
+    overdue: number;
+    closed: number;
+    unpaid: number;
+  };
   refetch: () => void;
+  setPage: (page: number) => void;
 }
 
 function mapApiStatus(status: string): Bill['rentalStatus'] {
@@ -134,6 +149,8 @@ function mapApiRental(raw: any): Bill {
     customerPhotoUrl: getPhotoUrl(raw.customer_photo),
     customerNic: raw.customer_nic || undefined,
     nicTaken: raw.nic_taken || false,
+    isPassportTaken: raw.is_passport_taken || false,
+    isDrivingLicenceTaken: raw.is_driving_licence_taken || false,
     rentalStatus
   };
 }
@@ -143,9 +160,21 @@ export function useRentals(options?: UseRentalsOptions): UseRentalsReturn {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(options?.page || 1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [hasNext, setHasNext] = useState(false);
+  const [hasPrevious, setHasPrevious] = useState(false);
+  const [stats, setStats] = useState({
+    total: 0,
+    open: 0,
+    overdue: 0,
+    closed: 0,
+    unpaid: 0
+  });
 
   const search = options?.search;
   const enabled = options?.enabled !== false;
+  const pageSize = options?.pageSize || 20;
   const [debouncedSearch, setDebouncedSearch] = useState(search);
 
   const abortRef = useRef<AbortController | null>(null);
@@ -162,24 +191,37 @@ export function useRentals(options?: UseRentalsOptions): UseRentalsReturn {
     if (!enabled) return;
 
     let baseUrl = `${API_URL}rentals/`;
+    const params = new URLSearchParams();
+
+    params.append('page', currentPage.toString());
+    params.append('page_size', pageSize.toString());
+
     if (debouncedSearch && debouncedSearch.trim()) {
-      let searchVal = debouncedSearch.trim();
-      if (/^\d+$/.test(searchVal)) {
-        searchVal = `RENT-${searchVal}`;
-      }
-      baseUrl = `${API_URL}rentals/findbybillnumber/?bill_number=${encodeURIComponent(searchVal)}`;
+      params.append('search', debouncedSearch.trim());
     }
+
+    if (options?.status && options.status !== 'all') {
+      let apiStatus = options.status;
+      if (apiStatus === 'open') apiStatus = 'active';
+      params.append('status', apiStatus);
+    }
+
+    baseUrl += `?${params.toString()}`;
 
     const cacheKey = `rentals:${baseUrl}`;
 
     // Stale-while-revalidate — show cached instantly
-    const cached = getCached<{rentals: Bill[];totalCount: number;}>(
+    const cached = getCached<{rentals: Bill[];totalCount: number;totalPages: number;hasNext: boolean;hasPrevious: boolean;stats: any;}>(
       cacheKey,
       5 * 60_000
     );
     if (cached) {
       setRentals(cached.rentals);
       setTotalCount(cached.totalCount);
+      setTotalPages(cached.totalPages);
+      setHasNext(cached.hasNext);
+      setHasPrevious(cached.hasPrevious);
+      if (cached.stats) setStats(cached.stats);
       setLoading(false);
       // If fresh, skip network entirely (60s window)
       if (isFresh(cacheKey, 60_000)) return;
@@ -203,9 +245,15 @@ export function useRentals(options?: UseRentalsOptions): UseRentalsReturn {
       const data = await res.json();
 
       let allResults: any[];
+      let count = 0;
+      let next = false;
+      let prev = false;
+      let pages = 1;
+      let apiStats = { total: 0, open: 0, overdue: 0, closed: 0, unpaid: 0 };
 
       if (Array.isArray(data)) {
         allResults = data;
+        count = data.length;
       } else if (
       data &&
       typeof data === 'object' &&
@@ -213,14 +261,38 @@ export function useRentals(options?: UseRentalsOptions): UseRentalsReturn {
       data.bill_number || data.items || data.id))
       {
         allResults = [data];
+        count = 1;
       } else {
         allResults = [...(data.results || [])];
+        count = data.count || allResults.length;
+        next = !!data.next;
+        prev = !!data.previous;
+        pages = data.total_pages || Math.ceil(count / pageSize) || 1;
+
+        apiStats = {
+          total: data.total_bill_count || 0,
+          open: data.total_open_bills_count || 0,
+          overdue: data.total_overdue_bills_count || 0,
+          closed: data.total_closed_bills_count || 0,
+          unpaid: data.total_unpaid_bills_count || 0
+        };
       }
 
       const mapped = allResults.map(mapApiRental);
       setRentals(mapped);
-      setTotalCount(allResults.length);
-      setCache(cacheKey, { rentals: mapped, totalCount: allResults.length });
+      setTotalCount(count);
+      setTotalPages(pages);
+      setHasNext(next);
+      setHasPrevious(prev);
+      setStats(apiStats);
+      setCache(cacheKey, {
+        rentals: mapped,
+        totalCount: count,
+        totalPages: pages,
+        hasNext: next,
+        hasPrevious: prev,
+        stats: apiStats
+      });
     } catch (err: any) {
       if (err.name === 'AbortError') return;
       if (!cached) {
@@ -232,7 +304,7 @@ export function useRentals(options?: UseRentalsOptions): UseRentalsReturn {
         setLoading(false);
       }
     }
-  }, [debouncedSearch, enabled]);
+  }, [debouncedSearch, enabled, currentPage, pageSize]);
 
   useEffect(() => {
     if (enabled) {
@@ -248,6 +320,12 @@ export function useRentals(options?: UseRentalsOptions): UseRentalsReturn {
     loading,
     error,
     totalCount,
-    refetch: fetchRentals
+    currentPage,
+    totalPages,
+    hasNext,
+    hasPrevious,
+    stats,
+    refetch: fetchRentals,
+    setPage: setCurrentPage
   };
 }

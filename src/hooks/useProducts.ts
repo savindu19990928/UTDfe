@@ -10,6 +10,8 @@ interface UseProductsOptions {
   page?: number;
   search?: string;
   enabled?: boolean;
+  includeDeactivated?: boolean;
+  withMachines?: boolean;
 }
 
 interface UseProductsReturn {
@@ -56,7 +58,9 @@ function mapApiProduct(raw: any): Product {
     stock: parseInt(raw.current_stock ?? raw.stock ?? raw.quantity ?? 0, 10),
     itemCode: raw.item_number || raw.item_code || raw.itemCode || undefined,
     barcode: raw.barcode || undefined,
-    isStockTracked: raw.is_stock_tracked ?? true
+    isStockTracked: raw.is_stock_tracked ?? true,
+    isActive: raw.is_active ?? true,
+    machines: raw.machines
   };
 }
 
@@ -85,10 +89,14 @@ function buildApiUrl(options?: UseProductsOptions): {
   if (options?.search) {
     params.set('search', options.search);
   }
+  if (options?.includeDeactivated) {
+    params.set('include_deactivated', 'true');
+  }
   const qs = params.toString();
+  const endpoint = options?.withMachines ? 'products/with_machines/' : 'products/';
   return {
-    url: `${API_URL}products/${qs ? `?${qs}` : ''}`,
-    cacheKey: buildCacheKey(params)
+    url: `${API_URL}${endpoint}${qs ? `?${qs}` : ''}`,
+    cacheKey: buildCacheKey(params) + (options?.withMachines ? '&withMachines=true' : '')
   };
 }
 
@@ -176,12 +184,13 @@ export function useProducts(options?: UseProductsOptions): UseProductsReturn {
       if (currentRequestId !== requestIdRef.current) return;
 
       const mapped = allResults.map(mapApiProduct);
+      const filtered = options?.includeDeactivated ? mapped : mapped.filter((p) => p.isActive !== false);
 
-      setProducts(mapped);
+      setProducts(filtered);
       setTotalCount(count);
       setApiTotalPages(pagesFromApi);
       setCache(cacheKey, {
-        products: mapped,
+        products: filtered,
         totalCount: count,
         totalPages: pagesFromApi
       });
@@ -211,11 +220,11 @@ export function useProducts(options?: UseProductsOptions): UseProductsReturn {
 
   // Derived lists
   const saleProducts = useMemo(
-    () => products.filter((p) => p.listingType === 'sale'),
+    () => products.filter((p) => p.listingType === 'sale' && p.isActive !== false),
     [products]
   );
   const rentProducts = useMemo(
-    () => products.filter((p) => p.listingType === 'rent'),
+    () => products.filter((p) => p.listingType === 'rent' && p.isActive !== false),
     [products]
   );
 

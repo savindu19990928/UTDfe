@@ -60,7 +60,10 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
   // Custom bill number state
   const [customBillNumber, setCustomBillNumber] = useState('');
   const [billNumberError, setBillNumberError] = useState<string | null>(null);
-  const [nicTaken, setNicTaken] = useState(true);
+  // Document taken — only one of nic / passport / driving_licence (or none). Default: NIC.
+  const [documentTaken, setDocumentTaken] = useState<
+    'none' | 'nic' | 'passport' | 'driving_licence'>(
+    'nic');
   // Payment method uses the API values directly (cash | card | transfer)
   const [paymentMethod, setPaymentMethod] = useState<
     'cash' | 'card' | 'transfer'>(
@@ -330,7 +333,9 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
       initial_deposit: depositVal.toFixed(2),
       initial_deposit_date: today,
       status: 'active',
-      nic_taken: nicTaken,
+      nic_taken: documentTaken === 'nic',
+      is_passport_taken: documentTaken === 'passport',
+      is_driving_licence_taken: documentTaken === 'driving_licence',
       items: items.map((item) => {
         const startDate = today;
         const endDate = new Date();
@@ -418,7 +423,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
         depositHistory: deposits,
         customerPhotoUrl: getPhotoUrl(data.customer_photo) || customer.photoUrl,
         customerNic: data.customer_nic || customer.nicNumber,
-        nicTaken: data.nic_taken || nicTaken,
+        nicTaken: data.nic_taken || documentTaken === 'nic',
         rentalStatus: 'open'
       };
       onGenerateBill(bill);
@@ -1398,25 +1403,37 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                   </div>
 
                   <div className="pt-4 mt-4 border-t border-gray-200">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                      type="checkbox"
-                      checked={nicTaken}
-                      onChange={(e) => setNicTaken(e.target.checked)}
-                      onKeyDown={(e) => {
-                        if (e.key.toLowerCase() === 'n') {
-                          e.preventDefault();
-                          setNicTaken((prev) => !prev);
-                        }
-                      }}
-                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                    <span className="block text-sm font-medium text-gray-700 mb-2">
+                      Document Taken
+                    </span>
+                    <div
+                    className="grid grid-cols-2 gap-2"
+                    role="radiogroup"
+                    aria-label="Document taken">
                     
-                      <span className="text-sm font-medium text-gray-700">
-                        NIC Taken
-                      </span>
-                    </label>
-                    <p className="text-[10px] text-gray-500 mt-1 ml-6">
-                      Check this if the physical NIC card has been collected.
+                      {(
+                    [
+                    { value: 'none', label: 'None' },
+                    { value: 'nic', label: 'NIC' },
+                    { value: 'passport', label: 'Passport' },
+                    { value: 'driving_licence', label: 'Driving License' }] as
+                    const).
+                    map((doc) =>
+                    <button
+                      key={doc.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={documentTaken === doc.value}
+                      onClick={() => setDocumentTaken(doc.value)}
+                      className={`py-2.5 px-3 rounded-lg text-sm font-bold border transition-colors ${documentTaken === doc.value ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                      
+                          {doc.label}
+                        </button>
+                    )}
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      Select which physical document has been collected from the
+                      customer.
                     </p>
                   </div>
                 </div>

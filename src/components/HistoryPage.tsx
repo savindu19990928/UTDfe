@@ -36,6 +36,7 @@ import { API_URL } from '../utils/config';
 import { getAuthHeaders } from '../utils/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clearCache } from '../utils/apiCache';
+import { Pagination } from './Pagination';
 interface HistoryPageProps {
   bills: Bill[];
   cashTransactions: CashTransaction[];
@@ -146,9 +147,16 @@ export function HistoryPage({
     rentals: apiRentalBills,
     loading: rentalsLoading,
     error: rentalsError,
-    refetch: refetchRentals
+    refetch: refetchRentals,
+    currentPage: rentalPage,
+    totalPages: rentalTotalPages,
+    hasNext: rentalHasNext,
+    hasPrevious: rentalHasPrevious,
+    setPage: setRentalPage,
+    stats: apiRentalStats
   } = useRentals({
     search: activeTab === 'rentals' ? searchQuery : undefined,
+    status: rentalFilter,
     enabled: activeTab === 'rentals'
   });
   // Fetch sales from API
@@ -156,7 +164,12 @@ export function HistoryPage({
     sales: apiSaleBills,
     loading: salesLoading,
     error: salesError,
-    refetch: refetchSales
+    refetch: refetchSales,
+    currentPage: salePage,
+    totalPages: saleTotalPages,
+    hasNext: saleHasNext,
+    hasPrevious: saleHasPrevious,
+    setPage: setSalePage
   } = useSales({
     search: activeTab === 'sales' ? searchQuery : undefined,
     enabled: activeTab === 'sales'
@@ -241,85 +254,11 @@ export function HistoryPage({
       b.items.some((i) => i.product.name.toLowerCase().includes(q))
     );
   }, [saleBills, deferredSearchQuery]);
-  const filteredRentalBills = useMemo(() => {
-    if (!deferredSearchQuery.trim()) return rentalBills;
-    const q = deferredSearchQuery.toLowerCase();
-    return rentalBills.filter(
-      (b) =>
-      b.id.toLowerCase().includes(q) ||
-      b.customer.name.toLowerCase().includes(q) ||
-      b.items.some((i) => i.product.name.toLowerCase().includes(q))
-    );
-  }, [rentalBills, deferredSearchQuery]);
-  // Rental stats
-  const rentalStats = useMemo(() => {
-    const helper = (bills: Bill[]) => {
-      let open = 0;
-      let overdue = 0;
-      let unpaid = 0;
-      let closed = 0;
-      bills.forEach((b) => {
-        const totalDeposit =
-        b.depositHistory?.reduce((s, d) => s + d.amount, 0) || b.deposit || 0;
-        const returnedCount = b.items.filter(
-          (i) => i.status === 'returned'
-        ).length;
-        const allReturned =
-        returnedCount === b.items.length && b.items.length > 0;
-        const hasActiveItems = b.items.some((i) => i.status === 'active');
-        const owes = b.total > totalDeposit;
-        if (b.rentalStatus === 'closed') {
-          closed++;
-        } else if (allReturned && owes) {
-          unpaid++;
-        } else if (allReturned && !owes) {
-          // All returned, balance settled, but not yet manually closed
-          open++;
-        } else if (hasActiveItems && owes) {
-          overdue++;
-        } else if (hasActiveItems) {
-          open++;
-        }
-      });
-      return {
-        open,
-        overdue,
-        unpaid,
-        closed,
-        total: bills.length
-      };
-    };
-    return helper(filteredRentalBills);
-  }, [filteredRentalBills]);
-  // Apply rental filter card
-  const displayedRentalBills = useMemo(() => {
-    if (rentalFilter === 'all') return filteredRentalBills;
-    return filteredRentalBills.filter((b) => {
-      const totalDeposit =
-      b.depositHistory?.reduce((s, d) => s + d.amount, 0) || b.deposit || 0;
-      const returnedCount = b.items.filter(
-        (i) => i.status === 'returned'
-      ).length;
-      const allReturned = returnedCount === b.items.length && b.items.length > 0;
-      const hasActiveItems = b.items.some((i) => i.status === 'active');
-      const owes = b.total > totalDeposit;
-      switch (rentalFilter) {
-        case 'open':
-          return (
-            hasActiveItems && !owes ||
-            allReturned && !owes && b.rentalStatus !== 'closed');
-
-        case 'overdue':
-          return hasActiveItems && owes;
-        case 'unpaid':
-          return allReturned && owes && b.rentalStatus !== 'closed';
-        case 'closed':
-          return b.rentalStatus === 'closed';
-        default:
-          return true;
-      }
-    });
-  }, [filteredRentalBills, rentalFilter]);
+  const filteredRentalBills = rentalBills;
+  // Rental stats from API
+  const rentalStats = apiRentalStats;
+  // Apply rental filter card - now handled by API, but we still apply optimistic updates
+  const displayedRentalBills = filteredRentalBills;
   // Edit handlers
   const handleReturnItem = async (
   bill: Bill,
@@ -509,8 +448,6 @@ export function HistoryPage({
         },
         body: JSON.stringify({
           amount: amount.toFixed(2),
-          payment_method: 'cash',
-          transaction_date: today,
           notes: 'Additional Deposit'
         })
       });
@@ -1126,45 +1063,46 @@ export function HistoryPage({
 
         !rentalsLoading &&
         !rentalsError &&
-        <div className="space-y-4">
-                {displayedRentalBills.length === 0 && rentalFilter !== 'all' ?
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+        <>
+                <div className="space-y-4">
+                  {displayedRentalBills.length === 0 && rentalFilter !== 'all' ?
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
                     <Clock className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                     <p className="text-gray-500 font-medium">
                       No {rentalFilter} rental bills
                     </p>
                     <button
-              onClick={() => setRentalFilter('all')}
-              className="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium">
-              
+                onClick={() => setRentalFilter('all')}
+                className="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium">
+                
                       Show all bills
                     </button>
                   </div> :
 
-          displayedRentalBills.map((bill) => {
-            const isEditing = editingBillId === bill.id;
-            const returnedCount = bill.items.filter(
-              (i) => i.status === 'returned'
-            ).length;
-            const totalDeposit =
-            bill.depositHistory?.reduce((s, d) => s + d.amount, 0) ||
-            bill.deposit ||
-            0;
-            const totalFines =
-            bill.fines?.reduce((s, f) => s + Number(f.fine), 0) || 0;
-            const allItemsReturned =
-            returnedCount === bill.items.length &&
-            bill.items.length > 0;
-            const netOwed = bill.total + totalFines;
-            const balance = totalDeposit - netOwed;
-            const hasOutstandingBalance = balance < 0;
-            const needsPayment =
-            allItemsReturned && hasOutstandingBalance;
-            return (
-              <div
-                key={bill.id}
-                className={`bg-white rounded-xl shadow-sm border ${isEditing ? 'border-blue-300 ring-2 ring-blue-100' : needsPayment ? 'border-red-200 ring-1 ring-red-100' : 'border-gray-200'}`}>
-                
+            displayedRentalBills.map((bill) => {
+              const isEditing = editingBillId === bill.id;
+              const returnedCount = bill.items.filter(
+                (i) => i.status === 'returned'
+              ).length;
+              const totalDeposit =
+              bill.depositHistory?.reduce((s, d) => s + d.amount, 0) ||
+              bill.deposit ||
+              0;
+              const totalFines =
+              bill.fines?.reduce((s, f) => s + Number(f.fine), 0) || 0;
+              const allItemsReturned =
+              returnedCount === bill.items.length &&
+              bill.items.length > 0;
+              const netOwed = bill.total + totalFines;
+              const balance = totalDeposit - netOwed;
+              const hasOutstandingBalance = balance < 0;
+              const needsPayment =
+              allItemsReturned && hasOutstandingBalance;
+              return (
+                <div
+                  key={bill.id}
+                  className={`bg-white rounded-xl shadow-sm border ${isEditing ? 'border-blue-300 ring-2 ring-blue-100' : needsPayment ? 'border-red-200 ring-1 ring-red-100' : 'border-gray-200'}`}>
+                  
                         {/* Bill Header */}
                         <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
                           <div>
@@ -1174,11 +1112,11 @@ export function HistoryPage({
                               </span>
                               {getStatusBadge(bill.rentalStatus, bill)}
                               {needsPayment &&
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">
                                   <Banknote className="w-3 h-3 mr-1" />
                                   {formatPrice(Math.abs(balance))} due
                                 </span>
-                      }
+                        }
                             </div>
                             <p className="text-sm text-gray-600">
                               {bill.customer.name} · {bill.customer.phone}
@@ -1186,13 +1124,13 @@ export function HistoryPage({
                             <p className="text-xs text-gray-400 mt-0.5">
                               {bill.date} · {returnedCount}/{bill.items.length}{' '}
                               items returned
-                              {bill.nicTaken !== undefined &&
-                      <span
-                        className={`ml-2 px-1.5 py-0.5 rounded ${bill.nicTaken ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600'}`}>
-                        
-                                  NIC: {bill.nicTaken ? 'Taken' : 'Not Taken'}
+                              {(bill.nicTaken !== undefined || bill.isPassportTaken !== undefined || bill.isDrivingLicenceTaken !== undefined) &&
+                        <span
+                          className={`ml-2 px-1.5 py-0.5 rounded ${bill.nicTaken || bill.isPassportTaken || bill.isDrivingLicenceTaken ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600'}`}>
+                          
+                                  Taken ID: {bill.nicTaken ? 'NIC' : bill.isPassportTaken ? 'Passport' : bill.isDrivingLicenceTaken ? 'Driving Licence' : 'None'}
                                 </span>
-                      }
+                        }
                             </p>
                           </div>
                           <div className="flex items-center gap-3">
@@ -1203,13 +1141,13 @@ export function HistoryPage({
                               </p>
                             </div>
                             {totalFines > 0 &&
-                    <div className="text-right mr-2">
+                      <div className="text-right mr-2">
                                 <p className="text-xs text-gray-500">Fines</p>
                                 <p className="font-bold text-red-600">
                                   {formatPrice(totalFines)}
                                 </p>
                               </div>
-                    }
+                      }
                             <div className="text-right mr-2">
                               <p className="text-xs text-gray-500">Deposit</p>
                               <p className="font-bold text-blue-600">
@@ -1219,88 +1157,88 @@ export function HistoryPage({
                             <div className="text-right mr-4">
                               <p className="text-xs text-gray-500">Balance</p>
                               <p
-                        className={`font-bold ${balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        
+                          className={`font-bold ${balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          
                                 {balance >= 0 ?
-                        formatPrice(balance) :
-                        `-${formatPrice(Math.abs(balance))}`}
+                          formatPrice(balance) :
+                          `-${formatPrice(Math.abs(balance))}`}
                               </p>
                             </div>
                             {bill.rentalStatus !== 'closed' &&
-                    bill.items.some(
-                      (i) => i.status === 'active' && i.apiItemId
-                    ) &&
-                    <button
-                      onClick={() => {
-                        setReturnAllConfirmBill(bill);
-                        setReturnPaymentAmount('');
-                        setActionError(null);
-                      }}
-                      disabled={
-                      actionLoading === `return-all-${bill.id}`
-                      }
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold bg-amber-500 text-white hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
-                      
+                      bill.items.some(
+                        (i) => i.status === 'active' && i.apiItemId
+                      ) &&
+                      <button
+                        onClick={() => {
+                          setReturnAllConfirmBill(bill);
+                          setReturnPaymentAmount('');
+                          setActionError(null);
+                        }}
+                        disabled={
+                        actionLoading === `return-all-${bill.id}`
+                        }
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold bg-amber-500 text-white hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
+                        
                                   {actionLoading === `return-all-${bill.id}` ?
-                      <>
+                        <>
                                       <Loader2 className="w-4 h-4 animate-spin" />{' '}
                                       Returning...
                                     </> :
 
-                      <>
+                        <>
                                       <RotateCcw className="w-4 h-4" /> Return
                                       All
                                     </>
-                      }
+                        }
                                 </button>
-                    }
-                            {bill.rentalStatus !== 'closed' &&
-                    allItemsReturned &&
-                    <button
-                      onClick={() => handleManualClose(bill)}
-                      disabled={
-                      actionLoading === `close-${bill.id}`
                       }
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
-                      
+                            {bill.rentalStatus !== 'closed' &&
+                      allItemsReturned &&
+                      <button
+                        onClick={() => handleManualClose(bill)}
+                        disabled={
+                        actionLoading === `close-${bill.id}`
+                        }
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
+                        
                                   {actionLoading === `close-${bill.id}` ?
-                      <>
+                        <>
                                       <Loader2 className="w-4 h-4 animate-spin" />{' '}
                                       Closing...
                                     </> :
 
-                      <>
+                        <>
                                       <CheckCircle className="w-4 h-4" /> Close
                                       Bill
                                     </>
-                      }
+                        }
                                 </button>
-                    }
+                      }
                             <button
-                      onClick={() => {
-                        setEditingBillId(isEditing ? null : bill.id);
-                        setAddItemModalBillId(null);
-                      }}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold transition-colors ${isEditing ? 'bg-gray-200 text-gray-700' : needsPayment ? 'bg-red-600 text-white hover:bg-red-700' : bill.rentalStatus === 'closed' ? 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
-                      
+                        onClick={() => {
+                          setEditingBillId(isEditing ? null : bill.id);
+                          setAddItemModalBillId(null);
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold transition-colors ${isEditing ? 'bg-gray-200 text-gray-700' : needsPayment ? 'bg-red-600 text-white hover:bg-red-700' : bill.rentalStatus === 'closed' ? 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+                        
                               {isEditing ?
-                      <>
+                        <>
                                   <X className="w-4 h-4" /> Close
                                 </> :
-                      needsPayment ?
-                      <>
+                        needsPayment ?
+                        <>
                                   <Banknote className="w-4 h-4" /> Settle
                                 </> :
 
-                      <>
+                        <>
                                   <Edit className="w-4 h-4" /> Edit
                                 </>
-                      }
+                        }
                             </button>
                             <button
-                      onClick={() => onViewBill(bill)}
-                      className="flex items-center gap-1.5 px-3 py-2 bg-[#1a1a2e] text-white rounded-lg text-sm font-bold hover:bg-[#2d4059] transition-colors">
-                      
+                        onClick={() => onViewBill(bill)}
+                        className="flex items-center gap-1.5 px-3 py-2 bg-[#1a1a2e] text-white rounded-lg text-sm font-bold hover:bg-[#2d4059] transition-colors">
+                        
                               <Eye className="w-4 h-4" />
                               Invoice
                             </button>
@@ -1327,42 +1265,42 @@ export function HistoryPage({
                                   Status
                                 </th>
                                 {isEditing &&
-                        <th className="px-4 py-2 text-center">
+                          <th className="px-4 py-2 text-center">
                                     Action
                                   </th>
-                        }
+                          }
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
                               {bill.items.map((item, idx) => {
-                        const unitPrice =
-                        item.product.rentPricePerDay || 0;
-                        const days = item.rentalDays || 1;
-                        const lineTotal =
-                        item.rentalFee !== undefined ?
-                        item.rentalFee :
-                        unitPrice * item.quantity * days;
-                        return (
-                          <tr
-                            key={idx}
-                            className={
-                            item.status === 'returned' ?
-                            'bg-green-50/50' :
-                            ''
-                            }>
-                            
+                          const unitPrice =
+                          item.product.rentPricePerDay || 0;
+                          const days = item.rentalDays || 1;
+                          const lineTotal =
+                          item.rentalFee !== undefined ?
+                          item.rentalFee :
+                          unitPrice * item.quantity * days;
+                          return (
+                            <tr
+                              key={idx}
+                              className={
+                              item.status === 'returned' ?
+                              'bg-green-50/50' :
+                              ''
+                              }>
+                              
                                     <td className="px-4 py-2.5">
                                       <div className="flex items-center gap-2">
                                         <span
-                                  className={`w-2 h-2 rounded-full flex-shrink-0 ${item.status === 'returned' ? 'bg-green-500' : 'bg-blue-500'}`} />
-                                
+                                    className={`w-2 h-2 rounded-full flex-shrink-0 ${item.status === 'returned' ? 'bg-green-500' : 'bg-blue-500'}`} />
+                                  
                                         <span className="font-medium text-[#1a1a2e]">
                                           {item.product.name}
                                         </span>
                                         <span className="text-[10px] font-mono text-gray-400">
                                           {item.product.itemCode ||
-                                  item.product.barcode ||
-                                  ''}
+                                    item.product.barcode ||
+                                    ''}
                                         </span>
                                       </div>
                                     </td>
@@ -1371,14 +1309,14 @@ export function HistoryPage({
                                     </td>
                                     <td className="px-4 py-2.5 text-center text-xs">
                                       {item.status === 'returned' ?
-                              <span className="text-green-600 font-medium">
+                                <span className="text-green-600 font-medium">
                                           {item.actualReturnDate}
                                         </span> :
 
-                              <span className="text-gray-500">
+                                <span className="text-gray-500">
                                           {item.expectedReturnDate || '-'}
                                         </span>
-                              }
+                                }
                                     </td>
                                     <td className="px-4 py-2.5 text-center font-medium">
                                       {days}
@@ -1394,45 +1332,45 @@ export function HistoryPage({
                                     </td>
                                     <td className="px-4 py-2.5 text-center text-xs">
                                       {item.status === 'returned' ?
-                              <span className="text-green-600 font-medium">
+                                <span className="text-green-600 font-medium">
                                           Returned
                                         </span> :
 
-                              <span className="text-blue-600 font-medium">
+                                <span className="text-blue-600 font-medium">
                                           Active
                                         </span>
-                              }
+                                }
                                     </td>
                                     {isEditing &&
-                            <td className="px-4 py-2.5 text-center">
+                              <td className="px-4 py-2.5 text-center">
                                         {item.status === 'active' &&
-                              <button
-                                onClick={() => {
-                                  const now = new Date();
-                                  setReturnSingleItemModal({
-                                    bill,
-                                    itemIndex: idx,
-                                    returnDate: now.
-                                    toISOString().
-                                    split('T')[0],
-                                    returnTime: now.
-                                    toTimeString().
-                                    slice(0, 5),
-                                    fines: []
-                                  });
-                                  setActionError(null);
-                                }}
-                                className="px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-md hover:bg-blue-200 transition-colors">
-                                
+                                <button
+                                  onClick={() => {
+                                    const now = new Date();
+                                    setReturnSingleItemModal({
+                                      bill,
+                                      itemIndex: idx,
+                                      returnDate: now.
+                                      toISOString().
+                                      split('T')[0],
+                                      returnTime: now.
+                                      toTimeString().
+                                      slice(0, 5),
+                                      fines: []
+                                    });
+                                    setActionError(null);
+                                  }}
+                                  className="px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-md hover:bg-blue-200 transition-colors">
+                                  
                                             <RotateCcw className="w-3 h-3 inline mr-1" />
                                             Return
                                           </button>
-                              }
+                                }
                                       </td>
-                            }
+                              }
                                   </tr>);
 
-                      })}
+                        })}
                             </tbody>
                           </table>
                         </div>
@@ -1440,24 +1378,24 @@ export function HistoryPage({
                         {/* Edit Controls */}
                         <AnimatePresence>
                           {isEditing &&
-                  <motion.div
-                    initial={{
-                      height: 0,
-                      opacity: 0
-                    }}
-                    animate={{
-                      height: 'auto',
-                      opacity: 1
-                    }}
-                    exit={{
-                      height: 0,
-                      opacity: 0
-                    }}
-                    className="overflow-hidden">
-                    
+                    <motion.div
+                      initial={{
+                        height: 0,
+                        opacity: 0
+                      }}
+                      animate={{
+                        height: 'auto',
+                        opacity: 1
+                      }}
+                      exit={{
+                        height: 0,
+                        opacity: 0
+                      }}
+                      className="overflow-hidden">
+                      
                               <div className="p-4 border-t border-blue-100 bg-blue-50/30">
                                 {bill.rentalStatus !== 'closed' ?
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {/* Add Deposit */}
                                     <div className="bg-white p-3 rounded-lg border border-gray-200">
                                       <h4 className="font-bold text-xs text-gray-700 mb-2 flex items-center gap-1.5">
@@ -1465,48 +1403,48 @@ export function HistoryPage({
                                         Add Deposit
                                       </h4>
                                       {actionError &&
-                          editingBillId === bill.id &&
-                          <div className="mb-2 bg-red-50 border border-red-200 rounded p-2 flex items-start gap-1.5 text-xs text-red-700">
+                            editingBillId === bill.id &&
+                            <div className="mb-2 bg-red-50 border border-red-200 rounded p-2 flex items-start gap-1.5 text-xs text-red-700">
                                             <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                                             <span>{actionError}</span>
                                           </div>
-                          }
+                            }
                                       <div className="flex gap-2">
                                         <input
-                              type="number"
-                              value={newDepositAmount}
-                              onChange={(e) =>
-                              setNewDepositAmount(e.target.value)
-                              }
-                              placeholder="Amount"
-                              className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-[#f5a623] outline-none" />
-                            
-                                        <button
-                              onClick={() => handleAddDeposit(bill)}
-                              disabled={
-                              actionLoading ===
-                              `deposit-${bill.id}`
-                              }
-                              className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-bold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5">
+                                type="number"
+                                value={newDepositAmount}
+                                onChange={(e) =>
+                                setNewDepositAmount(e.target.value)
+                                }
+                                placeholder="Amount"
+                                className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-[#f5a623] outline-none" />
                               
+                                        <button
+                                onClick={() => handleAddDeposit(bill)}
+                                disabled={
+                                actionLoading ===
+                                `deposit-${bill.id}`
+                                }
+                                className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-bold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5">
+                                
                                           {actionLoading ===
-                              `deposit-${bill.id}` &&
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              }
+                                `deposit-${bill.id}` &&
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                }
                                           {actionLoading ===
-                              `deposit-${bill.id}` ?
-                              'Adding...' :
-                              'Add'}
+                                `deposit-${bill.id}` ?
+                                'Adding...' :
+                                'Add'}
                                         </button>
                                       </div>
                                       {bill.depositHistory &&
-                          bill.depositHistory.length > 0 &&
-                          <div className="mt-2 space-y-1">
+                            bill.depositHistory.length > 0 &&
+                            <div className="mt-2 space-y-1">
                                             {bill.depositHistory.map((d, i) =>
-                            <div
-                              key={i}
-                              className="flex justify-between text-xs text-gray-500">
-                              
+                              <div
+                                key={i}
+                                className="flex justify-between text-xs text-gray-500">
+                                
                                                 <span>
                                                   {d.date}{' '}
                                                   {d.note && `· ${d.note}`}
@@ -1515,9 +1453,9 @@ export function HistoryPage({
                                                   {formatPrice(d.amount)}
                                                 </span>
                                               </div>
-                            )}
+                              )}
                                           </div>
-                          }
+                            }
                                     </div>
 
                                     {/* Add Item - opens modal */}
@@ -1527,35 +1465,46 @@ export function HistoryPage({
                                         Add Rental Item
                                       </h4>
                                       <button
-                            onClick={() => {
-                              setAddItemModalBillId(bill.id);
-                              setProductSearch('');
-                            }}
-                            className="w-full px-3 py-2 bg-blue-600 text-white rounded-md text-sm font-bold hover:bg-blue-700 flex items-center justify-center gap-2 transition-colors">
-                            
+                              onClick={() => {
+                                setAddItemModalBillId(bill.id);
+                                setProductSearch('');
+                              }}
+                              className="w-full px-3 py-2 bg-blue-600 text-white rounded-md text-sm font-bold hover:bg-blue-700 flex items-center justify-center gap-2 transition-colors">
+                              
                                         <Plus className="w-4 h-4" />
                                         Select Product
                                       </button>
                                     </div>
                                   </div> :
 
-                      <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
+                        <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
                                     <p className="text-sm text-gray-500 font-medium flex items-center justify-center gap-2">
                                       <CheckCircle className="w-4 h-4 text-green-500" />
                                       This bill is closed. You cannot add
                                       deposits or rental items.
                                     </p>
                                   </div>
-                      }
+                        }
                               </div>
                             </motion.div>
-                  }
+                    }
                         </AnimatePresence>
                       </div>);
 
-          })
-          }
+            })
+            }
               </div>
+              
+              {/* Rental Pagination */}
+              {rentalTotalPages > 1 &&
+          <Pagination
+            currentPage={rentalPage}
+            totalPages={rentalTotalPages}
+            onPageChange={setRentalPage}
+            variant="card" />
+
+          }
+            </>
 
         }
         </div>
@@ -1642,8 +1591,9 @@ export function HistoryPage({
 
         !salesLoading &&
         !salesError &&
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="overflow-x-auto">
+        <>
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
                     <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200">
                       <tr>
@@ -1657,38 +1607,38 @@ export function HistoryPage({
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {saleBills.map((bill) => {
-                  const hasReturnableItems = bill.items.some(
-                    (item) =>
-                    item.quantity - (item.returnedQuantity || 0) > 0
-                  );
-                  return (
-                    <tr
-                      key={bill.id}
-                      className="hover:bg-gray-50 transition-colors">
-                      
+                    const hasReturnableItems = bill.items.some(
+                      (item) =>
+                      item.quantity - (item.returnedQuantity || 0) > 0
+                    );
+                    return (
+                      <tr
+                        key={bill.id}
+                        className="hover:bg-gray-50 transition-colors">
+                        
                             <td className="px-6 py-4 font-mono text-sm font-bold text-[#1a1a2e]">
                               {bill.id}
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex flex-col gap-0.5">
                                 {bill.items.slice(0, 2).map((item, i) =>
-                          <span
-                            key={i}
-                            className="text-xs text-gray-600">
-                            
+                            <span
+                              key={i}
+                              className="text-xs text-gray-600">
+                              
                                     {item.product.name} ×{item.quantity}
                                     {(item.returnedQuantity || 0) > 0 &&
-                            <span className="ml-1 text-orange-500 font-medium">
+                              <span className="ml-1 text-orange-500 font-medium">
                                         ({item.returnedQuantity} returned)
                                       </span>
-                            }
+                              }
                                   </span>
-                          )}
+                            )}
                                 {bill.items.length > 2 &&
-                          <span className="text-xs text-gray-400">
+                            <span className="text-xs text-gray-400">
                                     +{bill.items.length - 2} more
                                   </span>
-                          }
+                            }
                               </div>
                             </td>
                             <td className="px-6 py-4">
@@ -1700,11 +1650,11 @@ export function HistoryPage({
                             <td className="px-6 py-4">
                               <span className="text-xs font-bold px-2 py-1 rounded bg-gray-100 text-gray-700 uppercase">
                                 {bill.paymentMethod === 'card' ?
-                          'Card' :
-                          bill.paymentMethod === 'bank_transfer' ||
-                          bill.paymentMethod === 'transfer' ?
-                          'Bank Transfer' :
-                          'Cash'}
+                            'Card' :
+                            bill.paymentMethod === 'bank_transfer' ||
+                            bill.paymentMethod === 'transfer' ?
+                            'Bank Transfer' :
+                            'Cash'}
                               </span>
                             </td>
                             <td className="px-6 py-4 text-right font-bold text-[#1a1a2e]">
@@ -1713,18 +1663,18 @@ export function HistoryPage({
                             <td className="px-6 py-4 text-right">
                               <div className="flex items-center gap-2 justify-end">
                                 {hasReturnableItems &&
-                          <button
-                            onClick={() => openReturnModal(bill)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg text-xs font-bold hover:bg-orange-200 transition-colors">
-                            
+                            <button
+                              onClick={() => openReturnModal(bill)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg text-xs font-bold hover:bg-orange-200 transition-colors">
+                              
                                     <Undo2 className="w-3.5 h-3.5" />
                                     Return
                                   </button>
-                          }
+                            }
                                 <button
-                            onClick={() => onViewBill(bill)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1a2e] text-white rounded-lg text-xs font-bold hover:bg-[#2d4059] transition-colors">
-                            
+                              onClick={() => onViewBill(bill)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1a2e] text-white rounded-lg text-xs font-bold hover:bg-[#2d4059] transition-colors">
+                              
                                   <Eye className="w-3.5 h-3.5" />
                                   View
                                 </button>
@@ -1732,11 +1682,22 @@ export function HistoryPage({
                             </td>
                           </tr>);
 
-                })}
+                  })}
                     </tbody>
                   </table>
                 </div>
               </div>
+              
+              {/* Sale Pagination */}
+              {saleTotalPages > 1 &&
+          <Pagination
+            currentPage={salePage}
+            totalPages={saleTotalPages}
+            onPageChange={setSalePage}
+            variant="card" />
+
+          }
+            </>
 
         }
         </div>

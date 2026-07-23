@@ -19,19 +19,27 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useCustomers } from '../hooks/useCustomers';
 import { API_URL } from '../utils/config';
 import { getAuthHeaders } from '../utils/auth';
-export function CustomerManager() {
+import { Pagination } from './Pagination';
+interface CustomerManagerProps {
+  isAdmin?: boolean;
+}
+export function CustomerManager({ isAdmin = false }: CustomerManagerProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
   const {
     customers,
     loading,
     error,
     totalCount,
+    currentPage,
+    totalPages,
     submitting,
     addCustomer,
     updateCustomer,
     refetch
   } = useCustomers({
-    search: searchQuery
+    search: searchQuery,
+    page
   });
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -55,8 +63,34 @@ export function CustomerManager() {
   const [customerToBan, setCustomerToBan] = useState<CustomerRecord | null>(
     null
   );
+  const [unbanningId, setUnbanningId] = useState<string | null>(null);
+  const [customerToUnban, setCustomerToUnban] =
+  useState<CustomerRecord | null>(null);
   const handleBanCustomer = (customer: CustomerRecord) => {
     setCustomerToBan(customer);
+  };
+  const confirmUnbanCustomer = async () => {
+    if (!customerToUnban || !customerToUnban.id) return;
+    setUnbanningId(customerToUnban.id);
+    try {
+      const res = await fetch(
+        `${API_URL}customers/${customerToUnban.id}/unban/`,
+        {
+          method: 'POST',
+          headers: getAuthHeaders()
+        }
+      );
+      if (!res.ok) {
+        throw new Error('Failed to unban customer');
+      }
+      refetch();
+      setCustomerToUnban(null);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to unban customer');
+    } finally {
+      setUnbanningId(null);
+    }
   };
   const confirmBanCustomer = async () => {
     if (!customerToBan || !customerToBan.id) return;
@@ -252,7 +286,10 @@ export function CustomerManager() {
             type="text"
             placeholder="Search by name, phone, or NIC..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setPage(1);
+            }}
             className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#f5a623] transition-shadow" />
           
         </div>
@@ -606,6 +643,84 @@ export function CustomerManager() {
         }
       </AnimatePresence>
 
+      {/* Unban Confirmation Modal */}
+      <AnimatePresence>
+        {customerToUnban &&
+        <motion.div
+          initial={{
+            opacity: 0
+          }}
+          animate={{
+            opacity: 1
+          }}
+          exit={{
+            opacity: 0
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={() => setCustomerToUnban(null)}>
+          
+            <motion.div
+            initial={{
+              scale: 0.9,
+              opacity: 0,
+              y: 20
+            }}
+            animate={{
+              scale: 1,
+              opacity: 1,
+              y: 0
+            }}
+            exit={{
+              scale: 0.9,
+              opacity: 0,
+              y: 20
+            }}
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-green-100"
+            onClick={(e) => e.stopPropagation()}>
+            
+              <div className="p-6 text-center">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle className="w-8 h-8 text-green-600" />
+                </div>
+                <h3 className="text-2xl font-bold text-[#1a1a2e] mb-2">
+                  Unban Customer?
+                </h3>
+                <p className="text-gray-600 mb-6">
+                  Are you sure you want to unban{' '}
+                  <span className="font-bold text-[#1a1a2e]">
+                    {customerToUnban.name}
+                  </span>
+                  ? Their ability to rent items will be restored.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                  onClick={() => setCustomerToUnban(null)}
+                  disabled={unbanningId === customerToUnban.id}
+                  className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-colors disabled:opacity-50">
+                  
+                    Cancel
+                  </button>
+                  <button
+                  onClick={confirmUnbanCustomer}
+                  disabled={unbanningId === customerToUnban.id}
+                  className="flex-1 px-4 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-green-600/20">
+                  
+                    {unbanningId === customerToUnban.id ?
+                  <Loader2 className="w-5 h-5 animate-spin" /> :
+
+                  <CheckCircle className="w-5 h-5" />
+                  }
+                    {unbanningId === customerToUnban.id ?
+                  'Unbanning...' :
+                  'Yes, Unban'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        }
+      </AnimatePresence>
+
       {/* Loading */}
       {loading && customers.length === 0 &&
       <div className="flex items-center justify-center py-20">
@@ -757,11 +872,36 @@ export function CustomerManager() {
                       Ban
                     </button>
             }
+
+                  {customer.isBanned && isAdmin &&
+            <button
+              onClick={() => setCustomerToUnban(customer)}
+              disabled={unbanningId === customer.id}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-green-700 bg-green-50 hover:bg-green-100 transition-colors disabled:opacity-50">
+              
+                      {unbanningId === customer.id ?
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> :
+
+              <CheckCircle className="w-3.5 h-3.5" />
+              }
+                      Unban
+                    </button>
+            }
                 </div>
               </motion.div>
         )
         }
         </div>
+      }
+
+      {!loading && !error && customers.length > 0 &&
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalCount={totalCount}
+        onPageChange={setPage}
+        variant="card" />
+
       }
     </div>);
 

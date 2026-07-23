@@ -133,12 +133,16 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
           const startDate = today;
           const endDate = new Date();
           endDate.setDate(endDate.getDate() + (item.rentalDays || 1));
-          return {
+          const apiItem: any = {
             rental_start_date: startDate,
             rental_end_date: endDate.toISOString().split('T')[0],
             quantity: item.quantity,
             product: parseInt(item.product.id)
           };
+          if (item.machineNumbers && item.machineNumbers.length > 0) {
+            apiItem.machine_numbers = item.machineNumbers;
+          }
+          return apiItem;
         }),
         payment_method: rentalPaymentMethod,
         discount: discountPercent.toFixed(2)

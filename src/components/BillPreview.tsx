@@ -115,27 +115,35 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
       <div className="flex justify-between items-start mb-6">
         <div className="text-xs space-y-1 leading-relaxed">
           <p>
-            <span className="inline-block w-32">බිල් අංකය:</span>
+            <span className="inline-block w-32">Bill No:</span>
             <span className="font-bold">{bill.id}</span>
           </p>
           <p>
-            <span className="inline-block w-32">පාරිභෝගික:</span>
+            <span className="inline-block w-32">Name:</span>
             <span className="font-bold">{bill.customer.name}</span>
           </p>
           <p>
-            <span className="inline-block w-32">ජා.හැ.ප:</span>
+            <span className="inline-block w-32">NIC No:</span>
             <span className="font-bold">{bill.customerNic || '-'}</span>
           </p>
           <p>
-            <span className="inline-block w-32">NIC Taken:</span>
-            <span className="font-bold">{bill.nicTaken ? 'Yes' : 'No'}</span>
+            <span className="inline-block w-32">Taken ID:</span>
+            <span className="font-bold">
+              {bill.nicTaken ?
+              'NIC' :
+              bill.isPassportTaken ?
+              'Passport' :
+              bill.isDrivingLicenceTaken ?
+              'Driving Licence' :
+              'None'}
+            </span>
           </p>
           <p>
-            <span className="inline-block w-32">ජංගම:</span>
+            <span className="inline-block w-32">Mobile No:</span>
             <span className="font-bold">{bill.customer.phone}</span>
           </p>
           <p>
-            <span className="inline-block w-32">ගෙවීමේ ක්‍රමය:</span>
+            <span className="inline-block w-32">Payment Method:</span>
             <span className="font-bold">{paymentLabel}</span>
           </p>
         </div>

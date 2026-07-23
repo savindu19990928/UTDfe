@@ -7,6 +7,8 @@ import { getCached, setCache, isFresh } from '../utils/apiCache';
 interface UseSalesOptions {
   search?: string;
   enabled?: boolean;
+  page?: number;
+  pageSize?: number;
 }
 
 interface UseSalesReturn {
@@ -14,7 +16,12 @@ interface UseSalesReturn {
   loading: boolean;
   error: string | null;
   totalCount: number;
+  currentPage: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
   refetch: () => void;
+  setPage: (page: number) => void;
 }
 
 function mapSaleItem(raw: any): CartItem {
@@ -70,9 +77,14 @@ export function useSales(options?: UseSalesOptions): UseSalesReturn {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(options?.page || 1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [hasNext, setHasNext] = useState(false);
+  const [hasPrevious, setHasPrevious] = useState(false);
 
   const search = options?.search;
   const enabled = options?.enabled !== false;
+  const pageSize = options?.pageSize || 20;
   const [debouncedSearch, setDebouncedSearch] = useState(search);
 
   const abortRef = useRef<AbortController | null>(null);
@@ -88,23 +100,32 @@ export function useSales(options?: UseSalesOptions): UseSalesReturn {
     if (!enabled) return;
 
     let baseUrl = `${API_URL}sales/`;
+    const params = new URLSearchParams();
+    params.append('page', currentPage.toString());
+    params.append('page_size', pageSize.toString());
+
     if (debouncedSearch && debouncedSearch.trim()) {
       let searchVal = debouncedSearch.trim();
       if (/^\d+$/.test(searchVal)) {
         searchVal = `SALE-${searchVal}`;
       }
-      baseUrl += `?bill_number=${encodeURIComponent(searchVal)}`;
+      params.append('bill_number', searchVal);
     }
+
+    baseUrl += `?${params.toString()}`;
 
     const cacheKey = `sales:${baseUrl}`;
 
-    const cached = getCached<{sales: Bill[];totalCount: number;}>(
+    const cached = getCached<{sales: Bill[];totalCount: number;totalPages: number;hasNext: boolean;hasPrevious: boolean;}>(
       cacheKey,
       5 * 60_000
     );
     if (cached) {
       setSales(cached.sales);
       setTotalCount(cached.totalCount);
+      setTotalPages(cached.totalPages);
+      setHasNext(cached.hasNext);
+      setHasPrevious(cached.hasPrevious);
       setLoading(false);
       if (isFresh(cacheKey, 60_000)) return;
     } else {
@@ -126,17 +147,35 @@ export function useSales(options?: UseSalesOptions): UseSalesReturn {
       const data = await res.json();
 
       let allResults: any[];
+      let count = 0;
+      let next = false;
+      let prev = false;
+      let pages = 1;
 
       if (Array.isArray(data)) {
         allResults = data;
+        count = data.length;
       } else {
         allResults = [...(data.results || [])];
+        count = data.count || data.total_sale_bill_count || allResults.length;
+        next = !!data.next;
+        prev = !!data.previous;
+        pages = data.total_pages || Math.ceil(count / pageSize) || 1;
       }
 
       const mapped = allResults.map(mapApiSale);
       setSales(mapped);
-      setTotalCount(allResults.length);
-      setCache(cacheKey, { sales: mapped, totalCount: allResults.length });
+      setTotalCount(count);
+      setTotalPages(pages);
+      setHasNext(next);
+      setHasPrevious(prev);
+      setCache(cacheKey, {
+        sales: mapped,
+        totalCount: count,
+        totalPages: pages,
+        hasNext: next,
+        hasPrevious: prev
+      });
     } catch (err: any) {
       if (err.name === 'AbortError') return;
       if (!cached) {
@@ -148,7 +187,7 @@ export function useSales(options?: UseSalesOptions): UseSalesReturn {
         setLoading(false);
       }
     }
-  }, [debouncedSearch, enabled]);
+  }, [debouncedSearch, enabled, currentPage, pageSize]);
 
   useEffect(() => {
     if (enabled) {
@@ -164,6 +203,11 @@ export function useSales(options?: UseSalesOptions): UseSalesReturn {
     loading,
     error,
     totalCount,
-    refetch: fetchSales
+    currentPage,
+    totalPages,
+    hasNext,
+    hasPrevious,
+    refetch: fetchSales,
+    setPage: setCurrentPage
   };
 }

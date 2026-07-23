@@ -5,7 +5,7 @@ import { loginRequest } from '../utils/auth';
 const LOGO_URL = "./WhatsApp_Image_2025-12-13_at_2.34.53_PM.jpg";
 
 interface LoginPageProps {
-  onLogin: () => void;
+  onLogin: (isSuperUser: boolean) => void;
 }
 export function LoginPage({ onLogin }: LoginPageProps) {
   const [username, setUsername] = useState('');
@@ -17,8 +17,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     setIsLoading(true);
     setError('');
     try {
-      await loginRequest(username, password);
-      onLogin();
+      const { isSuperUser } = await loginRequest(username, password);
+      onLogin(isSuperUser);
     } catch (err: any) {
       setError(err.message || 'Login failed. Please try again.');
       setIsLoading(false);

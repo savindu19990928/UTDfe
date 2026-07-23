@@ -16,7 +16,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useProducts } from '../hooks/useProducts';
 import { formatPrice } from '../utils/format';
 import { API_URL } from '../utils/config';
-import { getAuthHeaders } from '../utils/auth';
+import { getAuthHeaders, isSuperUser } from '../utils/auth';
+import { Pagination } from './Pagination';
 interface ApiDamageRecord {
   id: number;
   product_name: string;
@@ -57,6 +58,12 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
   const [apiDamages, setApiDamages] = useState<ApiDamageRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 20;
+
   // Search products via API across both sell + rent (no categoryType filter)
   const searchQuery =
   productSearchQuery.trim().length >= 2 ?
@@ -71,7 +78,7 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
     setLoading(true);
     setFetchError(null);
     try {
-      const res = await fetch(`${API_URL}damaged-products/`, {
+      const res = await fetch(`${API_URL}damaged-products/?page=${page}&page_size=${pageSize}`, {
         headers: getAuthHeaders()
       });
       if (!res.ok) {
@@ -79,12 +86,36 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
       }
       const data = await res.json();
       setApiDamages(data.results || []);
+      setTotalCount(data.count || data.results?.length || 0);
+      setTotalPages(data.total_pages || Math.ceil((data.count || 0) / pageSize) || 1);
     } catch (err: any) {
       setFetchError(err.message || 'Failed to load damage reports');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, pageSize]);
+
+  const handleDeleteDamage = async (id: number) => {
+    if (!window.confirm('Are you sure you want to delete this damage report?')) return;
+
+    setDeletingId(id);
+    try {
+      const res = await fetch(`${API_URL}damaged-products/${id}/`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to delete damage report (${res.status})`);
+      }
+      // Refetch after successful deletion
+      fetchDamages();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete damage report');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   useEffect(() => {
     fetchDamages();
   }, [fetchDamages]);
@@ -299,7 +330,7 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-[#1a1a2e] mb-2">
-            Damage Reports
+            Damaged Products
           </h1>
           <p className="text-gray-600">Track damaged inventory.</p>
         </div>
@@ -692,13 +723,14 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
                   <th className="px-6 py-3">Qty</th>
                   <th className="px-6 py-3">Reason</th>
                   <th className="px-6 py-3">Reported By</th>
+                  {isSuperUser() && <th className="px-6 py-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {apiDamages.length === 0 ?
               <tr>
                     <td
-                  colSpan={6}
+                  colSpan={isSuperUser() ? 7 : 6}
                   className="px-6 py-8 text-center text-gray-500">
                   
                       No damage reports recorded yet.
@@ -738,12 +770,37 @@ export function DamageTracker({ damages, onAddDamage }: DamageTrackerProps) {
                           </span>
                         </div>
                       </td>
+                      {isSuperUser() &&
+                <td className="px-6 py-4 text-right">
+                          <button
+                    onClick={() => handleDeleteDamage(damage.id)}
+                    disabled={deletingId === damage.id}
+                    className="text-gray-400 hover:text-red-500 transition-colors p-1 disabled:opacity-50"
+                    title="Delete damage report">
+                    
+                            {deletingId === damage.id ?
+                    <Loader2 className="w-4 h-4 animate-spin" /> :
+
+                    <Trash2 className="w-4 h-4" />
+                    }
+                          </button>
+                        </td>
+                }
                     </tr>
               )
               }
               </tbody>
             </table>
           </div>
+          
+          {!loading && apiDamages.length > 0 &&
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalCount={totalCount}
+          onPageChange={setPage} />
+
+        }
         </div>
       }
     </div>);
