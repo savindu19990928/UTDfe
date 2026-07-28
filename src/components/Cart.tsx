@@ -19,7 +19,7 @@ import {
 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Customer, Bill, CustomerRecord, DepositEntry } from '../types';
-import { formatPrice, getPhotoUrl } from '../utils/format';
+import { formatPrice, getPhotoUrl, toDiscountPercent } from '../utils/format';
 import { API_URL } from '../utils/config';
 import { getAuthHeaders } from '../utils/auth';
 interface CartProps {
@@ -145,7 +145,8 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
           return apiItem;
         }),
         payment_method: rentalPaymentMethod,
-        discount: discountPercent.toFixed(2)
+        // The API stores the discount as an amount, not a percentage.
+        discount: discountAmount.toFixed(2)
       };
       // Only send bill_number if user entered one
       if (customBillNumber.trim()) {
@@ -209,9 +210,8 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
         }));
         const totalRentalFee = parseFloat(data.total_rental_fee ?? 0);
         const totalDeposit = parseFloat(data.total_deposit ?? 0);
-        const discount = parseFloat(data.discount ?? 0);
-        const subtotal =
-        discount > 0 ? totalRentalFee / (1 - discount / 100) : totalRentalFee;
+        const billDiscountAmount = parseFloat(data.discount ?? 0) || 0;
+        const subtotal = totalRentalFee + billDiscountAmount;
         const bill: Bill = {
           id: data.bill_number || String(data.id),
           date: data.created_at ?
@@ -221,8 +221,8 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
           customer: finalCustomer,
           items: finalItems,
           subtotal,
-          discount,
-          discountAmount: subtotal * (discount / 100),
+          discount: toDiscountPercent(billDiscountAmount, subtotal),
+          discountAmount: billDiscountAmount,
           tax: 0,
           total: totalRentalFee,
           type: 'invoice',
@@ -253,7 +253,8 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
       setSubmitError(null);
       const apiBody = {
         total_amount: cartTotal.toFixed(2),
-        discount: discountPercent.toFixed(2),
+        // The API stores the discount as an amount, not a percentage.
+        discount: discountAmount.toFixed(2),
         final_amount: grandTotal.toFixed(2),
         items: cartItems.
         filter((item) => item.type === 'sale').
@@ -312,7 +313,7 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
         }));
         const totalAmount = parseFloat(data.total_amount ?? cartTotal);
         const finalAmount = parseFloat(data.final_amount ?? grandTotal);
-        const apiDiscount = parseFloat(data.discount ?? discountPercent);
+        const apiDiscountAmount = parseFloat(data.discount ?? discountAmount) || 0;
         const bill: Bill = {
           id:
           data.bill_number ||
@@ -326,8 +327,8 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
           customer: finalCustomer,
           items: billItems,
           subtotal: totalAmount,
-          discount: apiDiscount,
-          discountAmount: totalAmount * (apiDiscount / 100),
+          discount: toDiscountPercent(apiDiscountAmount, totalAmount),
+          discountAmount: apiDiscountAmount,
           tax: 0,
           total: finalAmount,
           type: 'invoice',

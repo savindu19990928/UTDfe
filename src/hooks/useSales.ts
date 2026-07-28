@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Bill, CartItem, Customer } from '../types';
 import { API_URL } from '../utils/config';
 import { getAuthHeaders } from '../utils/auth';
+import { toDiscountPercent } from '../utils/format';
 import { getCached, setCache, isFresh } from '../utils/apiCache';
 
 interface UseSalesOptions {
@@ -46,7 +47,9 @@ function mapSaleItem(raw: any): CartItem {
 function mapApiSale(raw: any): Bill {
   const items: CartItem[] = (raw.items || []).map(mapSaleItem);
   const totalAmount = parseFloat(raw.total_amount ?? 0);
-  const discount = parseFloat(raw.discount ?? 0);
+  // The API returns the discount as an amount — convert it to a percentage.
+  const discountAmount = parseFloat(raw.discount ?? 0) || 0;
+  const discount = toDiscountPercent(discountAmount, totalAmount);
   const finalAmount = parseFloat(raw.final_amount ?? 0);
 
   const customer: Customer = {
@@ -64,7 +67,7 @@ function mapApiSale(raw: any): Bill {
     items,
     subtotal: totalAmount,
     discount,
-    discountAmount: totalAmount * (discount / 100),
+    discountAmount,
     tax: 0,
     total: finalAmount,
     type: 'invoice',

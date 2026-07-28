@@ -1,16 +1,32 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Bill, CartItem, DepositEntry, Customer } from '../types';
+import {
+  ApiRentalStatus,
+  Bill,
+  CartItem,
+  Customer,
+  DepositEntry,
+  PaginatedResponse } from
+'../types';
 import { API_URL } from '../utils/config';
 import { getAuthHeaders } from '../utils/auth';
-import { getPhotoUrl } from '../utils/format';
+import { getPhotoUrl, toDiscountPercent } from '../utils/format';
 import { getCached, setCache, isFresh } from '../utils/apiCache';
 
 interface UseRentalsOptions {
   search?: string;
-  status?: string;
+  status?: 'all' | ApiRentalStatus;
   enabled?: boolean;
   page?: number;
   pageSize?: number;
+}
+
+export interface RentalStats {
+  total?: number;
+  open?: number;
+  returned?: number;
+  overdue?: number;
+  closed?: number;
+  unpaid?: number;
 }
 
 interface UseRentalsReturn {
@@ -22,13 +38,7 @@ interface UseRentalsReturn {
   totalPages: number;
   hasNext: boolean;
   hasPrevious: boolean;
-  stats: {
-    total: number;
-    open: number;
-    overdue: number;
-    closed: number;
-    unpaid: number;
-  };
+  stats: RentalStats;
   refetch: () => void;
   setPage: (page: number) => void;
 }
@@ -105,10 +115,10 @@ function mapApiRental(raw: any): Bill {
 
   const totalDeposit = parseFloat(raw.total_deposit ?? 0);
   const totalRentalFee = parseFloat(raw.total_rental_fee ?? 0);
-  const discount = parseFloat(raw.discount ?? 0);
-
-  const subtotal =
-  discount > 0 ? totalRentalFee / (1 - discount / 100) : totalRentalFee;
+  // The API returns the discount as an amount — convert it to a percentage.
+  const discountAmount = parseFloat(raw.discount ?? 0) || 0;
+  const subtotal = totalRentalFee + discountAmount;
+  const discount = toDiscountPercent(discountAmount, subtotal);
 
   const customer: Customer = {
     name: raw.customer_name || '',
@@ -138,7 +148,7 @@ function mapApiRental(raw: any): Bill {
     items,
     subtotal,
     discount,
-    discountAmount: subtotal * (discount / 100),
+    discountAmount,
     tax: 0,
     total: totalRentalFee,
     type: 'invoice',
@@ -151,7 +161,8 @@ function mapApiRental(raw: any): Bill {
     nicTaken: raw.nic_taken || false,
     isPassportTaken: raw.is_passport_taken || false,
     isDrivingLicenceTaken: raw.is_driving_licence_taken || false,
-    rentalStatus
+    rentalStatus,
+    apiStatus: raw.status as ApiRentalStatus | undefined
   };
 }
 
@@ -164,15 +175,10 @@ export function useRentals(options?: UseRentalsOptions): UseRentalsReturn {
   const [totalPages, setTotalPages] = useState(1);
   const [hasNext, setHasNext] = useState(false);
   const [hasPrevious, setHasPrevious] = useState(false);
-  const [stats, setStats] = useState({
-    total: 0,
-    open: 0,
-    overdue: 0,
-    closed: 0,
-    unpaid: 0
-  });
+  const [stats, setStats] = useState<RentalStats>({});
 
   const search = options?.search;
+  const status = options?.status;
   const enabled = options?.enabled !== false;
   const pageSize = options?.pageSize || 20;
   const [debouncedSearch, setDebouncedSearch] = useState(search);
@@ -200,10 +206,8 @@ export function useRentals(options?: UseRentalsOptions): UseRentalsReturn {
       params.append('search', debouncedSearch.trim());
     }
 
-    if (options?.status && options.status !== 'all') {
-      let apiStatus = options.status;
-      if (apiStatus === 'open') apiStatus = 'active';
-      params.append('status', apiStatus);
+    if (status && status !== 'all') {
+      params.append('status', status);
     }
 
     baseUrl += `?${params.toString()}`;
@@ -242,41 +246,27 @@ export function useRentals(options?: UseRentalsOptions): UseRentalsReturn {
       };
       const res = await fetch(baseUrl, { headers, signal: controller.signal });
       if (!res.ok) throw new Error(`Failed to fetch rentals (${res.status})`);
-      const data = await res.json();
-
-      let allResults: any[];
-      let count = 0;
-      let next = false;
-      let prev = false;
-      let pages = 1;
-      let apiStats = { total: 0, open: 0, overdue: 0, closed: 0, unpaid: 0 };
-
-      if (Array.isArray(data)) {
-        allResults = data;
-        count = data.length;
-      } else if (
-      data &&
-      typeof data === 'object' &&
-      !('results' in data) && (
-      data.bill_number || data.items || data.id))
-      {
-        allResults = [data];
-        count = 1;
-      } else {
-        allResults = [...(data.results || [])];
-        count = data.count || allResults.length;
-        next = !!data.next;
-        prev = !!data.previous;
-        pages = data.total_pages || Math.ceil(count / pageSize) || 1;
-
-        apiStats = {
-          total: data.total_bill_count || 0,
-          open: data.total_open_bills_count || 0,
-          overdue: data.total_overdue_bills_count || 0,
-          closed: data.total_closed_bills_count || 0,
-          unpaid: data.total_unpaid_bills_count || 0
-        };
-      }
+      const data = (await res.json()) as PaginatedResponse<any> & {
+        total_bill_count?: number;
+        total_open_bills_count?: number;
+        total_returned_bills_count?: number;
+        total_overdue_bills_count?: number;
+        total_closed_bills_count?: number;
+        total_unpaid_bills_count?: number;
+      };
+      const allResults = Array.isArray(data.results) ? data.results : [];
+      const count = data.count ?? allResults.length;
+      const next = Boolean(data.next);
+      const prev = Boolean(data.previous);
+      const pages = Math.max(1, Math.ceil(count / pageSize));
+      const apiStats: RentalStats = {
+        total: data.total_bill_count ?? count,
+        open: data.total_open_bills_count,
+        returned: data.total_returned_bills_count,
+        overdue: data.total_overdue_bills_count,
+        closed: data.total_closed_bills_count,
+        unpaid: data.total_unpaid_bills_count
+      };
 
       const mapped = allResults.map(mapApiRental);
       setRentals(mapped);
@@ -304,7 +294,15 @@ export function useRentals(options?: UseRentalsOptions): UseRentalsReturn {
         setLoading(false);
       }
     }
-  }, [debouncedSearch, enabled, currentPage, pageSize]);
+  }, [debouncedSearch, enabled, currentPage, pageSize, status]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, status]);
+
+  useEffect(() => {
+    if (options?.page != null) setCurrentPage(options.page);
+  }, [options?.page]);
 
   useEffect(() => {
     if (enabled) {

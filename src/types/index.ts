@@ -133,6 +133,20 @@ export type RentalFine = {
 
 export type RentalBillStatus = 'open' | 'partially_closed' | 'closed';
 
+export type ApiRentalStatus =
+'active' |
+'returned' |
+'overdue' |
+'unpaid' |
+'closed';
+
+export type PaginatedResponse<T> = {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+};
+
 export type Bill = {
   id: string;
   apiId?: number;
@@ -141,7 +155,9 @@ export type Bill = {
   customer: Customer;
   items: CartItem[];
   subtotal: number;
+  /** Discount as a percentage of the subtotal (derived from discountAmount). */
   discount: number;
+  /** Discount in rupees — this is what the API stores and returns. */
   discountAmount: number;
   tax: number;
   total: number;
@@ -156,6 +172,7 @@ export type Bill = {
   isPassportTaken?: boolean;
   isDrivingLicenceTaken?: boolean;
   rentalStatus?: RentalBillStatus;
+  apiStatus?: ApiRentalStatus;
 };
 
 export type CashTransaction = {

@@ -33,7 +33,9 @@ interface HeaderProps {
   'cart' |
   'bill' |
   'expenses' |
-  'customers')
+  'customers' |
+  'quick-rental' |
+  'quick-sale')
   => void;
   onLogout: () => void;
   isSuperUser?: boolean;

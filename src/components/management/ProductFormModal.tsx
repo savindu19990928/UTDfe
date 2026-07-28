@@ -64,12 +64,26 @@ export function ProductFormModal({
     }
     return [{ machine_number: '', max_use_count: 10 }];
   });
+  const [categoryTouched, setCategoryTouched] = useState(false);
 
   useEffect(() => {
-    if (categories.length > 0 && !categoryId) {
-      setCategoryId(String(categories[0].id));
+    if (categories.length === 0 || categoryTouched) return;
+
+    if (mode === 'edit' && product) {
+      const idMatch = product.categoryId ?
+      categories.find((category) => String(category.id) === String(product.categoryId)) :
+      undefined;
+      const nameMatch = categories.find(
+        (category) =>
+        category.name.trim().toLowerCase() === product.category.trim().toLowerCase()
+      );
+      const resolvedCategory = idMatch || nameMatch;
+      setCategoryId(resolvedCategory ? String(resolvedCategory.id) : '');
+      return;
     }
-  }, [categories, categoryId]);
+
+    if (!categoryId) setCategoryId(String(categories[0].id));
+  }, [categories, categoryId, categoryTouched, mode, product]);
 
   const addMachineRow = () =>
   setMachines((prev) => [...prev, { machine_number: '', max_use_count: 10 }]);
@@ -111,14 +125,22 @@ export function ProductFormModal({
 
     try {
       if (mode === 'edit' && product) {
-        const payload: any = {
-          name: name.trim(),
-          category: parseInt(categoryId, 10),
-          price: parseFloat(price).toFixed(2)
-        };
-        if (kind === 'rental_machines') {
-          payload.machines = machines.filter((m) => m.machine_number.trim() || m.delete);
+        const parsedCategoryId = Number(categoryId);
+        if (!Number.isInteger(parsedCategoryId)) {
+          return setError('Please select a valid category.');
         }
+        const payload = {
+          name: name.trim(),
+          category: parsedCategoryId,
+          price: parseFloat(price).toFixed(2),
+          ...(kind === 'rental_machines' ?
+          {
+            machines: machines.filter(
+              (machine) => machine.machine_number.trim() || machine.delete
+            )
+          } :
+          {})
+        };
         await updateProduct(product.id, payload);
         onSaved();
         return;
@@ -207,7 +229,10 @@ export function ProductFormModal({
               </label>
               <select
                 value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
+                onChange={(e) => {
+                  setCategoryTouched(true);
+                  setCategoryId(e.target.value);
+                }}
                 className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f5a623] outline-none bg-white">
                 
                 <option value="">Select...</option>

@@ -9,6 +9,7 @@ interface PaginationProps {
   onPageChange: (page: number) => void;
   /** Visual style: inside a table footer (default) or standalone card */
   variant?: 'footer' | 'card';
+  itemLabel?: string;
 }
 
 /**
@@ -67,7 +68,8 @@ export function Pagination({
   totalPages,
   totalCount,
   onPageChange,
-  variant = 'footer'
+  variant = 'footer',
+  itemLabel = 'items'
 }: PaginationProps) {
   if (totalPages <= 1) return null;
 
@@ -90,7 +92,9 @@ export function Pagination({
         Page <span className="font-bold text-[#1a1a2e]">{page}</span> of{' '}
         <span className="font-bold text-[#1a1a2e]">{totalPages}</span>
         {totalCount != null &&
-        <span className="ml-2 text-gray-400">({totalCount} items)</span>
+        <span className="ml-2 text-gray-400">
+            ({totalCount} {itemLabel})
+          </span>
         }
       </p>
 

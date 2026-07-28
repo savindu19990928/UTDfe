@@ -1,7 +1,7 @@
 import React from 'react';
 import { Bill } from '../types';
 import { Printer, ArrowLeft, CheckCircle } from 'lucide-react';
-import { formatPrice } from '../utils/format';
+import { formatPercent, formatPrice } from '../utils/format';
 import { useRentalConditions } from '../hooks/useRentalConditions';
 const LOGO_URL = "./WhatsApp_Image_2025-12-13_at_2.34.53_PM.jpg";
 
@@ -69,7 +69,7 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
   const refund = deposit > netOwed ? deposit - netOwed : 0;
   const owing = deposit < netOwed ? netOwed - deposit : 0;
   const isOpen = bill.rentalStatus !== 'closed';
-  const hasDiscount = discountPercent > 0;
+  const hasDiscount = discountAmount > 0;
   const hasFines = bill.fines && bill.fines.length > 0;
   const printedTime = new Date().toLocaleString('en-GB');
   // Map the API/stored payment method to a readable label
@@ -121,6 +121,12 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
           <p>
             <span className="inline-block w-32">Name:</span>
             <span className="font-bold">{bill.customer.name}</span>
+          </p>
+          <p className="flex">
+            <span className="inline-block w-32 flex-shrink-0">Address:</span>
+            <span className="font-bold max-w-[16rem]">
+              {bill.customer.address?.trim() ? bill.customer.address : '-'}
+            </span>
           </p>
           <p>
             <span className="inline-block w-32">NIC No:</span>
@@ -323,7 +329,7 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
                   colSpan={8}
                   className="border border-black px-2 py-1 text-right text-xs">
                   
-                    වට්ටම ({discountPercent}%)
+                    වට්ටම ({formatPercent(discountPercent)}%)
                   </td>
                   <td
                   colSpan={2}
@@ -510,8 +516,38 @@ function SaleBillTemplate({ bill }: {bill: Bill;}) {
   bill.paymentMethod === 'bank_transfer' ?
   'Bank Transfer' :
   'Cash';
+  // Return state is derived from how much of each line item came back
+  const totalQty = bill.items.reduce((sum, item) => sum + item.quantity, 0);
+  const returnedQty = bill.items.reduce(
+    (sum, item) => sum + (item.returnedQuantity || 0),
+    0
+  );
+  const isFullyReturned = totalQty > 0 && returnedQty >= totalQty;
   return (
     <div className="p-8 sm:p-12">
+      {/* Returned seal — diagonal stamp across the invoice */}
+      {returnedQty > 0 &&
+      <div
+        className="absolute inset-0 flex items-center justify-center pointer-events-none"
+        aria-hidden="true">
+        
+          <div
+          className={`border-[6px] rounded-2xl px-10 py-4 -rotate-[18deg] text-center opacity-60 ${
+          isFullyReturned ?
+          'border-red-600 text-red-600' :
+          'border-orange-500 text-orange-500'}`
+          }>
+          
+            <p className="text-5xl font-extrabold uppercase tracking-[0.2em] leading-none">
+              {isFullyReturned ? 'Returned' : 'Part Returned'}
+            </p>
+            <p className="text-xs font-bold uppercase tracking-[0.3em] mt-2">
+              {returnedQty} of {totalQty} items
+            </p>
+          </div>
+        </div>
+      }
+
       {/* Header */}
       <div className="flex justify-between items-start mb-10 pb-8 border-b-2 border-gray-100">
         <div>
@@ -592,6 +628,11 @@ function SaleBillTemplate({ bill }: {bill: Bill;}) {
                   <p className="text-xs text-gray-500 print-black-text">
                     {item.product.category}
                   </p>
+                  {(item.returnedQuantity || 0) > 0 &&
+                  <p className="text-xs font-bold text-red-600 mt-0.5 uppercase tracking-wide">
+                      {item.returnedQuantity} returned
+                    </p>
+                  }
                 </td>
                 <td className="py-4 text-center font-medium text-gray-700 print-black-text">
                   {item.quantity}
@@ -615,9 +656,9 @@ function SaleBillTemplate({ bill }: {bill: Bill;}) {
             <span>Subtotal</span>
             <span className="font-medium">{formatPrice(bill.subtotal)}</span>
           </div>
-          {bill.discount > 0 &&
+          {bill.discountAmount > 0 &&
           <div className="flex justify-between text-sm text-green-600 print-black-text">
-              <span>Discount ({bill.discount}%)</span>
+              <span>Discount ({formatPercent(bill.discount)}%)</span>
               <span className="font-medium">
                 -{formatPrice(bill.discountAmount)}
               </span>
@@ -635,6 +676,17 @@ function SaleBillTemplate({ bill }: {bill: Bill;}) {
         <p className="font-bold text-[#1a1a2e] mb-2 print-black-text">
           Thank you for your business!
         </p>
+        {returnedQty > 0 &&
+        <p
+          className={`text-xs font-bold uppercase tracking-wider ${
+          isFullyReturned ? 'text-red-600' : 'text-orange-600'}`
+          }>
+          
+            {isFullyReturned ?
+          'All items on this invoice have been returned.' :
+          `${returnedQty} of ${totalQty} items on this invoice have been returned.`}
+          </p>
+        }
       </div>
     </div>);
 

@@ -10,15 +10,42 @@ import {
   Search,
   Eye } from
 'lucide-react';
-import { useRentals } from '../../hooks/useRentals';
+import { RentalStats, useRentals } from '../../hooks/useRentals';
 import { useSales } from '../../hooks/useSales';
 import { useBillAdmin } from '../../hooks/useBillAdmin';
 import { formatPrice } from '../../utils/format';
 import { clearCache } from '../../utils/apiCache';
-import { Bill } from '../../types';
+import { ApiRentalStatus, Bill } from '../../types';
 import { Pagination } from '../Pagination';
 
 type Tab = 'sales' | 'rentals';
+type RentalFilter = 'all' | ApiRentalStatus;
+
+const RENTAL_FILTERS: {value: RentalFilter;label: string;}[] = [
+{ value: 'all', label: 'All' },
+{ value: 'active', label: 'Open' },
+{ value: 'returned', label: 'Returned' },
+{ value: 'overdue', label: 'Overdue' },
+{ value: 'unpaid', label: 'Unpaid' },
+{ value: 'closed', label: 'Closed' }];
+
+
+const RENTAL_STAT_KEYS: Record<RentalFilter, keyof RentalStats> = {
+  all: 'total',
+  active: 'open',
+  returned: 'returned',
+  overdue: 'overdue',
+  unpaid: 'unpaid',
+  closed: 'closed'
+};
+
+const RENTAL_STATUS_LABELS: Record<ApiRentalStatus, string> = {
+  active: 'Open',
+  returned: 'Returned',
+  overdue: 'Overdue',
+  unpaid: 'Unpaid',
+  closed: 'Closed'
+};
 
 export function BillManagement({
   onViewBill
@@ -27,6 +54,7 @@ export function BillManagement({
 }: {onViewBill: (bill: Bill) => void;}) {
   const [tab, setTab] = useState<Tab>('rentals');
   const [search, setSearch] = useState('');
+  const [rentalFilter, setRentalFilter] = useState<RentalFilter>('all');
   const {
     cancelSaleBill,
     cancelRentalBill,
@@ -43,9 +71,11 @@ export function BillManagement({
     currentPage: rentalPage,
     totalPages: rentalTotalPages,
     totalCount: rentalTotalCount,
+    stats: rentalStats,
     setPage: setRentalPage
   } = useRentals({
     search: tab === 'rentals' ? search : undefined,
+    status: rentalFilter,
     enabled: tab === 'rentals'
   });
   const {
@@ -137,6 +167,44 @@ export function BillManagement({
         </div>
       </div>
 
+      {tab === 'rentals' &&
+      <div className="flex flex-wrap gap-2 mb-4" aria-label="Filter rental bills by status">
+          {RENTAL_FILTERS.map((filter) => {
+          const isActive = rentalFilter === filter.value;
+          const count = isActive ?
+          rentalTotalCount :
+          rentalStats[RENTAL_STAT_KEYS[filter.value]];
+          return (
+            <button
+              key={filter.value}
+              type="button"
+              onClick={() => {
+                setRentalFilter(filter.value);
+                setRentalPage(1);
+              }}
+              className={`px-3 py-2 rounded-lg text-sm font-bold border transition-colors flex items-center gap-2 ${
+              isActive ?
+              'bg-[#2d4059] text-white border-[#2d4059]' :
+              'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`
+              }
+              aria-pressed={isActive}>
+              
+                {filter.label}
+                {count != null &&
+              <span
+                className={`px-1.5 py-0.5 rounded-full text-xs tabular-nums ${
+                isActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'}`
+                }>
+                
+                    {count}
+                  </span>
+              }
+              </button>);
+
+        })}
+        </div>
+      }
+
       {(error || actionError) &&
       <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2 text-sm text-red-700">
           <AlertTriangle className="w-4 h-4" /> {actionError || error}
@@ -157,6 +225,7 @@ export function BillManagement({
                 <th className="px-4 py-3">Bill No.</th>
                 <th className="px-4 py-3">Customer</th>
                 <th className="px-4 py-3">Date</th>
+                {tab === 'rentals' && <th className="px-4 py-3">Status</th>}
                 <th className="px-4 py-3 text-right">Total</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
@@ -169,6 +238,13 @@ export function BillManagement({
                   </td>
                   <td className="px-4 py-3 text-gray-600">{b.customer.name}</td>
                   <td className="px-4 py-3 text-gray-500">{b.date}</td>
+                  {tab === 'rentals' &&
+              <td className="px-4 py-3">
+                      <span className="inline-flex px-2.5 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-bold">
+                        {b.apiStatus ? RENTAL_STATUS_LABELS[b.apiStatus] : 'Open'}
+                      </span>
+                    </td>
+              }
                   <td className="px-4 py-3 text-right font-medium">
                     {formatPrice(b.total)}
                   </td>
@@ -201,6 +277,7 @@ export function BillManagement({
           currentPage={currentPage}
           totalPages={totalPages}
           totalCount={totalCount}
+          itemLabel={tab === 'rentals' ? 'bills' : 'sales'}
           onPageChange={setPage} />
 
         }

@@ -241,11 +241,17 @@ export function ProductManagement() {
         mode={modal.mode}
         kind={modal.kind}
         product={modal.product}
-        categories={categories.filter((c) =>
-        tab === 'sale' ?
-        c.category_type === 'sell' || !c.category_type :
-        c.category_type === 'rent' || !c.category_type
-        )}
+        categories={categories.filter((category) => {
+          const expectedType = modal.kind === 'sale' ? 'sell' : 'rent';
+          const isExpectedType =
+          category.category_type === expectedType || !category.category_type;
+          const isCurrentProductCategory =
+          modal.product?.categoryId != null ?
+          String(category.id) === String(modal.product.categoryId) :
+          category.name.trim().toLowerCase() ===
+          modal.product?.category.trim().toLowerCase();
+          return isExpectedType || isCurrentProductCategory;
+        })}
         onClose={() => setModal(null)}
         onSaved={() => {
           setModal(null);

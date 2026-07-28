@@ -1,17 +1,10 @@
-import React, {
-  useEffect,
-  useMemo,
-  useState,
-  useRef,
-  useDeferredValue } from
-'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
   ShoppingCart,
   Clock,
   AlertTriangle,
   CheckCircle,
   Calendar,
-  Package,
   Search,
   Edit,
   Eye,
@@ -31,7 +24,7 @@ import { Bill, CartItem, Product, CashTransaction } from '../types';
 import { useProducts } from '../hooks/useProducts';
 import { useRentals } from '../hooks/useRentals';
 import { useSales } from '../hooks/useSales';
-import { formatPrice } from '../utils/format';
+import { formatPrice, toDiscountPercent } from '../utils/format';
 import { API_URL } from '../utils/config';
 import { getAuthHeaders } from '../utils/auth';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -53,8 +46,6 @@ export function HistoryPage({
 }: HistoryPageProps) {
   const [activeTab, setActiveTab] = useState<'sales' | 'rentals'>('rentals');
   const [searchQuery, setSearchQuery] = useState('');
-  // Deferred value keeps the input snappy when filtering large result sets
-  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [editingBillId, setEditingBillId] = useState<string | null>(null);
   const [newDepositAmount, setNewDepositAmount] = useState('');
   // Modal state for adding products
@@ -134,7 +125,7 @@ export function HistoryPage({
   } | null>(null);
   // Rental filter state
   const [rentalFilter, setRentalFilter] = useState<
-    'all' | 'open' | 'overdue' | 'unpaid' | 'closed'>(
+    'all' | 'active' | 'returned' | 'overdue' | 'unpaid' | 'closed'>(
     'all');
   // Fetch products from API only when modal is open
   const { products: rentProducts } = useProducts({
@@ -150,10 +141,11 @@ export function HistoryPage({
     refetch: refetchRentals,
     currentPage: rentalPage,
     totalPages: rentalTotalPages,
+    totalCount: rentalTotalCount,
     hasNext: rentalHasNext,
     hasPrevious: rentalHasPrevious,
-    setPage: setRentalPage,
-    stats: apiRentalStats
+    stats: rentalStats,
+    setPage: setRentalPage
   } = useRentals({
     search: activeTab === 'rentals' ? searchQuery : undefined,
     status: rentalFilter,
@@ -243,21 +235,8 @@ export function HistoryPage({
   // Separate bills by type
   const saleBills = apiSaleBills;
   const rentalBills = patchedRentalBills;
-  // Search filter — use deferred value so typing stays instant
-  const filteredSaleBills = useMemo(() => {
-    if (!deferredSearchQuery.trim()) return saleBills;
-    const q = deferredSearchQuery.toLowerCase();
-    return saleBills.filter(
-      (b) =>
-      b.id.toLowerCase().includes(q) ||
-      b.customer.name.toLowerCase().includes(q) ||
-      b.items.some((i) => i.product.name.toLowerCase().includes(q))
-    );
-  }, [saleBills, deferredSearchQuery]);
   const filteredRentalBills = rentalBills;
-  // Rental stats from API
-  const rentalStats = apiRentalStats;
-  // Apply rental filter card - now handled by API, but we still apply optimistic updates
+  // Status filtering is performed by the paginated rentals API.
   const displayedRentalBills = filteredRentalBills;
   // Edit handlers
   const handleReturnItem = async (
@@ -696,7 +675,8 @@ export function HistoryPage({
         newSubtotal += item.product.salePrice * item.quantity;
       }
     });
-    const discountAmount = newSubtotal * (bill.discount / 100);
+    // The discount is stored as a fixed amount; the percentage is derived.
+    const discountAmount = Math.min(bill.discountAmount || 0, newSubtotal);
     const afterDiscount = newSubtotal - discountAmount;
     const taxAmount = afterDiscount * 0.08;
     const newTotal = afterDiscount + taxAmount;
@@ -713,6 +693,7 @@ export function HistoryPage({
       ...bill,
       items,
       subtotal: newSubtotal,
+      discount: toDiscountPercent(discountAmount, newSubtotal),
       discountAmount,
       tax: taxAmount,
       total: newTotal,
@@ -723,7 +704,35 @@ export function HistoryPage({
   };
   const filteredProducts = rentProducts;
   const getStatusBadge = (status?: string, bill?: Bill) => {
-    // Check special states for partially_closed bills
+    if (status === 'active') {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
+          <Clock className="w-3 h-3 mr-1" /> Open
+        </span>);
+
+    }
+    if (status === 'returned') {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+          <RotateCcw className="w-3 h-3 mr-1" /> Returned
+        </span>);
+
+    }
+    if (status === 'overdue') {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+          <AlertTriangle className="w-3 h-3 mr-1" /> Overdue
+        </span>);
+
+    }
+    if (status === 'unpaid') {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800">
+          <Ban className="w-3 h-3 mr-1" /> Unpaid
+        </span>);
+
+    }
+    // Check special states for partially_closed bills.
     if (bill && status === 'partially_closed') {
       const returnedCount = bill.items.filter(
         (i) => i.status === 'returned'
@@ -925,87 +934,45 @@ export function HistoryPage({
       {/* Rental History Tab */}
       {activeTab === 'rentals' &&
       <div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <button
-            onClick={() =>
-            setRentalFilter(rentalFilter === 'open' ? 'all' : 'open')
-            }
-            className={`p-4 rounded-xl shadow-sm border flex items-center justify-between transition-all ${rentalFilter === 'open' ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-200' : 'bg-white border-gray-200 hover:border-blue-200'}`}>
-            
-              <div>
-                <p className="text-xs font-medium text-gray-500 text-left">
-                  Open
-                </p>
-                <p className="text-2xl font-bold text-blue-600">
-                  {rentalStats.open}
-                </p>
-              </div>
-              <div
-              className={`p-2.5 rounded-full ${rentalFilter === 'open' ? 'bg-blue-200' : 'bg-blue-100'}`}>
-              
-                <Clock className="w-5 h-5 text-blue-600" />
-              </div>
-            </button>
-            <button
-            onClick={() =>
-            setRentalFilter(rentalFilter === 'overdue' ? 'all' : 'overdue')
-            }
-            className={`p-4 rounded-xl shadow-sm border flex items-center justify-between transition-all ${rentalFilter === 'overdue' ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-200' : 'bg-white border-gray-200 hover:border-amber-200'}`}>
-            
-              <div>
-                <p className="text-xs font-medium text-gray-500 text-left">
-                  Overdue
-                </p>
-                <p className="text-2xl font-bold text-amber-600">
-                  {rentalStats.overdue}
-                </p>
-              </div>
-              <div
-              className={`p-2.5 rounded-full ${rentalFilter === 'overdue' ? 'bg-amber-200' : 'bg-amber-100'}`}>
-              
-                <AlertTriangle className="w-5 h-5 text-amber-600" />
-              </div>
-            </button>
-            <button
-            onClick={() =>
-            setRentalFilter(rentalFilter === 'unpaid' ? 'all' : 'unpaid')
-            }
-            className={`p-4 rounded-xl shadow-sm border flex items-center justify-between transition-all ${rentalFilter === 'unpaid' ? 'bg-red-50 border-red-400 ring-2 ring-red-200' : 'bg-white border-gray-200 hover:border-red-200'}`}>
-            
-              <div>
-                <p className="text-xs font-medium text-gray-500 text-left">
-                  Unpaid
-                </p>
-                <p className="text-2xl font-bold text-red-600">
-                  {rentalStats.unpaid}
-                </p>
-              </div>
-              <div
-              className={`p-2.5 rounded-full ${rentalFilter === 'unpaid' ? 'bg-red-200' : 'bg-red-100'}`}>
-              
-                <Ban className="w-5 h-5 text-red-600" />
-              </div>
-            </button>
-            <button
-            onClick={() =>
-            setRentalFilter(rentalFilter === 'closed' ? 'all' : 'closed')
-            }
-            className={`p-4 rounded-xl shadow-sm border flex items-center justify-between transition-all ${rentalFilter === 'closed' ? 'bg-green-50 border-green-400 ring-2 ring-green-200' : 'bg-white border-gray-200 hover:border-green-200'}`}>
-            
-              <div>
-                <p className="text-xs font-medium text-gray-500 text-left">
-                  Closed
-                </p>
-                <p className="text-2xl font-bold text-green-600">
-                  {rentalStats.closed}
-                </p>
-              </div>
-              <div
-              className={`p-2.5 rounded-full ${rentalFilter === 'closed' ? 'bg-green-200' : 'bg-green-100'}`}>
-              
-                <CheckCircle className="w-5 h-5 text-green-600" />
-              </div>
-            </button>
+          <div className="flex flex-wrap gap-2 mb-6" aria-label="Filter rental bills by status">
+            {([
+          ['all', 'All', 'total'],
+          ['active', 'Open', 'open'],
+          ['returned', 'Returned', 'returned'],
+          ['overdue', 'Overdue', 'overdue'],
+          ['unpaid', 'Unpaid', 'unpaid'],
+          ['closed', 'Closed', 'closed']] as
+          const).map(([value, label, statKey]) => {
+            const isActive = rentalFilter === value;
+            const count = isActive ? rentalTotalCount : rentalStats[statKey];
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => {
+                  setRentalFilter(value);
+                  setRentalPage(1);
+                }}
+                aria-pressed={isActive}
+                className={`px-4 py-2.5 rounded-lg text-sm font-bold border transition-colors flex items-center gap-2 ${
+                isActive ?
+                'bg-[#2d4059] text-white border-[#2d4059]' :
+                'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`
+                }>
+                
+                  {label}
+                  {count != null &&
+                <span
+                  className={`px-1.5 py-0.5 rounded-full text-xs tabular-nums ${
+                  isActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'}`
+                  }>
+                  
+                      {count}
+                    </span>
+                }
+                </button>);
+
+          })}
           </div>
 
           {/* Active filter indicator */}
@@ -1013,10 +980,12 @@ export function HistoryPage({
         <div className="mb-4 flex items-center gap-2">
               <span className="text-sm text-gray-500">
                 Showing{' '}
-                <span className="font-bold capitalize text-[#1a1a2e]">
-                  {rentalFilter}
+                <span className="font-bold text-[#1a1a2e]">
+                  {rentalFilter === 'active' ?
+              'Open' :
+              rentalFilter.charAt(0).toUpperCase() + rentalFilter.slice(1)}
                 </span>{' '}
-                bills ({displayedRentalBills.length})
+                bills ({rentalTotalCount})
               </span>
               <button
             onClick={() => setRentalFilter('all')}
@@ -1069,7 +1038,7 @@ export function HistoryPage({
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
                     <Clock className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                     <p className="text-gray-500 font-medium">
-                      No {rentalFilter} rental bills
+                      No {rentalFilter === 'active' ? 'open' : rentalFilter} rental bills
                     </p>
                     <button
                 onClick={() => setRentalFilter('all')}
@@ -1110,7 +1079,10 @@ export function HistoryPage({
                               <span className="font-mono font-bold text-[#1a1a2e]">
                                 {bill.id}
                               </span>
-                              {getStatusBadge(bill.rentalStatus, bill)}
+                              {getStatusBadge(
+                          bill.apiStatus || bill.rentalStatus,
+                          bill
+                        )}
                               {needsPayment &&
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">
                                   <Banknote className="w-3 h-3 mr-1" />
@@ -1337,7 +1309,7 @@ export function HistoryPage({
                                         </span> :
 
                                 <span className="text-blue-600 font-medium">
-                                          Active
+                                          Open
                                         </span>
                                 }
                                     </td>
@@ -1500,6 +1472,8 @@ export function HistoryPage({
           <Pagination
             currentPage={rentalPage}
             totalPages={rentalTotalPages}
+            totalCount={rentalTotalCount}
+            itemLabel="bills"
             onPageChange={setRentalPage}
             variant="card" />
 
@@ -1513,49 +1487,6 @@ export function HistoryPage({
       {/* Sale History Tab */}
       {activeTab === 'sales' &&
       <div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-gray-500">Total Sales</p>
-                <p className="text-2xl font-bold text-[#2d4059]">
-                  {filteredSaleBills.length}
-                </p>
-              </div>
-              <div className="bg-orange-100 p-2.5 rounded-full">
-                <Package className="w-5 h-5 text-orange-600" />
-              </div>
-            </div>
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-gray-500">Items Sold</p>
-                <p className="text-2xl font-bold text-[#2d4059]">
-                  {filteredSaleBills.reduce(
-                  (s, b) => s + b.items.reduce((a, i) => a + i.quantity, 0),
-                  0
-                )}
-                </p>
-              </div>
-              <div className="bg-blue-100 p-2.5 rounded-full">
-                <ShoppingCart className="w-5 h-5 text-blue-600" />
-              </div>
-            </div>
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-gray-500">
-                  Total Revenue
-                </p>
-                <p className="text-2xl font-bold text-green-600">
-                  {formatPrice(
-                  filteredSaleBills.reduce((sum, b) => sum + b.total, 0)
-                )}
-                </p>
-              </div>
-              <div className="bg-green-100 p-2.5 rounded-full">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-              </div>
-            </div>
-          </div>
-
           {/* Loading */}
           {salesLoading && saleBills.length === 0 &&
         <div className="flex items-center justify-center py-20">
@@ -2491,7 +2422,7 @@ export function HistoryPage({
                       </div>
                 )}
                   <div className="border-t border-gray-200 pt-1.5 mt-1.5 flex justify-between text-sm font-bold">
-                    <span>Active items</span>
+                    <span>Open items</span>
                     <span>
                       {
                     returnAllConfirmBill.items.filter(

@@ -2,7 +2,20 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Product } from '../types';
 import { API_URL } from '../utils/config';
 import { getAuthHeaders } from '../utils/auth';
-import { getCached, setCache, isFresh, clearCache } from '../utils/apiCache';
+import {
+  getCached,
+  setCache,
+  isFresh,
+  clearCache,
+  sharedRequest,
+  getInflight } from
+'../utils/apiCache';
+
+interface ProductsPayload {
+  products: Product[];
+  totalCount: number;
+  totalPages: number | null;
+}
 
 interface UseProductsOptions {
   categoryType?: 'sell' | 'rent';
@@ -31,8 +44,28 @@ interface UseProductsReturn {
 const PER_PAGE = 20;
 
 function mapApiProduct(raw: any): Product {
+  const categoryObject =
+  raw.category && typeof raw.category === 'object' ? raw.category : null;
+  const scalarCategory = categoryObject ? undefined : raw.category;
+  const scalarCategoryIsId =
+  typeof scalarCategory === 'number' ||
+  typeof scalarCategory === 'string' && /^\d+$/.test(scalarCategory.trim());
+  const rawCategoryId =
+  raw.category_id ??
+  raw.categoryId ??
+  categoryObject?.id ??
+  categoryObject?.pk ?? (
+  scalarCategoryIsId ? scalarCategory : undefined);
+  const categoryName =
+  categoryObject?.name ??
+  categoryObject?.category_name ??
+  raw.category_name ??
+  raw.categoryName ?? (
+  !scalarCategoryIsId && typeof scalarCategory === 'string' ?
+  scalarCategory :
+  '');
   const categoryType =
-  raw.category?.category_type || raw.category_type || raw.listingType;
+  categoryObject?.category_type || raw.category_type || raw.listingType;
   const listingType: 'sale' | 'rent' =
   categoryType === 'sell' ? 'sale' : categoryType === 'rent' ? 'rent' : 'sale';
   const price = parseFloat(raw.price ?? 0);
@@ -40,9 +73,8 @@ function mapApiProduct(raw: any): Product {
   return {
     id: String(raw.id),
     name: raw.name || raw.product_name || '',
-    category:
-    raw.category?.name || raw.category_name || raw.category || 'Hand Tools',
-    categoryId: raw.category?.id || raw.category_id || undefined,
+    category: categoryName || 'Uncategorized',
+    categoryId: rawCategoryId != null ? String(rawCategoryId) : undefined,
     listingType,
     salePrice:
     listingType === 'sale' ?
@@ -100,6 +132,51 @@ function buildApiUrl(options?: UseProductsOptions): {
   };
 }
 
+// Warm the cache for the first catalog view before <CatalogPage /> mounts
+// (called right after login) so signing in lands on products, not a spinner.
+export async function prefetchProducts(
+options?: UseProductsOptions)
+: Promise<void> {
+  const { url, cacheKey } = buildApiUrl(options);
+  if (isFresh(cacheKey)) return;
+  try {
+    await sharedRequest<ProductsPayload>(cacheKey, async () => {
+      const res = await fetch(url, {
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!res.ok) throw new Error(`Failed to fetch products (${res.status})`);
+      const data = await res.json();
+
+      const allResults: any[] = Array.isArray(data) ? data : data.results || [];
+      const count = Array.isArray(data) ?
+      data.length :
+      data.count ?? allResults.length;
+      const totalPages =
+      !Array.isArray(data) && typeof data.total_pages === 'number' ?
+      data.total_pages :
+      null;
+
+      const mapped = allResults.map(mapApiProduct);
+      const filtered = options?.includeDeactivated ?
+      mapped :
+      mapped.filter((p) => p.isActive !== false);
+
+      const payload: ProductsPayload = {
+        products: filtered,
+        totalCount: count,
+        totalPages
+      };
+      setCache(cacheKey, payload);
+      return payload;
+    });
+  } catch {
+
+    // Prefetch is best effort — the hook will fetch normally on mount.
+  }}
+
 export function useProducts(options?: UseProductsOptions): UseProductsReturn {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -147,6 +224,24 @@ export function useProducts(options?: UseProductsOptions): UseProductsReturn {
     }
 
     setLoading(true);
+
+    // A prefetch (e.g. fired at login) may already be in flight for this exact
+    // request — reuse it instead of duplicating the round-trip.
+    const pending = getInflight<ProductsPayload>(cacheKey);
+    if (pending) {
+      try {
+        const payload = await pending;
+        if (currentRequestId !== requestIdRef.current) return;
+        setProducts(payload.products);
+        setTotalCount(payload.totalCount);
+        setApiTotalPages(payload.totalPages ?? null);
+        setError(null);
+        setLoading(false);
+        return;
+      } catch {
+
+        // Fall through to a normal fetch below.
+      }}
 
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();

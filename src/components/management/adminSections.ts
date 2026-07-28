@@ -6,7 +6,8 @@ import {
   ReceiptText,
   AlertTriangle,
   Users,
-  Gauge } from
+  Gauge,
+  Banknote } from
 'lucide-react';
 
 export type AdminSection =
@@ -15,6 +16,7 @@ export type AdminSection =
 'customers' |
 'damages' |
 'machines' |
+'cash' |
 'reports';
 
 export const ADMIN_SECTIONS: {
@@ -52,6 +54,12 @@ export const ADMIN_SECTIONS: {
   label: 'Machine Reset',
   icon: Gauge,
   desc: 'Reset machines that exceeded their max use count.'
+},
+{
+  id: 'cash',
+  label: 'Cash Management',
+  icon: Banknote,
+  desc: 'Count and reconcile the active cash register.'
 },
 {
   id: 'reports',

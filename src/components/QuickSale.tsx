@@ -17,7 +17,7 @@ import {
 'lucide-react';
 import { useProducts } from '../hooks/useProducts';
 import { Product, Bill, Customer } from '../types';
-import { formatPrice } from '../utils/format';
+import { formatPrice, toDiscountPercent } from '../utils/format';
 import { API_URL } from '../utils/config';
 import { getAuthHeaders } from '../utils/auth';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -161,7 +161,8 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
       total_amount: subtotal.toFixed(2),
       final_amount: total.toFixed(2),
       payment_method: paymentMethod,
-      discount: parseFloat(discount) || 0,
+      // The API stores the discount as an amount, not a percentage.
+      discount: discountAmount.toFixed(2),
       customer_name: customerName.trim() || undefined
     };
     try {
@@ -180,6 +181,9 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
         );
       }
       const data = await res.json();
+      const billSubtotal = parseFloat(data.total_amount ?? subtotal);
+      const billDiscountAmount =
+      parseFloat(data.discount ?? discountAmount) || 0;
       // Map response to Bill type
       const bill: Bill = {
         id: data.bill_number || String(data.id),
@@ -195,11 +199,9 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
           type: 'sale',
           rentalDays: undefined
         })),
-        subtotal: parseFloat(data.total_amount ?? subtotal),
-        discount: parseFloat(data.discount ?? discount),
-        discountAmount:
-        parseFloat(data.total_amount ?? subtotal) * (
-        (parseFloat(data.discount ?? discount) || 0) / 100),
+        subtotal: billSubtotal,
+        discount: toDiscountPercent(billDiscountAmount, billSubtotal),
+        discountAmount: billDiscountAmount,
         tax: 0,
         total: parseFloat(data.final_amount ?? total),
         type: 'invoice',

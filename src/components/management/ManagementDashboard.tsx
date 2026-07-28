@@ -9,6 +9,11 @@ import { BillManagement } from './BillManagement';
 import { MachineResetPage } from './MachineResetPage';
 import { ADMIN_SECTIONS, AdminSection } from './adminSections';
 
+const CashManagementPage = lazy(() =>
+import('./CashManagementPage').then((m) => ({
+  default: m.CashManagementPage
+}))
+);
 const DamageTracker = lazy(() =>
 import('../DamageTracker').then((m) => ({
   default: m.DamageTracker
@@ -79,6 +84,11 @@ export function ManagementDashboard({
         </Suspense>
       }
       {section === 'machines' && <MachineResetPage />}
+      {section === 'cash' &&
+      <Suspense fallback={<SectionFallback />}>
+          <CashManagementPage />
+        </Suspense>
+      }
       {section === 'reports' && <ReportsPage />}
     </div>);
 

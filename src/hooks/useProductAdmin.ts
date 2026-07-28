@@ -37,6 +37,13 @@ export interface RentalProductBulkPayload {
   initial_stock?: number;
 }
 
+export interface UpdateProductPayload {
+  name: string;
+  category: number;
+  price: string;
+  machines?: MachineInput[];
+}
+
 async function parseError(res: Response, fallback: string): Promise<string> {
   const errData = await res.json().catch(() => null);
   if (!errData) return `${fallback} (${res.status})`;
@@ -105,7 +112,7 @@ export function useProductAdmin() {
   );
 
   const updateProduct = useCallback(
-    (id: string | number, payload: Record<string, unknown>) =>
+    (id: string | number, payload: UpdateProductPayload) =>
     run(`${API_URL}products/${id}/`, 'PATCH', payload),
     [run]
   );

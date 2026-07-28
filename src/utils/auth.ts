@@ -33,15 +33,39 @@ export function getAuthHeaders(): Record<string, string> {
   return { Authorization: `Bearer ${token}` };
 }
 
+// The API runs on a serverless backend, so the very first request of a session
+// pays a container cold start. Firing a throwaway request while the user is
+// still typing their credentials absorbs that cost before Sign In is pressed.
+let warmedUp = false;
+
+export function warmUpApi(): void {
+  if (warmedUp) return;
+  warmedUp = true;
+  try {
+    void fetch(`${API_URL}auth/login/`, {
+      method: 'OPTIONS',
+      cache: 'no-store'
+    }).catch(() => {});
+  } catch {
+
+    // Warm-up is best effort — never surface failures.
+  }}
+
 export async function loginRequest(
 username: string,
 password: string)
 : Promise<{access: string;isSuperUser: boolean;}> {
-  const res = await fetch(`${API_URL}auth/login/`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password })
-  });
+  let res: Response;
+
+  try {
+    res = await fetch(`${API_URL}auth/login/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+  } catch {
+    throw new Error('Network error. Check your connection and try again.');
+  }
 
   if (!res.ok) {
     if (res.status === 401) throw new Error('Invalid username or password');
@@ -55,5 +79,6 @@ password: string)
   if (data.refresh) sessionStorage.setItem(REFRESH_KEY, data.refresh);
   const superuser = !!data.is_superuser;
   setSuperUser(superuser);
+
   return { access: data.access, isSuperUser: superuser };
 }

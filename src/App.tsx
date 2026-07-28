@@ -1,4 +1,4 @@
-import React, { useEffect, useState, Suspense, lazy } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import { CartProvider, useCart } from './hooks/useCart';
 import { Header } from './components/Header';
 import { CatalogPage } from './components/CatalogPage';
@@ -11,6 +11,7 @@ import {
   Expense } from
 './types';
 import { getToken, clearToken, isSuperUser as checkSuperUser } from './utils/auth';
+import { clearCache } from './utils/apiCache';
 import { AdminSection } from './components/management/adminSections';
 const ManagementDashboard = lazy(() =>
 import('./components/management/ManagementDashboard').then((m) => ({
@@ -70,9 +71,8 @@ type Page =
 const initialCustomers: CustomerRecord[] = [];
 const initialDamages: DamageRecord[] = [];
 function AppContent() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [superUser, setSuperUser] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(() => Boolean(getToken()));
+  const [superUser, setSuperUser] = useState(() => checkSuperUser());
   const [managementMode, setManagementMode] = useState(false);
   const [adminSection, setAdminSection] = useState<AdminSection>('products');
   const [currentPage, setCurrentPage] = useState<Page>('catalog');
@@ -117,28 +117,13 @@ function AppContent() {
   setDamages((prev) => [damage, ...prev]);
   const handleAddCashTransaction = (transaction: CashTransaction) =>
   setCashTransactions((prev) => [transaction, ...prev]);
-  // Check for existing token on mount
-  useEffect(() => {
-    const token = getToken();
-    if (token) {
-      setIsLoggedIn(true);
-      setSuperUser(checkSuperUser());
-    }
-    setAuthChecked(true);
-  }, []);
   const handleLogout = () => {
     clearToken();
+    clearCache();
     setIsLoggedIn(false);
     setSuperUser(false);
     setManagementMode(false);
   };
-  if (!authChecked) {
-    return (
-      <div className="min-h-screen bg-[#1a1a2e] flex items-center justify-center">
-        <div className="w-8 h-8 border-3 border-white/30 border-t-[#f5a623] rounded-full animate-spin" />
-      </div>);
-
-  }
   if (!isLoggedIn) {
     return (
       <LoginPage
