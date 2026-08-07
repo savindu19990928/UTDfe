@@ -93,47 +93,23 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
   return (
     <div className="p-8 text-black font-sans text-sm h-full flex flex-col relative">
       {/* Header Section */}
-      <div className="text-center mb-6">
-        <div className="flex justify-center mb-2">
-          <img src={LOGO_URL} alt="Logo" className="h-12 w-auto" />
-        </div>
-        <h1 className="text-2xl font-bold uppercase tracking-wide text-black">
-          Universal Tool Depot
-        </h1>
-        <p className="text-xs text-gray-600">
-          No. 200 Old Kottawa Road, Navinna, Maharagama <br />
-          Tel: 011 4294 939 &nbsp;|&nbsp; Mobile: 077 917 7134 <br />
-          E-mail: universaltooldepot@gmail.com <br />
-          නො. 200, පරණ කොට්ටාව පාර, නාවින්න, මහරගම
-        </p>
-        <div className="mt-4 font-bold text-sm border-y-2 border-dotted border-gray-400 py-1 inline-block px-4 uppercase">
-          උපකරණ නිකුත් කිරීමේ කුවිතාන්සිය
-        </div>
-      </div>
-
-      {/* Bill & Customer Info Grid */}
       <div className="flex justify-between items-start mb-6">
-        <div className="text-xs space-y-1 leading-relaxed">
+        {/* Top Left: Customer Details */}
+        <div className="text-xs space-y-1 leading-relaxed w-1/3">
           <p>
-            <span className="inline-block w-32">Bill No:</span>
+            <span className="inline-block w-24">Bill No:</span>
             <span className="font-bold">{bill.id}</span>
           </p>
           <p>
-            <span className="inline-block w-32">Name:</span>
+            <span className="inline-block w-24">Name:</span>
             <span className="font-bold">{bill.customer.name}</span>
           </p>
-          <p className="flex">
-            <span className="inline-block w-32 flex-shrink-0">Address:</span>
-            <span className="font-bold max-w-[16rem]">
-              {bill.customer.address?.trim() ? bill.customer.address : '-'}
-            </span>
-          </p>
           <p>
-            <span className="inline-block w-32">NIC No:</span>
+            <span className="inline-block w-24">NIC No:</span>
             <span className="font-bold">{bill.customerNic || '-'}</span>
           </p>
           <p>
-            <span className="inline-block w-32">Taken ID:</span>
+            <span className="inline-block w-24">Taken ID:</span>
             <span className="font-bold">
               {bill.nicTaken ?
               'NIC' :
@@ -145,40 +121,42 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
             </span>
           </p>
           <p>
-            <span className="inline-block w-32">Mobile No:</span>
+            <span className="inline-block w-24">Mobile No:</span>
             <span className="font-bold">{bill.customer.phone}</span>
           </p>
           <p>
-            <span className="inline-block w-32">Payment Method:</span>
+            <span className="inline-block w-24">Payment:</span>
             <span className="font-bold">{paymentLabel}</span>
+          </p>
+          <p className="flex">
+            <span className="inline-block w-24 flex-shrink-0">Address:</span>
+            <span className="font-bold max-w-[12rem]">
+              {bill.customer.address?.trim() ? bill.customer.address : '-'}
+            </span>
           </p>
         </div>
 
-        <div className="border border-black w-24 h-24 flex items-center justify-center overflow-hidden bg-white">
-          {bill.customerPhotoUrl ?
-          <img
-            src={bill.customerPhotoUrl}
-            alt={bill.customer.name}
-            className="w-full h-full object-cover" /> :
+        {/* Top Middle: Logo */}
+        <div className="w-1/3 flex flex-col items-center justify-start">
+          <img src={LOGO_URL} alt="Logo" className="h-16 w-auto mb-2" />
+          <div className="mt-2 font-bold text-sm border-y-2 border-dotted border-gray-400 py-1 inline-block px-4 uppercase text-center">
+            උපකරණ නිකුත් කිරීමේ කුවිතාන්සිය
+          </div>
+        </div>
 
-
-          <div className="text-center text-gray-400">
-              <svg
-              className="w-12 h-12 mx-auto"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24">
-              
-                <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-              
-              </svg>
-              <span className="text-[8px]">No Photo</span>
-            </div>
-          }
+        {/* Top Right: Company Details */}
+        <div className="w-1/3 text-right">
+          <h1 className="text-xl font-bold uppercase tracking-wide text-black mb-1">
+            Universal Tool Depot
+          </h1>
+          <p className="text-xs text-gray-600 space-y-0.5">
+            No. 200 Old Kottawa Road,<br />
+            Navinna, Maharagama <br />
+            Tel: 011 4294 939 <br />
+            Mobile: 077 917 7134 <br />
+            E-mail: universaltooldepot@gmail.com <br />
+            <span className="text-sm block mt-1">නො. 200, පරණ කොට්ටාව පාර, නාවින්න, මහරගම</span>
+          </p>
         </div>
       </div>
 
@@ -188,7 +166,7 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
           පහත සඳහන් කොන්දේසි වලට එකඟ නම් පමණක් උපකරණ ලබාගන්න
         </h3>
         {conditions.length > 0 ?
-        <ol className="list-decimal list-inside text-[10px] space-y-0.5 text-gray-700">
+        <ol className="list-decimal list-inside text-[12px] space-y-0.5 text-gray-700">
             {conditions.map((c) =>
           <li key={c.id}>{c.text}</li>
           )}
