@@ -43,7 +43,7 @@ interface UseProductsReturn {
 
 const PER_PAGE = 20;
 
-function mapApiProduct(raw: any): Product {
+export function mapApiProduct(raw: any): Product {
   const categoryObject =
   raw.category && typeof raw.category === 'object' ? raw.category : null;
   const scalarCategory = categoryObject ? undefined : raw.category;

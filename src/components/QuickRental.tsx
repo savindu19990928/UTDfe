@@ -16,7 +16,10 @@ import {
   Camera,
   ShieldCheck } from
 'lucide-react';
-import { useProducts } from '../hooks/useProducts';
+import {
+  useProductSearch,
+  fetchProductDetails } from
+'../hooks/useProductSearch';
 import { useCustomers } from '../hooks/useCustomers';
 import { Product, CustomerRecord, Bill, Customer } from '../types';
 import { formatPrice, getPhotoUrl } from '../utils/format';
@@ -93,12 +96,12 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
   const newNicRef = useRef<HTMLInputElement>(null);
   const newPhoneRef = useRef<HTMLInputElement>(null);
   const newAddressRef = useRef<HTMLInputElement>(null);
-  // Search products via API — only when 3+ characters typed
+  // Search rental products via the dedicated search endpoint — 3+ characters
   const searchQuery =
   productSearch.trim().length >= 3 ? productSearch.trim() : undefined;
-  const { products: searchResults, loading: searchLoading } = useProducts({
-    search: searchQuery,
-    categoryType: 'rent',
+  const { results: searchResults, loading: searchLoading } = useProductSearch({
+    type: 'rent',
+    query: searchQuery,
     enabled: !!searchQuery
   });
   // Fetch customers
@@ -150,21 +153,11 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
   }, [showNewCustomerForm]);
   // Open the machine-number selection popup for a product and fetch its
   // currently available machine numbers.
-  const openMachineModal = async (product: Product) => {
-    // Check stock availability (stock > 0 means limited stock)
-    if (product.stock != null && product.stock > 0) {
-      const usedQty = getUsedQty(product.id);
-      if (usedQty >= product.stock) {
-        setError(`"${product.name}" is currently unavailable`);
-        setProductSearch('');
-        setShowProductDropdown(false);
-        return;
-      }
-    }
+  const openMachineModal = async (searchProduct: Product) => {
     setError(null);
     setProductSearch('');
     setShowProductDropdown(false);
-    setMachineModalProduct(product);
+    setMachineModalProduct(searchProduct);
     setSelectedMachines([]);
     setAvailableMachines([]);
     setRentedOutMachines([]);
@@ -172,6 +165,20 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
     setMachinesError(null);
     setMachinesLoading(true);
     try {
+      // Search results are lightweight — load the full record so stock and
+      // machine tracking are enforced against real availability.
+      const detailed = await fetchProductDetails(searchProduct.id);
+      const product = detailed ?? searchProduct;
+      setMachineModalProduct(product);
+      // Check stock availability (stock > 0 means limited stock)
+      if (product.stock != null && product.stock > 0) {
+        const usedQty = getUsedQty(product.id);
+        if (usedQty >= product.stock) {
+          setError(`"${product.name}" is currently unavailable`);
+          closeMachineModal();
+          return;
+        }
+      }
       const res = await fetch(
         `${API_URL}products/${product.id}/available_machines/`,
         {

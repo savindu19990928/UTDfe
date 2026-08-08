@@ -16,8 +16,8 @@ export function BillPreview({ bill, onBack, onNewOrder }: BillPreviewProps) {
   };
   const isRental = bill.items.some((item) => item.type === 'rent');
   return (
-    <div className="min-h-screen bg-gray-100 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-[210mm] mx-auto mb-6 flex justify-between items-center no-print">
+    <div className="min-h-screen bg-gray-100 py-8 print:py-0 print:bg-white px-4 sm:px-6 lg:px-8">
+      <div className="max-w-[8.5in] mx-auto mb-6 flex justify-between items-center no-print">
         <button
           onClick={onBack}
           className="flex items-center text-gray-600 hover:text-[#1a1a2e] transition-colors font-medium">
@@ -45,7 +45,7 @@ export function BillPreview({ bill, onBack, onNewOrder }: BillPreviewProps) {
 
       <div
         id="print-area"
-        className="max-w-[210mm] mx-auto bg-white shadow-lg no-print-shadow min-h-[297mm] relative">
+        className="max-w-[8.5in] mx-auto bg-white shadow-lg no-print-shadow min-h-[11in] print:min-h-0 print:h-auto relative">
         
         {isRental ?
         <RentalBillTemplate bill={bill} /> :
@@ -64,15 +64,16 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
   const total = bill.total;
   const deposit = bill.deposit || 0;
   // Include fines in refund/owing calculation
-  const totalFines = bill.fines?.reduce((s, f) => s + Number(f.fine), 0) || 0;
+  const finesList = Array.isArray(bill.fines) ? bill.fines : [];
+  const totalFines = finesList.reduce((s, f) => s + Number(f.fine), 0);
   const netOwed = total + totalFines;
   const refund = deposit > netOwed ? deposit - netOwed : 0;
   const owing = deposit < netOwed ? netOwed - deposit : 0;
   const isOpen = bill.rentalStatus !== 'closed';
   const hasDiscount = discountAmount > 0;
-  const hasFines = bill.fines && bill.fines.length > 0;
+  const hasFines = finesList.length > 0;
   const printedTime = new Date().toLocaleString('en-GB');
-  // Map the API/stored payment method to a readable label
+  // Map the API/saved payment method to a readable label
   const paymentLabel =
   bill.paymentMethod === 'card' ?
   'CARD' :
@@ -91,9 +92,9 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
     };
   };
   return (
-    <div className="p-8 text-black font-sans text-sm h-full flex flex-col relative">
+    <div className="p-6 text-black font-sans text-sm h-full flex flex-col relative">
       {/* Header Section */}
-      <div className="flex justify-between items-start mb-6">
+      <div className="flex justify-between items-start mb-4">
         {/* Top Left: Customer Details */}
         <div className="text-xs space-y-1 leading-relaxed w-1/3">
           <p>
@@ -128,9 +129,19 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
             <span className="inline-block w-24">Payment:</span>
             <span className="font-bold">{paymentLabel}</span>
           </p>
+          <p>
+            <span className="inline-block w-24">Date & Time:</span>
+            <span className="font-bold">{printedTime}</span>
+          </p>
           <p className="flex">
-            <span className="inline-block w-24 flex-shrink-0">Address:</span>
-            <span className="font-bold max-w-[12rem]">
+            <span className="inline-block w-24">Address:</span>
+            <span
+              className={`font-bold ${
+              bill.customer.address && bill.customer.address.length > 25 ?
+              'max-w-[12rem] whitespace-normal' :
+              'whitespace-nowrap'}`
+              }>
+              
               {bill.customer.address?.trim() ? bill.customer.address : '-'}
             </span>
           </p>
@@ -139,7 +150,7 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
         {/* Top Middle: Logo */}
         <div className="w-1/3 flex flex-col items-center justify-start">
           <img src={LOGO_URL} alt="Logo" className="h-16 w-auto mb-2" />
-          <div className="mt-2 font-bold text-sm border-y-2 border-dotted border-gray-400 py-1 inline-block px-4 uppercase text-center">
+          <div className="mt-2 font-bold text-sm py-1 inline-block px-4 uppercase text-center font-['UN-Sandhyane']">
             උපකරණ නිකුත් කිරීමේ කුවිතාන්සිය
           </div>
         </div>
@@ -149,24 +160,27 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
           <h1 className="text-xl font-bold uppercase tracking-wide text-black mb-1">
             Universal Tool Depot
           </h1>
-          <p className="text-xs text-gray-600 space-y-0.5">
-            No. 200 Old Kottawa Road,<br />
+          <p className="text-xs text-black font-bold space-y-0.5">
+            No. 200 Old Kottawa Road,
+            <br />
             Navinna, Maharagama <br />
             Tel: 011 4294 939 <br />
             Mobile: 077 917 7134 <br />
             E-mail: universaltooldepot@gmail.com <br />
-            <span className="text-sm block mt-1">නො. 200, පරණ කොට්ටාව පාර, නාවින්න, මහරගම</span>
+            <span className="text-xs block mt-1 font-['UN-Sandhyane'] font-bold">
+              නො. 200, පරණ කොට්ටාව පාර, නාවින්න, මහරගම
+            </span>
           </p>
         </div>
       </div>
 
       {/* Conditions */}
-      <div className="mb-4 border-t border-dashed border-gray-400 pt-2">
-        <h3 className="font-bold text-sm mb-1 underline">
+      <div className="mb-3 border-t border-dashed border-gray-400 pt-2">
+        <h3 className="font-bold text-sm mb-1 underline font-['UN-Sandhyane']">
           පහත සඳහන් කොන්දේසි වලට එකඟ නම් පමණක් උපකරණ ලබාගන්න
         </h3>
         {conditions.length > 0 ?
-        <ol className="list-decimal list-inside text-[12px] space-y-0.5 text-gray-700">
+        <ol className="list-decimal list-inside text-[10px] space-y-0.5 text-black font-['UN-Sandhyane'] font-bold">
             {conditions.map((c) =>
           <li key={c.id}>{c.text}</li>
           )}
@@ -178,52 +192,34 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
         }
       </div>
 
-      {/* Dates & Status */}
-      <div className="mb-4 border-t border-dashed border-gray-400 pt-2 text-xs">
-        <p>කුලී ආරම්භක දිනය: {bill.date}</p>
-        <p>වර්තමාන දිනය: {new Date().toLocaleDateString()}</p>
-        <p
-          className={`font-bold mt-1 text-sm ${bill.rentalStatus === 'closed' ? 'text-green-600' : 'text-blue-600'}`}>
-          
-          තත්ත්වය: {bill.items.filter((i) => i.status === 'returned').length}/
-          {bill.items.length} භාණ්ඩ ආපසු ගෙන්වා ඇත
-        </p>
-      </div>
-
       {/* Items Table + Fines Table (joined) */}
-      <div className="mb-6">
+      <div className="mb-12">
         <table className="w-full border-collapse border border-black text-xs">
           <thead>
             <tr className="bg-gray-50">
-              <th className="border border-black px-2 py-1 text-left font-bold">
-                භාණ්ඩ අංකය
-              </th>
-              <th className="border border-black px-2 py-1 text-left font-bold">
+              <th className="border border-black px-2 py-1 text-left font-bold font-['UN-Sandhyane']">
                 ලබාගත් උපකරණය
               </th>
-              <th className="border border-black px-2 py-1 text-right font-bold">
+              <th className="border border-black px-2 py-1 text-right font-bold font-['UN-Sandhyane']">
                 එකක මිල
               </th>
-              <th className="border border-black px-2 py-1 text-center font-bold">
+              <th className="border border-black px-2 py-1 text-center font-bold font-['UN-Sandhyane']">
                 ඒකක ප්‍රමාණය
               </th>
-              <th className="border border-black px-2 py-1 text-center font-bold">
+              <th className="border border-black px-2 py-1 text-center font-bold font-['UN-Sandhyane']">
                 ලබාගත් දිනය
               </th>
-              <th className="border border-black px-2 py-1 text-center font-bold">
+              <th className="border border-black px-2 py-1 text-center font-bold font-['UN-Sandhyane']">
                 ආපසු ලබාදුන් දිනය
               </th>
-              <th className="border border-black px-2 py-1 text-center font-bold">
+              <th className="border border-black px-2 py-1 text-center font-bold font-['UN-Sandhyane']">
                 තබාගත් දින ගණන
               </th>
-              <th className="border border-black px-2 py-1 text-center font-bold">
+              <th className="border border-black px-2 py-1 text-center font-bold font-['UN-Sandhyane']">
                 ලබාදුන් වේලාව
               </th>
-              <th className="border border-black px-2 py-1 text-center font-bold">
-                රුපියල්
-              </th>
-              <th className="border border-black px-2 py-1 text-center font-bold">
-                ශත
+              <th className="border border-black px-2 py-1 text-right font-bold font-['UN-Sandhyane']">
+                මුදල
               </th>
             </tr>
           </thead>
@@ -242,15 +238,12 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
               return (
                 <tr
                   key={index}
-                  className={item.status === 'returned' ? 'bg-gray-50' : ''}>
+                  className={item.status === 'returned' ? 'bg-black-800' : ''}>
                   
-                  <td className="border border-black px-2 py-1 font-mono">
-                    {item.product.itemCode || item.product.barcode || '-'}
-                  </td>
-                  <td className="border border-black px-2 py-1 font-bold text-green-700">
+                  <td className="border border-black px-2 py-1 font-bold text-black">
                     {item.product.name}
                     {item.status === 'returned' &&
-                    <span className="ml-2 text-[10px] text-gray-500">
+                    <span className="ml-2 text-[10px] text-black-800" style={{ fontWeight: "800" }}>
                         (RETURNED)
                       </span>
                     }
@@ -276,10 +269,7 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
                     ''}
                   </td>
                   <td className="border border-black px-2 py-1 text-right font-bold">
-                    {rupees}
-                  </td>
-                  <td className="border border-black px-2 py-1 text-right font-bold">
-                    {cents}
+                    {rupees}.{cents}
                   </td>
                 </tr>);
 
@@ -290,29 +280,26 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
             <>
                 <tr>
                   <td
-                  colSpan={8}
-                  className="border border-black px-2 py-1 text-right font-bold text-xs">
+                  colSpan={7}
+                  className="border border-black px-2 py-1 text-right font-bold text-xs font-['UN-Sandhyane']">
                   
                     එකතුව
                   </td>
                   <td className="border border-black px-2 py-1 text-right font-bold text-xs">
-                    {splitPrice(subtotal).rupees}
-                  </td>
-                  <td className="border border-black px-2 py-1 text-right font-bold text-xs">
-                    {splitPrice(subtotal).cents}
+                    {splitPrice(subtotal).rupees}.{splitPrice(subtotal).cents}
                   </td>
                 </tr>
                 <tr>
                   <td
-                  colSpan={8}
+                  colSpan={7}
                   className="border border-black px-2 py-1 text-right text-xs">
                   
-                    වට්ටම ({formatPercent(discountPercent)}%)
+                    <span className="font-['UN-Sandhyane'] font-bold">
+                      වට්ටම
+                    </span>{' '}
+                    ({formatPercent(discountPercent)}%)
                   </td>
-                  <td
-                  colSpan={2}
-                  className="border border-black px-2 py-1 text-right text-xs">
-                  
+                  <td className="border border-black px-2 py-1 text-right text-xs">
                     -{formatPrice(discountAmount).replace('Rs. ', '')}
                   </td>
                 </tr>
@@ -320,63 +307,51 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
             }
             <tr className="bg-gray-50">
               <td
-                colSpan={8}
-                className="border border-black px-2 py-1 text-right font-bold text-xs">
+                colSpan={7}
+                className="border border-black px-2 py-1 text-right font-bold text-xs font-['UN-Sandhyane']">
                 
                 කුලී එකතුව
               </td>
               <td className="border border-black px-2 py-1 text-right font-bold text-xs">
-                {splitPrice(total).rupees}
-              </td>
-              <td className="border border-black px-2 py-1 text-right font-bold text-xs">
-                {splitPrice(total).cents}
+                {splitPrice(total).rupees}.{splitPrice(total).cents}
               </td>
             </tr>
 
             <tr className="bg-gray-50">
               <td
-                colSpan={8}
-                className="border border-black px-2 py-1 text-right font-bold text-xs">
+                colSpan={7}
+                className="border border-black px-2 py-1 text-right font-bold text-xs font-['UN-Sandhyane']">
                 
                 ඇප තැම්පතු මුදල
               </td>
               <td className="border border-black px-2 py-1 text-right font-bold text-xs">
-                {splitPrice(deposit).rupees}
-              </td>
-              <td className="border border-black px-2 py-1 text-right font-bold text-xs">
-                {splitPrice(deposit).cents}
+                {splitPrice(deposit).rupees}.{splitPrice(deposit).cents}
               </td>
             </tr>
 
             {hasFines &&
             <tr className="bg-gray-50">
                 <td
-                colSpan={8}
-                className="border border-black px-2 py-1 text-right font-bold text-xs">
+                colSpan={7}
+                className="border border-black px-2 py-1 text-right font-bold text-xs font-['UN-Sandhyane']">
                 
                   දඩ මුදල
                 </td>
                 <td className="border border-black px-2 py-1 text-right font-bold text-xs">
-                  {splitPrice(totalFines).rupees}
-                </td>
-                <td className="border border-black px-2 py-1 text-right font-bold text-xs">
-                  {splitPrice(totalFines).cents}
+                  {splitPrice(totalFines).rupees}.{splitPrice(totalFines).cents}
                 </td>
               </tr>
             }
 
             <tr className="bg-gray-50">
               <td
-                colSpan={8}
-                className="border border-black px-2 py-1 text-right font-bold text-xs">
+                colSpan={7}
+                className="border border-black px-2 py-1 text-right font-bold text-xs font-['UN-Sandhyane']">
                 
                 මුළු එකතුව
               </td>
               <td className="border border-black px-2 py-1 text-right font-bold text-xs">
-                {splitPrice(netOwed).rupees}
-              </td>
-              <td className="border border-black px-2 py-1 text-right font-bold text-xs">
-                {splitPrice(netOwed).cents}
+                {splitPrice(netOwed).rupees}.{splitPrice(netOwed).cents}
               </td>
             </tr>
 
@@ -387,18 +362,15 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
               if (refund > 0) {
                 if (allReturned) {
                   return (
-                    <tr className="text-green-700">
+                    <tr>
                       <td
-                        colSpan={8}
-                        className="border border-black px-2 py-1 text-right font-bold text-xs">
+                        colSpan={7}
+                        className="border border-black px-2 py-1 text-right font-bold text-xs font-['UN-Sandhyane']">
                         
                         ඉතිරිය
                       </td>
                       <td className="border border-black px-2 py-1 text-right font-bold text-xs">
-                        {splitPrice(refund).rupees}
-                      </td>
-                      <td className="border border-black px-2 py-1 text-right font-bold text-xs">
-                        {splitPrice(refund).cents}
+                        {splitPrice(refund).rupees}.{splitPrice(refund).cents}
                       </td>
                     </tr>);
 
@@ -406,36 +378,30 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
                 return null;
               } else if (owing > 0) {
                 return (
-                  <tr className={isOpen ? 'text-red-500' : 'text-red-600'}>
+                  <tr>
                     <td
-                      colSpan={8}
-                      className="border border-black px-2 py-1 text-right font-bold text-xs">
+                      colSpan={7}
+                      className="border border-black px-2 py-1 text-right font-bold text-xs font-['UN-Sandhyane']">
                       
                       ගෙවිය යුතු මුදල
                     </td>
                     <td className="border border-black px-2 py-1 text-right font-bold text-xs">
-                      {splitPrice(owing).rupees}
-                    </td>
-                    <td className="border border-black px-2 py-1 text-right font-bold text-xs">
-                      {splitPrice(owing).cents}
+                      {splitPrice(owing).rupees}.{splitPrice(owing).cents}
                     </td>
                   </tr>);
 
               } else {
                 if (allReturned) {
                   return (
-                    <tr className="text-green-700">
+                    <tr>
                       <td
-                        colSpan={8}
-                        className="border border-black px-2 py-1 text-right font-bold text-xs">
+                        colSpan={7}
+                        className="border border-black px-2 py-1 text-right font-bold text-xs font-['UN-Sandhyane']">
                         
                         ශේෂය
                       </td>
                       <td className="border border-black px-2 py-1 text-right font-bold text-xs">
-                        0
-                      </td>
-                      <td className="border border-black px-2 py-1 text-right font-bold text-xs">
-                        00
+                        0.00
                       </td>
                     </tr>);
 
@@ -443,24 +409,8 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
                 return null;
               }
             })()}
-
-            {isOpen && owing > 0 &&
-            <tr>
-                <td
-                colSpan={10}
-                className="border border-black px-2 py-1 text-[10px] text-red-500 font-bold">
-                
-                  * ගෙවීම් ඉතිරිව ඇත. බිල්පත ක්‍රියාකාරීව පවතී.
-                </td>
-              </tr>
-            }
           </tbody>
         </table>
-      </div>
-
-      {/* Footer */}
-      <div className="text-[10px] text-gray-600 mb-12">
-        <p>මුද්‍රණය කළ වේලාව: {printedTime}</p>
       </div>
 
       {/* Signatures & Stamp */}
@@ -468,17 +418,23 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
         <div className="flex justify-between items-end mb-4">
           <div className="text-center">
             <div className="border-t border-black w-40 mb-1"></div>
-            <p className="text-xs">පාරිභෝගික අත්සන</p>
+            <p className="text-xs font-['UN-Sandhyane'] font-bold">
+              පාරිභෝගික අත්සන
+            </p>
           </div>
           <div className="text-center">
             <div className="border-t border-black w-40 mb-1"></div>
-            <p className="text-xs">ආයතන නිළධාරී</p>
+            <p className="text-xs font-['UN-Sandhyane'] font-bold">
+              ආයතන නිළධාරී
+            </p>
           </div>
         </div>
         {bill.rentalStatus === 'closed' &&
         <div className="text-center mt-6">
-            <p className="text-xs mb-2">සියලුම භාණ්ඩ ආපසු ගෙන්වා ඇත.</p>
-            <div className="inline-block border-2 border-green-600 text-green-600 font-bold text-2xl px-6 py-2 rounded-lg transform -rotate-2">
+            <p className="text-xs mb-2 font-['UN-Sandhyane'] font-bold">
+              සියලුම භාණ්ඩ ආපසු ගෙන්වා ඇත.
+            </p>
+            <div className="inline-block border-2 border-black text-black font-bold text-2xl px-6 py-2 rounded-lg transform -rotate-2 font-['UN-Sandhyane']">
               ගෙවා ඇත
             </div>
           </div>
@@ -502,7 +458,7 @@ function SaleBillTemplate({ bill }: {bill: Bill;}) {
   );
   const isFullyReturned = totalQty > 0 && returnedQty >= totalQty;
   return (
-    <div className="p-8 sm:p-12">
+    <div className="p-6 sm:p-8">
       {/* Returned seal — diagonal stamp across the invoice */}
       {returnedQty > 0 &&
       <div
@@ -527,7 +483,7 @@ function SaleBillTemplate({ bill }: {bill: Bill;}) {
       }
 
       {/* Header */}
-      <div className="flex justify-between items-start mb-10 pb-8 border-b-2 border-gray-100">
+      <div className="flex justify-between items-start mb-6 pb-6 border-b-2 border-gray-100">
         <div>
           <div className="flex items-center gap-3 mb-4">
             <img
@@ -576,7 +532,7 @@ function SaleBillTemplate({ bill }: {bill: Bill;}) {
       </div>
 
       {/* Items Table */}
-      <table className="w-full mb-12">
+      <table className="w-full mb-8">
         <thead>
           <tr className="border-b-2 border-gray-100">
             <th className="text-left py-3 text-xs font-bold text-gray-500 uppercase tracking-wider print-black-text">
@@ -628,7 +584,7 @@ function SaleBillTemplate({ bill }: {bill: Bill;}) {
       </table>
 
       {/* Totals */}
-      <div className="flex justify-end mb-12">
+      <div className="flex justify-end mb-8">
         <div className="w-64 space-y-3">
           <div className="flex justify-between text-sm text-gray-600 print-black-text">
             <span>Subtotal</span>

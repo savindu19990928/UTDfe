@@ -945,6 +945,7 @@ export function HistoryPage({
           const).map(([value, label, statKey]) => {
             const isActive = rentalFilter === value;
             const count = isActive ? rentalTotalCount : rentalStats[statKey];
+            const shouldShowCount = rentalFilter === 'all' || isActive;
             return (
               <button
                 key={value}
@@ -961,7 +962,7 @@ export function HistoryPage({
                 }>
                 
                   {label}
-                  {count != null &&
+                  {shouldShowCount && count != null &&
                 <span
                   className={`px-1.5 py-0.5 rounded-full text-xs tabular-nums ${
                   isActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'}`

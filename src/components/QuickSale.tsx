@@ -15,7 +15,10 @@ import {
   Banknote,
   Landmark } from
 'lucide-react';
-import { useProducts } from '../hooks/useProducts';
+import {
+  useProductSearch,
+  fetchProductDetails } from
+'../hooks/useProductSearch';
 import { Product, Bill, Customer } from '../types';
 import { formatPrice, toDiscountPercent } from '../utils/format';
 import { API_URL } from '../utils/config';
@@ -48,14 +51,16 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
   const discountInputRef = useRef<HTMLInputElement>(null);
   const customerNameRef = useRef<HTMLInputElement>(null);
   const qtyRefs = useRef<(HTMLInputElement | null)[]>([]);
-  // Search products via API — only when 3+ characters typed
+  // Search sale products via the dedicated search endpoint — 3+ characters
   const searchQuery =
   productSearch.trim().length >= 3 ? productSearch.trim() : undefined;
-  const { products: searchResults, loading: searchLoading } = useProducts({
-    search: searchQuery,
-    categoryType: 'sell',
+  const { results: searchResults, loading: searchLoading } = useProductSearch({
+    type: 'sale',
+    query: searchQuery,
     enabled: !!searchQuery
   });
+  // Product being hydrated with full details after picking a search hit
+  const [addingProductId, setAddingProductId] = useState<string | null>(null);
   // Products to show in dropdown
   const filteredProducts = useMemo(() => {
     if (!searchQuery) return [];
@@ -85,7 +90,14 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
       setTimeout(() => discountInputRef.current?.focus(), 100);
     }
   }, [stage]);
-  const handleAddProduct = (product: Product) => {
+  const handleAddProduct = async (searchProduct: Product) => {
+    if (addingProductId) return;
+    // Search results are lightweight — load the full record so stock limits
+    // are enforced against real availability.
+    setAddingProductId(searchProduct.id);
+    const detailed = await fetchProductDetails(searchProduct.id);
+    setAddingProductId(null);
+    const product = detailed ?? searchProduct;
     // Check stock availability (stock > 0 means limited stock)
     if (product.stock != null && product.stock > 0) {
       const usedQty = getUsedQty(product.id);
@@ -312,6 +324,7 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
                       key={product.id}
                       onClick={() => handleAddProduct(product)}
                       disabled={
+                      addingProductId != null ||
                       product.stock != null &&
                       product.stock > 0 &&
                       getUsedQty(product.id) >= product.stock
@@ -326,10 +339,13 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
                                   {product.itemCode}
                                 </p>
                               </div>
-                              <div className="text-right">
+                              <div className="text-right flex items-center gap-2">
                                 <p className="font-bold text-orange-600">
                                   {formatPrice(product.salePrice)}
                                 </p>
+                                {addingProductId === product.id &&
+                        <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                        }
                               </div>
                             </button>
                     ) :
