@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   ShoppingCart,
   Clock,
@@ -30,6 +30,10 @@ import { getAuthHeaders } from '../utils/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clearCache } from '../utils/apiCache';
 import { Pagination } from './Pagination';
+import { BillPrintLayer } from './BillPrintLayer';
+// Remembers which bill was last touched so the list can jump back to it
+// after the data refreshes (or after a full browser refresh).
+const FOCUS_BILL_KEY = 'pos_history_focus_bill';
 interface HistoryPageProps {
   bills: Bill[];
   cashTransactions: CashTransaction[];
@@ -127,6 +131,40 @@ export function HistoryPage({
   const [rentalFilter, setRentalFilter] = useState<
     'all' | 'active' | 'returned' | 'overdue' | 'unpaid' | 'closed'>(
     'all');
+  // Scroll-back + auto-print for the bill that was just changed
+  const billRefs = useRef<Record<string, HTMLElement | null>>({});
+  const [focusBillId, setFocusBillId] = useState<string | null>(() => {
+    try {
+      return sessionStorage.getItem(FOCUS_BILL_KEY);
+    } catch {
+      return null;
+    }
+  });
+  const [highlightBillId, setHighlightBillId] = useState<string | null>(null);
+  const [pendingPrint, setPendingPrint] = useState<{
+    id: string;
+    type: 'rental' | 'sale';
+    requestedAt: number;
+    fallback: Bill;
+  } | null>(null);
+  const [printBill, setPrintBill] = useState<Bill | null>(null);
+  const handlePrintDone = useCallback(() => setPrintBill(null), []);
+  // Called after every successful change to a bill: remember it for scroll-back
+  // and queue its receipt for printing once fresh data lands.
+  const markBillChanged = (bill: Bill, type: 'rental' | 'sale') => {
+    setFocusBillId(bill.id);
+    try {
+      sessionStorage.setItem(FOCUS_BILL_KEY, bill.id);
+    } catch {
+
+      /* storage unavailable — scrolling still works this session */}
+    setPendingPrint({
+      id: bill.id,
+      type,
+      requestedAt: Date.now(),
+      fallback: bill
+    });
+  };
   // Fetch products from API only when modal is open
   const { products: rentProducts } = useProducts({
     categoryType: 'rent',
@@ -232,6 +270,51 @@ export function HistoryPage({
       setLocalReturnedBills(new Set());
     }
   }, [apiRentalBills]);
+  // Scroll back to the last changed bill once the refreshed list has rendered
+  useEffect(() => {
+    if (!focusBillId) return;
+    if (rentalsLoading || salesLoading) return;
+    const timer = window.setTimeout(() => {
+      const el = billRefs.current[focusBillId];
+      if (!el) return;
+      el.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      });
+      setHighlightBillId(focusBillId);
+      window.setTimeout(() => setHighlightBillId(null), 2200);
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [
+  focusBillId,
+  rentalsLoading,
+  salesLoading,
+  apiRentalBills,
+  apiSaleBills,
+  activeTab]
+  );
+  // Send the changed bill to the printer once fresh data has come back
+  useEffect(() => {
+    if (!pendingPrint) return;
+    const isRental = pendingPrint.type === 'rental';
+    const list = isRental ? apiRentalBills : apiSaleBills;
+    const loading = isRental ? rentalsLoading : salesLoading;
+    const elapsed = Date.now() - pendingPrint.requestedAt;
+    // Give the refetch a moment to start before trusting the current list
+    if ((loading || elapsed < 700) && elapsed < 6000) {
+      const retry = window.setTimeout(
+        () => setPendingPrint((prev) => prev ? { ...prev } : prev),
+        300
+      );
+      return () => window.clearTimeout(retry);
+    }
+    // Fall back to the bill as we knew it if the refreshed page no longer
+    // contains it (e.g. a filter moved it out of view).
+    const found =
+    list.find((b) => b.id === pendingPrint.id) || pendingPrint.fallback;
+    setPendingPrint(null);
+    setPrintBill(found);
+  }, [pendingPrint, apiRentalBills, apiSaleBills, rentalsLoading, salesLoading]);
   // Separate bills by type
   const saleBills = apiSaleBills;
   const rentalBills = patchedRentalBills;
@@ -323,6 +406,7 @@ export function HistoryPage({
       // Background refetch for data consistency
       clearCache('rentals:');
       refetchRentals();
+      markBillChanged(bill, 'rental');
     } catch (err: any) {
       setActionError(err.message || 'Failed to return item');
       console.error('Return item error:', err);
@@ -405,6 +489,7 @@ export function HistoryPage({
       // Background refetch
       clearCache('rentals:');
       refetchRentals();
+      markBillChanged(bill, 'rental');
     } catch (err: any) {
       setActionError(err.message || 'Failed to return items');
       console.error('Return all items error:', err);
@@ -443,6 +528,7 @@ export function HistoryPage({
       // Clear cache and refetch rentals to get updated data
       clearCache('rentals:');
       refetchRentals();
+      markBillChanged(bill, 'rental');
     } catch (err: any) {
       setActionError(err.message || 'Failed to add deposit');
       console.error('Add deposit error:', err);
@@ -478,6 +564,13 @@ export function HistoryPage({
       // Clear cache and refetch to get updated status
       clearCache('rentals:');
       refetchRentals();
+      markBillChanged(
+        {
+          ...bill,
+          rentalStatus: 'closed'
+        },
+        'rental'
+      );
     } catch (err: any) {
       setActionError(err.message || 'Failed to close bill');
       console.error('Manual close error:', err);
@@ -629,6 +722,7 @@ export function HistoryPage({
       // Refresh the rentals list to reflect the newly added item
       clearCache('rentals:');
       refetchRentals();
+      markBillChanged(bill, 'rental');
       resetAddItemModal();
     } catch (err: any) {
       setAddItemError(err.message || 'Failed to add item');
@@ -836,6 +930,7 @@ export function HistoryPage({
       });
       clearCache('sales:');
       refetchSales();
+      markBillChanged(returnModalBill, 'sale');
     } catch (err: any) {
       setReturnError(err.message || 'Failed to return items');
       console.error('Sale return error:', err);
@@ -1071,7 +1166,11 @@ export function HistoryPage({
               return (
                 <div
                   key={bill.id}
-                  className={`bg-white rounded-xl shadow-sm border ${isEditing ? 'border-blue-300 ring-2 ring-blue-100' : needsPayment ? 'border-red-200 ring-1 ring-red-100' : 'border-gray-200'}`}>
+                  data-bill-id={bill.id}
+                  ref={(el) => {
+                    billRefs.current[bill.id] = el;
+                  }}
+                  className={`bg-white rounded-xl shadow-sm border scroll-mt-24 transition-shadow duration-200 ${isEditing ? 'border-blue-300 ring-2 ring-blue-100' : needsPayment ? 'border-red-200 ring-1 ring-red-100' : 'border-gray-200'} ${highlightBillId === bill.id ? 'ring-2 ring-[#f5a623] ring-offset-2' : ''}`}>
                   
                         {/* Bill Header */}
                         <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -1546,7 +1645,11 @@ export function HistoryPage({
                     return (
                       <tr
                         key={bill.id}
-                        className="hover:bg-gray-50 transition-colors">
+                        data-bill-id={bill.id}
+                        ref={(el) => {
+                          billRefs.current[bill.id] = el;
+                        }}
+                        className={`transition-colors scroll-mt-24 ${highlightBillId === bill.id ? 'bg-[#f5a623]/10' : 'hover:bg-gray-50'}`}>
                         
                             <td className="px-6 py-4 font-mono text-sm font-bold text-[#1a1a2e]">
                               {bill.id}
@@ -3131,6 +3234,9 @@ export function HistoryPage({
           </motion.div>
         }
       </AnimatePresence>
+
+      {/* Auto-print the receipt after any change to a bill */}
+      <BillPrintLayer bill={printBill} onDone={handlePrintDone} />
     </div>);
 
 }

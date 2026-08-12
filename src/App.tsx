@@ -54,6 +54,16 @@ import('./components/CustomerManager').then((m) => ({
   default: m.CustomerManager
 }))
 );
+const DamageTracker = lazy(() =>
+import('./components/DamageTracker').then((m) => ({
+  default: m.DamageTracker
+}))
+);
+const MachineResetPage = lazy(() =>
+import('./components/management/MachineResetPage').then((m) => ({
+  default: m.MachineResetPage
+}))
+);
 const PageFallback = () =>
 <div className="flex items-center justify-center py-20">
     <div className="w-8 h-8 border-3 border-gray-200 border-t-[#f5a623] rounded-full animate-spin" />
@@ -66,6 +76,8 @@ type Page =
 'bill' |
 'expenses' |
 'customers' |
+'damages' |
+'machines' |
 'quick-rental' |
 'quick-sale';
 const initialCustomers: CustomerRecord[] = [];
@@ -83,6 +95,7 @@ function AppContent() {
   const [cashTransactions, setCashTransactions] = useState<CashTransaction[]>(
     []
   );
+  const [autoPrintBillId, setAutoPrintBillId] = useState<string | null>(null);
   const { clearCart } = useCart();
   const handleNavigate = (page: Page) => {
     setCurrentPage(page);
@@ -92,6 +105,8 @@ function AppContent() {
     clearCart();
     setBills((prev) => [bill, ...prev]);
     setCurrentBill(bill);
+    // A newly generated bill prints itself as soon as the invoice renders
+    setAutoPrintBillId(bill.id);
     setCurrentPage('bill');
     window.scrollTo(0, 0);
   };
@@ -110,6 +125,7 @@ function AppContent() {
   };
   const handleViewBill = (bill: Bill) => {
     setCurrentBill(bill);
+    setAutoPrintBillId(null);
     setCurrentPage('bill');
     window.scrollTo(0, 0);
   };
@@ -140,7 +156,8 @@ function AppContent() {
         <BillPreview
           bill={currentBill}
           onBack={() => setCurrentPage('history')}
-          onNewOrder={handleNewOrder} />
+          onNewOrder={handleNewOrder}
+          autoPrint={autoPrintBillId === currentBill.id} />
         
       </Suspense>);
 
@@ -224,6 +241,18 @@ function AppContent() {
           {currentPage === 'customers' && <CustomerManager />}
 
           {currentPage === 'expenses' && <ExpenseTracker />}
+
+          {currentPage === 'damages' &&
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+              <DamageTracker damages={damages} onAddDamage={handleAddDamage} />
+            </div>
+            }
+
+          {currentPage === 'machines' &&
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+              <MachineResetPage />
+            </div>
+            }
         </Suspense>
         </>
         }

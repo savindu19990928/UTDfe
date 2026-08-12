@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Bill } from '../types';
 import { Printer, ArrowLeft, CheckCircle } from 'lucide-react';
 import { formatPercent, formatPrice } from '../utils/format';
@@ -9,11 +9,23 @@ interface BillPreviewProps {
   bill: Bill;
   onBack: () => void;
   onNewOrder: () => void;
+  autoPrint?: boolean;
 }
-export function BillPreview({ bill, onBack, onNewOrder }: BillPreviewProps) {
+export function BillPreview({
+  bill,
+  onBack,
+  onNewOrder,
+  autoPrint
+}: BillPreviewProps) {
   const handlePrint = () => {
     window.print();
   };
+  // Freshly generated bills go straight to the printer
+  useEffect(() => {
+    if (!autoPrint) return;
+    const timer = window.setTimeout(() => window.print(), 600);
+    return () => window.clearTimeout(timer);
+  }, [autoPrint, bill.id]);
   const isRental = bill.items.some((item) => item.type === 'rent');
   return (
     <div className="min-h-screen bg-gray-100 py-8 print:py-0 print:bg-white px-4 sm:px-6 lg:px-8">
@@ -56,7 +68,7 @@ export function BillPreview({ bill, onBack, onNewOrder }: BillPreviewProps) {
     </div>);
 
 }
-function RentalBillTemplate({ bill }: {bill: Bill;}) {
+export function RentalBillTemplate({ bill }: {bill: Bill;}) {
   const { conditions } = useRentalConditions();
   const subtotal = bill.subtotal;
   const discountPercent = bill.discount;
@@ -443,7 +455,7 @@ function RentalBillTemplate({ bill }: {bill: Bill;}) {
     </div>);
 
 }
-function SaleBillTemplate({ bill }: {bill: Bill;}) {
+export function SaleBillTemplate({ bill }: {bill: Bill;}) {
   const paymentLabel =
   bill.paymentMethod === 'card' ?
   'Card' :

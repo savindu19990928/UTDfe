@@ -7,7 +7,8 @@ import {
   AlertTriangle,
   X,
   ChevronLeft,
-  ChevronRight } from
+  ChevronRight,
+  Loader2 } from
 'lucide-react';
 import { Product, ApiCategory } from '../types';
 import { useCart } from '../hooks/useCart';
@@ -25,6 +26,12 @@ interface ProductListProps {
   totalPages?: number;
   totalCount?: number;
   onPageChange?: (page: number) => void;
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
+  searchLoading?: boolean;
+  searchActive?: boolean;
+  onAddProduct?: (product: Product) => Promise<boolean> | boolean;
+  addingProductId?: string | null;
 }
 function ProductListImpl({
   products,
@@ -36,12 +43,26 @@ function ProductListImpl({
   currentPage = 1,
   totalPages = 1,
   totalCount = 0,
-  onPageChange
+  onPageChange,
+  searchQuery: controlledSearch,
+  onSearchChange,
+  searchLoading = false,
+  searchActive = false,
+  onAddProduct,
+  addingProductId = null
 }: ProductListProps) {
   const { addToCart, cartType } = useCart();
-  const [searchQuery, setSearchQuery] = useState('');
+  const [internalSearch, setInternalSearch] = useState('');
   const [showTypeWarning, setShowTypeWarning] = useState(false);
+  const searchQuery =
+  controlledSearch !== undefined ? controlledSearch : internalSearch;
+  const setSearchQuery = (value: string) => {
+    if (onSearchChange) onSearchChange(value);else
+    setInternalSearch(value);
+  };
+  // When a server-side search is running the list is already filtered.
   const filteredProducts = useMemo(() => {
+    if (searchActive) return products;
     if (!searchQuery.trim()) return products;
     return products.filter((product) => {
       return (
@@ -52,9 +73,11 @@ function ProductListImpl({
         product.itemCode.toLowerCase().includes(searchQuery.toLowerCase()));
 
     });
-  }, [products, searchQuery]);
-  const handleAddToCart = (product: Product) => {
-    const success = addToCart(product, product.listingType, 1);
+  }, [products, searchQuery, searchActive]);
+  const handleAddToCart = async (product: Product) => {
+    const success = onAddProduct ?
+    await onAddProduct(product) :
+    addToCart(product, product.listingType, 1);
     if (!success) {
       setShowTypeWarning(true);
       setTimeout(() => setShowTypeWarning(false), 4000);
@@ -63,12 +86,15 @@ function ProductListImpl({
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
-      const exactMatch = products.find(
+      const exactMatch = filteredProducts.find(
         (p) =>
         p.barcode && p.barcode.toLowerCase() === q ||
         p.itemCode && p.itemCode.toLowerCase() === q
       );
-      const canAdd = (p: Product) => p.listingType === 'sale' || p.stock > 0;
+      // Stock is only known for the browsed page — search hits are hydrated
+      // on add, so don't block them here.
+      const canAdd = (p: Product) =>
+      searchActive || p.listingType === 'sale' || p.stock > 0;
       if (exactMatch && canAdd(exactMatch)) {
         handleAddToCart(exactMatch);
         setSearchQuery('');
@@ -80,7 +106,7 @@ function ProductListImpl({
       }
     }
   };
-  const showPagination = totalPages > 1 && onPageChange;
+  const showPagination = !searchActive && totalPages > 1 && onPageChange;
   // Generate page numbers to show
   const getPageNumbers = () => {
     const pages: (number | '...')[] = [];
@@ -143,7 +169,11 @@ function ProductListImpl({
       {/* Search */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <span className="text-sm font-medium text-gray-500">
-          {totalCount > 0 ?
+          {searchActive ?
+          searchLoading ?
+          'Searching all products…' :
+          `${filteredProducts.length} matching ${filteredProducts.length === 1 ? 'product' : 'products'}` :
+          totalCount > 0 ?
           `${totalCount} products total` :
           `Showing ${filteredProducts.length} results`}
         </span>
@@ -155,19 +185,32 @@ function ProductListImpl({
             type="text"
             placeholder={
             listingType === 'sale' ?
-            'Search or scan barcode...' :
-            'Search by name or item code...'
+            'Search all sale products...' :
+            'Search all rental products...'
             }
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={handleSearchKeyDown}
-            className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#f5a623] focus:border-transparent transition-shadow" />
+            className="block w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#f5a623] focus:border-transparent transition-shadow" />
           
+          <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+            {searchLoading ?
+            <Loader2 className="h-4 w-4 text-gray-400 animate-spin" /> :
+            searchQuery ?
+            <button
+              onClick={() => setSearchQuery('')}
+              aria-label="Clear search"
+              className="text-gray-400 hover:text-gray-600 transition-colors">
+              
+                <X className="h-4 w-4" />
+              </button> :
+            null}
+          </div>
         </div>
       </div>
 
       {/* Categories */}
-      {categories.length > 0 && onCategoryChange &&
+      {!searchActive && categories.length > 0 && onCategoryChange &&
       <div className="mb-6 border-b border-gray-200">
           <CategoryTabs
           categories={categories}
@@ -199,7 +242,10 @@ function ProductListImpl({
                   const isBlocked =
                   cartType !== null && cartType !== product.listingType;
                   const isOutOfStock =
-                  product.listingType === 'rent' && product.stock === 0;
+                  !searchActive &&
+                  product.listingType === 'rent' &&
+                  product.stock === 0;
+                  const isAdding = addingProductId === product.id;
                   return (
                     <motion.tr
                       key={product.id}
@@ -220,9 +266,13 @@ function ProductListImpl({
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                            {product.category}
-                          </span>
+                          {product.category ?
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                              {product.category}
+                            </span> :
+
+                        <span className="text-gray-300">—</span>
+                        }
                         </td>
                         <td className="px-6 py-4 font-mono text-gray-600">
                           {listingType === 'sale' ?
@@ -237,10 +287,12 @@ function ProductListImpl({
                         <td className="px-6 py-4 text-right">
                           <button
                           onClick={() => handleAddToCart(product)}
-                          disabled={isOutOfStock}
+                          disabled={isOutOfStock || isAdding}
                           className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm ${isOutOfStock ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : isBlocked ? 'bg-gray-100 text-gray-400 border border-dashed border-gray-300' : listingType === 'sale' ? 'bg-[#f5a623] hover:bg-[#d4901e] text-[#1a1a2e]' : 'bg-[#2d4059] hover:bg-[#1a1a2e] text-white'}`}>
                           
-                            {listingType === 'sale' ?
+                            {isAdding ?
+                          <Loader2 className="w-4 h-4 animate-spin" /> :
+                          listingType === 'sale' ?
                           <ShoppingCart className="w-4 h-4" /> :
 
                           <Clock className="w-4 h-4" />
@@ -260,10 +312,14 @@ function ProductListImpl({
                     <td colSpan={5} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center justify-center">
                         <div className="bg-gray-100 p-4 rounded-full mb-3">
-                          <PackageOpen className="h-8 w-8 text-gray-400" />
+                          {searchLoading ?
+                        <Loader2 className="h-8 w-8 text-gray-400 animate-spin" /> :
+
+                        <PackageOpen className="h-8 w-8 text-gray-400" />
+                        }
                         </div>
                         <h3 className="text-lg font-bold text-gray-900 mb-1">
-                          No products found
+                          {searchLoading ? 'Searching…' : 'No products found'}
                         </h3>
                         <p className="text-gray-500 text-sm">
                           Try adjusting your search terms or filters.

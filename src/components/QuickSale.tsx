@@ -13,11 +13,13 @@ import {
   CreditCard,
   ShoppingCart,
   Banknote,
-  Landmark } from
+  Landmark,
+  ScanBarcode } from
 'lucide-react';
 import {
   useProductSearch,
-  fetchProductDetails } from
+  fetchProductDetails,
+  lookupProductByCode } from
 '../hooks/useProductSearch';
 import { Product, Bill, Customer } from '../types';
 import { formatPrice, toDiscountPercent } from '../utils/format';
@@ -61,6 +63,8 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
   });
   // Product being hydrated with full details after picking a search hit
   const [addingProductId, setAddingProductId] = useState<string | null>(null);
+  // Barcode scan lookup in flight
+  const [scanLookup, setScanLookup] = useState(false);
   // Products to show in dropdown
   const filteredProducts = useMemo(() => {
     if (!searchQuery) return [];
@@ -123,6 +127,41 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
       qtyRefs.current[index]?.select();
     }, 50);
   };
+  // Enter in the search box: resolve a scanned barcode / item code against the
+  // whole catalog first, then fall back to the top search hit.
+  const handleSearchEnter = async () => {
+    const term = productSearch.trim();
+    if (!term || scanLookup || addingProductId) return;
+    setScanLookup(true);
+    const match = await lookupProductByCode('sale', term);
+    setScanLookup(false);
+    if (match) {
+      handleAddProduct(match);
+      return;
+    }
+    if (filteredProducts.length > 0) {
+      handleAddProduct(filteredProducts[0]);
+      return;
+    }
+    setError(`No product found for "${term}"`);
+  };
+  // Hardware scanners type into whatever has focus — funnel stray keystrokes
+  // into the search box so a scan always lands in the right place.
+  useEffect(() => {
+    if (stage !== 'items') return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key.length !== 1) return;
+      e.preventDefault();
+      setProductSearch((prev) => prev + e.key);
+      setShowProductDropdown(true);
+      productSearchRef.current?.focus();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [stage]);
   const handleRemoveItem = (index: number) => {
     setItems((prev) => prev.filter((_, i) => i !== index));
   };
@@ -275,7 +314,7 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
                   <input
                   ref={productSearchRef}
                   type="text"
-                  placeholder="Search product by name or code..."
+                  placeholder="Scan barcode or search product by name..."
                   value={productSearch}
                   onChange={(e) => {
                     setProductSearch(e.target.value);
@@ -283,13 +322,21 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
                   }}
                   onFocus={() => setShowProductDropdown(true)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && filteredProducts.length > 0) {
+                    if (e.key === 'Enter') {
                       e.preventDefault();
-                      handleAddProduct(filteredProducts[0]);
+                      handleSearchEnter();
                     }
                   }}
-                  className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-lg" />
+                  className="w-full pl-10 pr-36 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-lg" />
                 
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-full px-2.5 py-1">
+                    {scanLookup ?
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-orange-500" /> :
+
+                  <ScanBarcode className="w-3.5 h-3.5 text-orange-500" />
+                  }
+                    {scanLookup ? 'Looking up…' : 'Scanner ready'}
+                  </span>
 
                   {/* Product Dropdown */}
                   <AnimatePresence>

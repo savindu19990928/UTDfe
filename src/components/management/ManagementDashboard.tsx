@@ -7,6 +7,7 @@ import { ProductManagement } from './ProductManagement';
 import { ReportsPage } from './ReportsPage';
 import { BillManagement } from './BillManagement';
 import { MachineResetPage } from './MachineResetPage';
+import { BulkSmsPage } from './BulkSmsPage';
 import { ADMIN_SECTIONS, AdminSection } from './adminSections';
 
 const CashManagementPage = lazy(() =>
@@ -78,6 +79,7 @@ export function ManagementDashboard({
           <CustomerManager isAdmin />
         </Suspense>
       }
+      {section === 'sms' && <BulkSmsPage />}
       {section === 'damages' &&
       <Suspense fallback={<SectionFallback />}>
           <DamageTracker damages={damages} onAddDamage={onAddDamage} />

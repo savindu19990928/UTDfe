@@ -9,7 +9,9 @@ import {
   DollarSign,
   Package,
   History,
-  Settings } from
+  Settings,
+  AlertTriangle,
+  Gauge } from
 'lucide-react';
 import { useCart } from '../hooks/useCart';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -24,6 +26,8 @@ interface HeaderProps {
   'bill' |
   'expenses' |
   'customers' |
+  'damages' |
+  'machines' |
   'quick-rental' |
   'quick-sale';
   onNavigate: (
@@ -34,6 +38,8 @@ interface HeaderProps {
   'bill' |
   'expenses' |
   'customers' |
+  'damages' |
+  'machines' |
   'quick-rental' |
   'quick-sale')
   => void;
@@ -76,6 +82,16 @@ export function Header({
     id: 'expenses',
     label: 'Expenses',
     icon: DollarSign
+  },
+  {
+    id: 'damages',
+    label: 'Damage Reports',
+    icon: AlertTriangle
+  },
+  {
+    id: 'machines',
+    label: 'Machine History',
+    icon: Gauge
   }] as
   const;
   const handleNavClick = (page: typeof currentPage) => {
@@ -112,12 +128,12 @@ export function Header({
 
           {/* Desktop Navigation — normal user tabs */}
           {!managementMode &&
-          <nav className="hidden lg:flex space-x-6">
+          <nav className="hidden lg:flex space-x-1 xl:space-x-3">
               {navItems.map((item) =>
             <button
               key={item.id}
               onClick={() => handleNavClick(item.id)}
-              className={`relative px-3 py-2 text-sm font-medium transition-colors flex items-center gap-2 ${currentPage === item.id ? 'text-[#f5a623]' : 'text-gray-300 hover:text-white'}`}>
+              className={`relative px-2.5 py-2 text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap ${currentPage === item.id ? 'text-[#f5a623]' : 'text-gray-300 hover:text-white'}`}>
               
                   <item.icon className="w-4 h-4" />
                   {item.label}

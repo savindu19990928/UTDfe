@@ -7,13 +7,15 @@ import {
   AlertTriangle,
   Users,
   Gauge,
-  Banknote } from
+  Banknote,
+  MessageSquare } from
 'lucide-react';
 
 export type AdminSection =
 'products' |
 'bills' |
 'customers' |
+'sms' |
 'damages' |
 'machines' |
 'cash' |
@@ -42,6 +44,12 @@ export const ADMIN_SECTIONS: {
   label: 'Customer Management',
   icon: Users,
   desc: 'Manage customer profiles, ban & unban customers.'
+},
+{
+  id: 'sms',
+  label: 'Bulk SMS',
+  icon: MessageSquare,
+  desc: 'Send a custom SMS to all active customers.'
 },
 {
   id: 'damages',

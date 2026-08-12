@@ -23,6 +23,17 @@ const REPORTS: {value: ReportType;label: string;dated: boolean;}[] = [
 { value: 'machines', label: 'Machine Usage', dated: false }];
 
 
+// Columns that are intentionally omitted from a report's detail tables.
+// Keys are matched loosely (case and separators ignored) since the tables are
+// built straight from whatever the API returns.
+const HIDDEN_COLUMNS: Partial<Record<ReportType, string[]>> = {
+  financial: ['transaction_type']
+};
+
+function normalizeKey(key: string): string {
+  return key.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 function humanize(key: string): string {
   return key.
   replace(/_/g, ' ').
@@ -297,7 +308,12 @@ export function ReportsPage() {
 
           {/* Detail tables */}
           {extracted.tables.map((t, idx) =>
-        <ReportTable key={`${t.title}-${idx}`} title={t.title} rows={t.rows} />
+        <ReportTable
+          key={`${t.title}-${idx}`}
+          title={t.title}
+          rows={t.rows}
+          hiddenColumns={HIDDEN_COLUMNS[reportType]} />
+
         )}
 
           {report && extracted.tables.length === 0 && summaryEntries.length === 0 &&
@@ -337,7 +353,15 @@ export function ReportsPage() {
 
 }
 
-function ReportTable({ title, rows }: {title: string;rows: Record<string, any>[];}) {
+function ReportTable({
+  title,
+  rows,
+  hiddenColumns
+
+
+
+
+}: {title: string;rows: Record<string, any>[];hiddenColumns?: string[];}) {
   if (!rows || rows.length === 0) {
     return title ?
     <div className="mb-6">
@@ -348,12 +372,13 @@ function ReportTable({ title, rows }: {title: string;rows: Record<string, any>[]
   }
 
   // Union of all keys across rows so no column is dropped
+  const hidden = new Set((hiddenColumns ?? []).map(normalizeKey));
   const columns = Array.from(
     rows.reduce((set, row) => {
       Object.keys(row).forEach((k) => set.add(k));
       return set;
     }, new Set<string>())
-  );
+  ).filter((c) => !hidden.has(normalizeKey(c)));
 
   const isNumericColumn = (col: string) =>
   rows.every(

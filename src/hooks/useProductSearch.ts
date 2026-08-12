@@ -71,6 +71,49 @@ id: string)
   }
 }
 
+// Resolve a scanned barcode / typed item code to a product using the same
+// server-side search endpoints (falls back to the single result when the
+// scanner code isn't stored on the record itself).
+export async function lookupProductByCode(
+type: ProductSearchType,
+code: string)
+: Promise<Product | null> {
+  const term = code.trim();
+  if (!term) return null;
+  const cacheKey = `productSearch:${type}:${term.toLowerCase()}`;
+  let results = getCached<Product[]>(cacheKey, 60_000);
+  if (!results) {
+    try {
+      results = await sharedRequest<Product[]>(cacheKey, async () => {
+        const res = await fetch(
+          `${API_URL}${SEARCH_ENDPOINT[type]}?q=${encodeURIComponent(term)}`,
+          {
+            headers: {
+              ...getAuthHeaders(),
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        if (!res.ok) throw new Error(`Search failed (${res.status})`);
+        const data = await res.json();
+        const rawList: any[] = Array.isArray(data) ? data : data?.results || [];
+        return rawList.map((raw) => mapSearchResult(raw, type));
+      });
+      setCache(cacheKey, results);
+    } catch (err) {
+      console.error('Barcode lookup error:', err);
+      return null;
+    }
+  }
+  const lower = term.toLowerCase();
+  const exact = results.find(
+    (p) =>
+    p.barcode?.toLowerCase() === lower || p.itemCode?.toLowerCase() === lower
+  );
+  if (exact) return exact;
+  return results.length === 1 ? results[0] : null;
+}
+
 export function useProductSearch({
   type,
   query,

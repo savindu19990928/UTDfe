@@ -154,4 +154,25 @@
   .print-black-text {
     color: black !important;
   }
+  /* Auto-print layer: hide the live app so only the receipt prints */
+  body.printing-bill > #root {
+    display: none !important;
+  }
+  .bill-print-layer {
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    width: 100% !important;
+    z-index: auto !important;
+  }
+}
+/* Off-screen receipt used for automatic printing (never visible on screen) */
+.bill-print-layer {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 8.5in;
+  background: white;
+  z-index: -1;
+  pointer-events: none;
 }

@@ -11,8 +11,14 @@ import {
 'lucide-react';
 import { useProducts } from '../hooks/useProducts';
 import { useCategories } from '../hooks/useCategories';
+import {
+  useProductSearch,
+  fetchProductDetails,
+  lookupProductByCode } from
+'../hooks/useProductSearch';
 import { ProductList } from './ProductList';
 import { useCart } from '../hooks/useCart';
+import { Product } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 interface CatalogPageProps {
   onNavigate?: (page: 'quick-rental' | 'quick-sale') => void;
@@ -27,6 +33,8 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
   const [rentCategoryId, setRentCategoryId] = useState<string | number | null>(
     null
   );
+  const [searchQuery, setSearchQuery] = useState('');
+  const [addingProductId, setAddingProductId] = useState<string | null>(null);
   const [scanMode, setScanMode] = useState(false);
   const [scanBuffer, setScanBuffer] = useState('');
   const [scanFeedback, setScanFeedback] = useState<{
@@ -51,6 +59,15 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
     categoryId: activeCategoryId || undefined,
     page: currentPage
   });
+  // Search runs against the whole catalog through the dedicated endpoints,
+  // not just the page currently on screen.
+  const trimmedSearch = searchQuery.trim();
+  const searchActive = trimmedSearch.length >= 2;
+  const { results: searchResults, loading: searchLoading } = useProductSearch({
+    type: activeTab === 'sale' ? 'sale' : 'rent',
+    query: searchActive ? trimmedSearch : undefined,
+    enabled: searchActive
+  });
   const handlePageChange = (newPage: number) => {
     if (activeTab === 'sale') setSalePage(newPage);else
     setRentPage(newPage);
@@ -67,6 +84,7 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
   };
   const handleTabChange = (tab: 'sale' | 'rent') => {
     setActiveTab(tab);
+    setSearchQuery('');
   };
   const showFeedback = useCallback(
     (type: 'success' | 'error', message: string) => {
@@ -79,28 +97,55 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
     },
     []
   );
+  // Add a product to the cart, hydrating search hits (which carry no stock
+  // or category) with their full record first.
+  const handleAddProduct = useCallback(
+    async (product: Product): Promise<boolean> => {
+      let full = product;
+      if (!product.category) {
+        setAddingProductId(product.id);
+        const detailed = await fetchProductDetails(product.id);
+        setAddingProductId(null);
+        if (detailed) full = detailed;
+      }
+      if (full.listingType === 'rent' && full.stock <= 0) {
+        showFeedback('error', `${full.name} is currently unavailable`);
+        return true;
+      }
+      const success = addToCart(full, full.listingType, 1);
+      if (success) showFeedback('success', `${full.name} added to cart`);
+      return success;
+    },
+    [addToCart, showFeedback]
+  );
   const processBarcode = useCallback(
-    (code: string) => {
+    async (code: string) => {
       const trimmed = code.trim();
       if (!trimmed) return;
-      const product = products.find(
+      const local = products.find(
         (p) =>
         p.barcode?.toLowerCase() === trimmed.toLowerCase() ||
         p.itemCode?.toLowerCase() === trimmed.toLowerCase()
       );
-      if (product) {
-        const type = product.listingType;
-        const success = addToCart(product, type, 1);
-        if (success) showFeedback('success', `${product.name} added to cart`);else
-        showFeedback('error', `Can't mix sale & rental items in cart`);
-      } else {
-        showFeedback(
-          'error',
-          `No product found for code: ${trimmed} in current view.`
-        );
+      if (local) {
+        const success = await handleAddProduct(local);
+        if (!success) showFeedback('error', `Can't mix sale & rental items in cart`);
+        return;
       }
+      // Not on this page — look the code up across the whole catalog
+      const primary = activeTab === 'sale' ? 'sale' : 'rent';
+      const secondary = primary === 'sale' ? 'rent' : 'sale';
+      const match =
+      (await lookupProductByCode(primary, trimmed)) || (
+      await lookupProductByCode(secondary, trimmed));
+      if (!match) {
+        showFeedback('error', `No product found for code: ${trimmed}`);
+        return;
+      }
+      const success = await handleAddProduct(match);
+      if (!success) showFeedback('error', `Can't mix sale & rental items in cart`);
     },
-    [products, addToCart, showFeedback]
+    [products, activeTab, handleAddProduct, showFeedback]
   );
   useEffect(() => {
     if (!scanMode) return;
@@ -302,7 +347,7 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
       </div>
 
       {/* Loading */}
-      {loading &&
+      {loading && !searchActive &&
       <div className="flex items-center justify-center py-20">
           <Loader2 className="w-8 h-8 text-[#f5a623] animate-spin" />
           <span className="ml-3 text-gray-500 font-medium">
@@ -312,7 +357,7 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
       }
 
       {/* Error */}
-      {error && !loading &&
+      {error && !loading && !searchActive &&
       <div className="bg-red-50 border border-red-200 rounded-xl p-6 mb-8 text-center">
           <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
           <p className="text-red-700 font-medium mb-3">{error}</p>
@@ -326,9 +371,9 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
       }
 
       {/* Product List */}
-      {!loading && !error &&
+      {(searchActive || !loading && !error) &&
       <ProductList
-        products={products}
+        products={searchActive ? searchResults : products}
         title={activeTab === 'sale' ? 'Sale Items' : 'Rental Equipment'}
         listingType={activeTab}
         categories={categories}
@@ -337,7 +382,13 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
         currentPage={currentPage}
         totalPages={totalPages}
         totalCount={totalCount}
-        onPageChange={handlePageChange} />
+        onPageChange={handlePageChange}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchActive={searchActive}
+        searchLoading={searchLoading}
+        onAddProduct={handleAddProduct}
+        addingProductId={addingProductId} />
 
       }
     </div>);
