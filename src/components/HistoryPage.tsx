@@ -31,9 +31,52 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { clearCache } from '../utils/apiCache';
 import { Pagination } from './Pagination';
 import { BillPrintLayer } from './BillPrintLayer';
-// Remembers which bill was last touched so the list can jump back to it
-// after the data refreshes (or after a full browser refresh).
+// Remembers which bill was last touched — and exactly where it sat in the
+// list — so the page can jump straight back to it after the data refreshes
+// or after a full browser refresh.
 const FOCUS_BILL_KEY = 'pos_history_focus_bill';
+type RentalFilter =
+'all' |
+'active' |
+'returned' |
+'overdue' |
+'unpaid' |
+'closed';
+interface FocusRecord {
+  id: string;
+  type: 'rental' | 'sale';
+  page: number;
+  search: string;
+  filter: RentalFilter;
+}
+function readFocusRecord(): FocusRecord | null {
+  try {
+    const raw = sessionStorage.getItem(FOCUS_BILL_KEY);
+    if (!raw) return null;
+    // Earlier sessions stored only the bill id.
+    if (!raw.startsWith('{')) {
+      return {
+        id: raw,
+        type: 'rental',
+        page: 1,
+        search: '',
+        filter: 'all'
+      };
+    }
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed.id !== 'string') return null;
+    const page = Number(parsed.page);
+    return {
+      id: parsed.id,
+      type: parsed.type === 'sale' ? 'sale' : 'rental',
+      page: Number.isFinite(page) && page > 0 ? page : 1,
+      search: typeof parsed.search === 'string' ? parsed.search : '',
+      filter: parsed.filter as RentalFilter || 'all'
+    };
+  } catch {
+    return null;
+  }
+}
 interface HistoryPageProps {
   bills: Bill[];
   cashTransactions: CashTransaction[];
@@ -48,8 +91,13 @@ export function HistoryPage({
   onViewBill,
   onAddCashTransaction
 }: HistoryPageProps) {
-  const [activeTab, setActiveTab] = useState<'sales' | 'rentals'>('rentals');
-  const [searchQuery, setSearchQuery] = useState('');
+  // Read once per mount: the last edited bill plus the exact list position
+  // (tab, page, search, filter) it was in, so a refresh lands back on it.
+  const initialFocus = useRef<FocusRecord | null>(readFocusRecord()).current;
+  const [activeTab, setActiveTab] = useState<'sales' | 'rentals'>(
+    initialFocus?.type === 'sale' ? 'sales' : 'rentals'
+  );
+  const [searchQuery, setSearchQuery] = useState(initialFocus?.search ?? '');
   const [editingBillId, setEditingBillId] = useState<string | null>(null);
   const [newDepositAmount, setNewDepositAmount] = useState('');
   // Modal state for adding products
@@ -128,18 +176,18 @@ export function HistoryPage({
     refundAmount: number;
   } | null>(null);
   // Rental filter state
-  const [rentalFilter, setRentalFilter] = useState<
-    'all' | 'active' | 'returned' | 'overdue' | 'unpaid' | 'closed'>(
-    'all');
+  const [rentalFilter, setRentalFilter] = useState<RentalFilter>(
+    initialFocus?.type === 'rental' ? initialFocus.filter : 'all'
+  );
   // Scroll-back + auto-print for the bill that was just changed
   const billRefs = useRef<Record<string, HTMLElement | null>>({});
-  const [focusBillId, setFocusBillId] = useState<string | null>(() => {
-    try {
-      return sessionStorage.getItem(FOCUS_BILL_KEY);
-    } catch {
-      return null;
-    }
-  });
+  const [focusBillId, setFocusBillId] = useState<string | null>(
+    initialFocus?.id ?? null
+  );
+  // Bumped every time a bill should be scrolled into view; the scroll effect
+  // retries until that bill's row actually exists, then marks it served.
+  const [scrollRequest, setScrollRequest] = useState(initialFocus ? 1 : 0);
+  const servedScrollRef = useRef(0);
   const [highlightBillId, setHighlightBillId] = useState<string | null>(null);
   const [pendingPrint, setPendingPrint] = useState<{
     id: string;
@@ -149,15 +197,29 @@ export function HistoryPage({
   } | null>(null);
   const [printBill, setPrintBill] = useState<Bill | null>(null);
   const handlePrintDone = useCallback(() => setPrintBill(null), []);
-  // Called after every successful change to a bill: remember it for scroll-back
-  // and queue its receipt for printing once fresh data lands.
-  const markBillChanged = (bill: Bill, type: 'rental' | 'sale') => {
+  // Called after every successful change to a bill: remember where it sits in
+  // the list for scroll-back, and (unless suppressed) queue its receipt for
+  // printing once fresh data lands. Returns and fines skip the receipt.
+  const markBillChanged = (
+  bill: Bill,
+  type: 'rental' | 'sale',
+  options?: {print?: boolean;}) =>
+  {
     setFocusBillId(bill.id);
+    setScrollRequest((n) => n + 1);
     try {
-      sessionStorage.setItem(FOCUS_BILL_KEY, bill.id);
+      const record: FocusRecord = {
+        id: bill.id,
+        type,
+        page: type === 'rental' ? rentalPage : salePage,
+        search: searchQuery,
+        filter: rentalFilter
+      };
+      sessionStorage.setItem(FOCUS_BILL_KEY, JSON.stringify(record));
     } catch {
 
       /* storage unavailable — scrolling still works this session */}
+    if (options?.print === false) return;
     setPendingPrint({
       id: bill.id,
       type,
@@ -175,8 +237,10 @@ export function HistoryPage({
   const {
     rentals: apiRentalBills,
     loading: rentalsLoading,
+    refreshing: rentalsRefreshing,
     error: rentalsError,
     refetch: refetchRentals,
+    refreshRental,
     currentPage: rentalPage,
     totalPages: rentalTotalPages,
     totalCount: rentalTotalCount,
@@ -187,14 +251,17 @@ export function HistoryPage({
   } = useRentals({
     search: activeTab === 'rentals' ? searchQuery : undefined,
     status: rentalFilter,
-    enabled: activeTab === 'rentals'
+    enabled: activeTab === 'rentals',
+    page: initialFocus?.type === 'rental' ? initialFocus.page : undefined
   });
   // Fetch sales from API
   const {
     sales: apiSaleBills,
     loading: salesLoading,
+    refreshing: salesRefreshing,
     error: salesError,
     refetch: refetchSales,
+    refreshSale,
     currentPage: salePage,
     totalPages: saleTotalPages,
     hasNext: saleHasNext,
@@ -202,8 +269,28 @@ export function HistoryPage({
     setPage: setSalePage
   } = useSales({
     search: activeTab === 'sales' ? searchQuery : undefined,
-    enabled: activeTab === 'sales'
+    enabled: activeTab === 'sales',
+    page: initialFocus?.type === 'sale' ? initialFocus.page : undefined
   });
+  // After an edit: pull fresh data for everything in the background, but only
+  // swap in the one bill that changed so the list never reflows or jumps.
+  const refreshChangedRental = useCallback(
+    async (bill: Bill) => {
+      clearCache('rentals:');
+      await refetchRentals({ quiet: true });
+      // Runs last so the edited bill always ends on its own freshest data.
+      await refreshRental(bill.apiId);
+    },
+    [refreshRental, refetchRentals]
+  );
+  const refreshChangedSale = useCallback(
+    async (bill: Bill) => {
+      clearCache('sales:');
+      await refetchSales({ quiet: true });
+      await refreshSale(bill.apiId);
+    },
+    [refreshSale, refetchSales]
+  );
   useEffect(() => {
     if (
     addItemModalBillId &&
@@ -270,23 +357,35 @@ export function HistoryPage({
       setLocalReturnedBills(new Set());
     }
   }, [apiRentalBills]);
-  // Scroll back to the last changed bill once the refreshed list has rendered
+  // Scroll back to the last changed bill once its row is on screen.
+  // Only the active tab's loading matters — the other list's hook stays
+  // "loading" for as long as it is disabled.
   useEffect(() => {
-    if (!focusBillId) return;
-    if (rentalsLoading || salesLoading) return;
-    const timer = window.setTimeout(() => {
+    if (!focusBillId || scrollRequest === 0) return;
+    if (servedScrollRef.current === scrollRequest) return;
+    if (activeTab === 'rentals' ? rentalsLoading : salesLoading) return;
+    let attempts = 0;
+    let timer = window.setTimeout(function attempt() {
       const el = billRefs.current[focusBillId];
-      if (!el) return;
+      if (!el) {
+        // The row may not be mounted yet on a freshly restored page.
+        attempts += 1;
+        if (attempts > 15) return;
+        timer = window.setTimeout(attempt, 200);
+        return;
+      }
+      servedScrollRef.current = scrollRequest;
       el.scrollIntoView({
         behavior: 'smooth',
         block: 'center'
       });
       setHighlightBillId(focusBillId);
-      window.setTimeout(() => setHighlightBillId(null), 2200);
+      timer = window.setTimeout(() => setHighlightBillId(null), 2200);
     }, 150);
     return () => window.clearTimeout(timer);
   }, [
   focusBillId,
+  scrollRequest,
   rentalsLoading,
   salesLoading,
   apiRentalBills,
@@ -298,7 +397,9 @@ export function HistoryPage({
     if (!pendingPrint) return;
     const isRental = pendingPrint.type === 'rental';
     const list = isRental ? apiRentalBills : apiSaleBills;
-    const loading = isRental ? rentalsLoading : salesLoading;
+    const loading = isRental ?
+    rentalsLoading || rentalsRefreshing :
+    salesLoading || salesRefreshing;
     const elapsed = Date.now() - pendingPrint.requestedAt;
     // Give the refetch a moment to start before trusting the current list
     if ((loading || elapsed < 700) && elapsed < 6000) {
@@ -314,7 +415,15 @@ export function HistoryPage({
     list.find((b) => b.id === pendingPrint.id) || pendingPrint.fallback;
     setPendingPrint(null);
     setPrintBill(found);
-  }, [pendingPrint, apiRentalBills, apiSaleBills, rentalsLoading, salesLoading]);
+  }, [
+  pendingPrint,
+  apiRentalBills,
+  apiSaleBills,
+  rentalsLoading,
+  salesLoading,
+  rentalsRefreshing,
+  salesRefreshing]
+  );
   // Separate bills by type
   const saleBills = apiSaleBills;
   const rentalBills = patchedRentalBills;
@@ -403,10 +512,10 @@ export function HistoryPage({
       setLocalReturnedItems((prev) =>
       new Set(prev).add(`${bill.id}-${itemIndex}`)
       );
-      // Background refetch for data consistency
-      clearCache('rentals:');
-      refetchRentals();
-      markBillChanged(bill, 'rental');
+      // Refresh only this bill on screen; everything else reloads silently
+      refreshChangedRental(bill);
+      // Returns (and any fines added with them) don't print a receipt.
+      markBillChanged(bill, 'rental', { print: false });
     } catch (err: any) {
       setActionError(err.message || 'Failed to return item');
       console.error('Return item error:', err);
@@ -486,10 +595,10 @@ export function HistoryPage({
       setReturnAllConfirmBill(null);
       setReturnPaymentAmount('');
       setReturnFines([]);
-      // Background refetch
-      clearCache('rentals:');
-      refetchRentals();
-      markBillChanged(bill, 'rental');
+      // Refresh only this bill on screen; everything else reloads silently
+      refreshChangedRental(bill);
+      // Returns (and any fines added with them) don't print a receipt.
+      markBillChanged(bill, 'rental', { print: false });
     } catch (err: any) {
       setActionError(err.message || 'Failed to return items');
       console.error('Return all items error:', err);
@@ -525,9 +634,8 @@ export function HistoryPage({
         throw new Error(msg);
       }
       setNewDepositAmount('');
-      // Clear cache and refetch rentals to get updated data
-      clearCache('rentals:');
-      refetchRentals();
+      // Refresh only this bill on screen; everything else reloads silently
+      refreshChangedRental(bill);
       markBillChanged(bill, 'rental');
     } catch (err: any) {
       setActionError(err.message || 'Failed to add deposit');
@@ -561,9 +669,8 @@ export function HistoryPage({
         `Failed to close bill (${res.status})`;
         throw new Error(msg);
       }
-      // Clear cache and refetch to get updated status
-      clearCache('rentals:');
-      refetchRentals();
+      // Refresh only this bill on screen; everything else reloads silently
+      refreshChangedRental(bill);
       markBillChanged(
         {
           ...bill,
@@ -719,9 +826,8 @@ export function HistoryPage({
         `Failed to add item (${res.status})`;
         throw new Error(msg);
       }
-      // Refresh the rentals list to reflect the newly added item
-      clearCache('rentals:');
-      refetchRentals();
+      // Refresh only this bill on screen; everything else reloads silently
+      refreshChangedRental(bill);
       markBillChanged(bill, 'rental');
       resetAddItemModal();
     } catch (err: any) {
@@ -928,8 +1034,8 @@ export function HistoryPage({
       setReturnSuccess({
         refundAmount: parseFloat(data.refund_amount ?? 0)
       });
-      clearCache('sales:');
-      refetchSales();
+      // Refresh only this bill on screen; everything else reloads silently
+      refreshChangedSale(returnModalBill);
       markBillChanged(returnModalBill, 'sale');
     } catch (err: any) {
       setReturnError(err.message || 'Failed to return items');

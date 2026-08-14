@@ -32,6 +32,8 @@ export interface RentalStats {
 interface UseRentalsReturn {
   rentals: Bill[];
   loading: boolean;
+  /** True while a background refresh is in flight (no spinner shown). */
+  refreshing: boolean;
   error: string | null;
   totalCount: number;
   currentPage: number;
@@ -39,7 +41,9 @@ interface UseRentalsReturn {
   hasNext: boolean;
   hasPrevious: boolean;
   stats: RentalStats;
-  refetch: () => void;
+  refetch: (opts?: {quiet?: boolean;}) => Promise<void>;
+  /** Re-fetch a single rental and swap it into the list in place. */
+  refreshRental: (apiId?: number | null) => Promise<Bill | null>;
   setPage: (page: number) => void;
 }
 
@@ -169,6 +173,7 @@ function mapApiRental(raw: any): Bill {
 export function useRentals(options?: UseRentalsOptions): UseRentalsReturn {
   const [rentals, setRentals] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(options?.page || 1);
@@ -184,6 +189,17 @@ export function useRentals(options?: UseRentalsOptions): UseRentalsReturn {
   const [debouncedSearch, setDebouncedSearch] = useState(search);
 
   const abortRef = useRef<AbortController | null>(null);
+  const refreshCountRef = useRef(0);
+
+  const beginRefresh = useCallback(() => {
+    refreshCountRef.current += 1;
+    setRefreshing(true);
+  }, []);
+
+  const endRefresh = useCallback(() => {
+    refreshCountRef.current = Math.max(0, refreshCountRef.current - 1);
+    if (refreshCountRef.current === 0) setRefreshing(false);
+  }, []);
 
   // Faster debounce — 200ms feels nearly instant while still batching keystrokes
   useEffect(() => {
@@ -193,8 +209,13 @@ export function useRentals(options?: UseRentalsOptions): UseRentalsReturn {
     return () => clearTimeout(timer);
   }, [search]);
 
-  const fetchRentals = useCallback(async () => {
+  const fetchRentals = useCallback(async (opts?: {quiet?: boolean;}) => {
     if (!enabled) return;
+
+    // A quiet refresh keeps the list exactly as the user sees it — no spinner,
+    // no reordering, no rows appearing or disappearing. Only the data of the
+    // bills already on screen is updated.
+    const quiet = opts?.quiet === true;
 
     let baseUrl = `${API_URL}rentals/`;
     const params = new URLSearchParams();
@@ -215,22 +236,35 @@ export function useRentals(options?: UseRentalsOptions): UseRentalsReturn {
     const cacheKey = `rentals:${baseUrl}`;
 
     // Stale-while-revalidate — show cached instantly
-    const cached = getCached<{rentals: Bill[];totalCount: number;totalPages: number;hasNext: boolean;hasPrevious: boolean;stats: any;}>(
-      cacheKey,
-      5 * 60_000
-    );
-    if (cached) {
-      setRentals(cached.rentals);
-      setTotalCount(cached.totalCount);
-      setTotalPages(cached.totalPages);
-      setHasNext(cached.hasNext);
-      setHasPrevious(cached.hasPrevious);
-      if (cached.stats) setStats(cached.stats);
-      setLoading(false);
-      // If fresh, skip network entirely (60s window)
-      if (isFresh(cacheKey, 60_000)) return;
+    let cached: {
+      rentals: Bill[];
+      totalCount: number;
+      totalPages: number;
+      hasNext: boolean;
+      hasPrevious: boolean;
+      stats: any;
+    } | null = null;
+
+    if (quiet) {
+      beginRefresh();
     } else {
-      setLoading(true);
+      cached = getCached<{rentals: Bill[];totalCount: number;totalPages: number;hasNext: boolean;hasPrevious: boolean;stats: any;}>(
+        cacheKey,
+        5 * 60_000
+      );
+      if (cached) {
+        setRentals(cached.rentals);
+        setTotalCount(cached.totalCount);
+        setTotalPages(cached.totalPages);
+        setHasNext(cached.hasNext);
+        setHasPrevious(cached.hasPrevious);
+        if (cached.stats) setStats(cached.stats);
+        setLoading(false);
+        // If fresh, skip network entirely (60s window)
+        if (isFresh(cacheKey, 60_000)) return;
+      } else {
+        setLoading(true);
+      }
     }
 
     // Cancel in-flight request
@@ -269,7 +303,13 @@ export function useRentals(options?: UseRentalsOptions): UseRentalsReturn {
       };
 
       const mapped = allResults.map(mapApiRental);
-      setRentals(mapped);
+      if (quiet) {
+        // Patch data in place; never change which rows are shown or their order.
+        const byId = new Map(mapped.map((b) => [b.id, b]));
+        setRentals((current) => current.map((b) => byId.get(b.id) ?? b));
+      } else {
+        setRentals(mapped);
+      }
       setTotalCount(count);
       setTotalPages(pages);
       setHasNext(next);
@@ -285,16 +325,54 @@ export function useRentals(options?: UseRentalsOptions): UseRentalsReturn {
       });
     } catch (err: any) {
       if (err.name === 'AbortError') return;
-      if (!cached) {
+      if (!cached && !quiet) {
         setError(err.message || 'Failed to load rentals');
       }
       console.error('Rentals fetch error:', err);
     } finally {
+      if (quiet) endRefresh();
       if (abortRef.current === controller) {
         setLoading(false);
       }
     }
-  }, [debouncedSearch, enabled, currentPage, pageSize, status]);
+  }, [
+  debouncedSearch,
+  enabled,
+  currentPage,
+  pageSize,
+  status,
+  beginRefresh,
+  endRefresh]
+  );
+
+  // Pull one bill's latest data and swap it into the list where it already
+  // sits. Used after an edit so nothing else on screen moves.
+  const refreshRental = useCallback(
+    async (apiId?: number | null): Promise<Bill | null> => {
+      if (!apiId) return null;
+      beginRefresh();
+      try {
+        const res = await fetch(`${API_URL}rentals/${apiId}/`, {
+          headers: {
+            ...getAuthHeaders(),
+            'Content-Type': 'application/json'
+          }
+        });
+        if (!res.ok) throw new Error(`Failed to refresh bill (${res.status})`);
+        const mapped = mapApiRental(await res.json());
+        setRentals((prev) =>
+        prev.map((b) => b.apiId === apiId || b.id === mapped.id ? mapped : b)
+        );
+        return mapped;
+      } catch (err) {
+        console.error('Rental refresh error:', err);
+        return null;
+      } finally {
+        endRefresh();
+      }
+    },
+    [beginRefresh, endRefresh]
+  );
 
   useEffect(() => {
     setCurrentPage(1);
@@ -316,6 +394,7 @@ export function useRentals(options?: UseRentalsOptions): UseRentalsReturn {
   return {
     rentals,
     loading,
+    refreshing,
     error,
     totalCount,
     currentPage,
@@ -324,6 +403,7 @@ export function useRentals(options?: UseRentalsOptions): UseRentalsReturn {
     hasPrevious,
     stats,
     refetch: fetchRentals,
+    refreshRental,
     setPage: setCurrentPage
   };
 }

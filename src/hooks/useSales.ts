@@ -15,13 +15,17 @@ interface UseSalesOptions {
 interface UseSalesReturn {
   sales: Bill[];
   loading: boolean;
+  /** True while a background refresh is in flight (no spinner shown). */
+  refreshing: boolean;
   error: string | null;
   totalCount: number;
   currentPage: number;
   totalPages: number;
   hasNext: boolean;
   hasPrevious: boolean;
-  refetch: () => void;
+  refetch: (opts?: {quiet?: boolean;}) => Promise<void>;
+  /** Re-fetch a single sale and swap it into the list in place. */
+  refreshSale: (apiId?: number | null) => Promise<Bill | null>;
   setPage: (page: number) => void;
 }
 
@@ -78,6 +82,7 @@ function mapApiSale(raw: any): Bill {
 export function useSales(options?: UseSalesOptions): UseSalesReturn {
   const [sales, setSales] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(options?.page || 1);
@@ -91,6 +96,17 @@ export function useSales(options?: UseSalesOptions): UseSalesReturn {
   const [debouncedSearch, setDebouncedSearch] = useState(search);
 
   const abortRef = useRef<AbortController | null>(null);
+  const refreshCountRef = useRef(0);
+
+  const beginRefresh = useCallback(() => {
+    refreshCountRef.current += 1;
+    setRefreshing(true);
+  }, []);
+
+  const endRefresh = useCallback(() => {
+    refreshCountRef.current = Math.max(0, refreshCountRef.current - 1);
+    if (refreshCountRef.current === 0) setRefreshing(false);
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -99,8 +115,12 @@ export function useSales(options?: UseSalesOptions): UseSalesReturn {
     return () => clearTimeout(timer);
   }, [search]);
 
-  const fetchSales = useCallback(async () => {
+  const fetchSales = useCallback(async (opts?: {quiet?: boolean;}) => {
     if (!enabled) return;
+
+    // A quiet refresh updates the data of the rows already on screen without
+    // a spinner and without changing which rows are shown.
+    const quiet = opts?.quiet === true;
 
     let baseUrl = `${API_URL}sales/`;
     const params = new URLSearchParams();
@@ -119,20 +139,32 @@ export function useSales(options?: UseSalesOptions): UseSalesReturn {
 
     const cacheKey = `sales:${baseUrl}`;
 
-    const cached = getCached<{sales: Bill[];totalCount: number;totalPages: number;hasNext: boolean;hasPrevious: boolean;}>(
-      cacheKey,
-      5 * 60_000
-    );
-    if (cached) {
-      setSales(cached.sales);
-      setTotalCount(cached.totalCount);
-      setTotalPages(cached.totalPages);
-      setHasNext(cached.hasNext);
-      setHasPrevious(cached.hasPrevious);
-      setLoading(false);
-      if (isFresh(cacheKey, 60_000)) return;
+    let cached: {
+      sales: Bill[];
+      totalCount: number;
+      totalPages: number;
+      hasNext: boolean;
+      hasPrevious: boolean;
+    } | null = null;
+
+    if (quiet) {
+      beginRefresh();
     } else {
-      setLoading(true);
+      cached = getCached<{sales: Bill[];totalCount: number;totalPages: number;hasNext: boolean;hasPrevious: boolean;}>(
+        cacheKey,
+        5 * 60_000
+      );
+      if (cached) {
+        setSales(cached.sales);
+        setTotalCount(cached.totalCount);
+        setTotalPages(cached.totalPages);
+        setHasNext(cached.hasNext);
+        setHasPrevious(cached.hasPrevious);
+        setLoading(false);
+        if (isFresh(cacheKey, 60_000)) return;
+      } else {
+        setLoading(true);
+      }
     }
 
     if (abortRef.current) abortRef.current.abort();
@@ -167,7 +199,12 @@ export function useSales(options?: UseSalesOptions): UseSalesReturn {
       }
 
       const mapped = allResults.map(mapApiSale);
-      setSales(mapped);
+      if (quiet) {
+        const byId = new Map(mapped.map((b) => [b.id, b]));
+        setSales((current) => current.map((b) => byId.get(b.id) ?? b));
+      } else {
+        setSales(mapped);
+      }
       setTotalCount(count);
       setTotalPages(pages);
       setHasNext(next);
@@ -181,16 +218,52 @@ export function useSales(options?: UseSalesOptions): UseSalesReturn {
       });
     } catch (err: any) {
       if (err.name === 'AbortError') return;
-      if (!cached) {
+      if (!cached && !quiet) {
         setError(err.message || 'Failed to load sales');
       }
       console.error('Sales fetch error:', err);
     } finally {
+      if (quiet) endRefresh();
       if (abortRef.current === controller) {
         setLoading(false);
       }
     }
-  }, [debouncedSearch, enabled, currentPage, pageSize]);
+  }, [
+  debouncedSearch,
+  enabled,
+  currentPage,
+  pageSize,
+  beginRefresh,
+  endRefresh]
+  );
+
+  // Pull one bill's latest data and swap it into the list where it already sits.
+  const refreshSale = useCallback(
+    async (apiId?: number | null): Promise<Bill | null> => {
+      if (!apiId) return null;
+      beginRefresh();
+      try {
+        const res = await fetch(`${API_URL}sales/${apiId}/`, {
+          headers: {
+            ...getAuthHeaders(),
+            'Content-Type': 'application/json'
+          }
+        });
+        if (!res.ok) throw new Error(`Failed to refresh bill (${res.status})`);
+        const mapped = mapApiSale(await res.json());
+        setSales((prev) =>
+        prev.map((b) => b.apiId === apiId || b.id === mapped.id ? mapped : b)
+        );
+        return mapped;
+      } catch (err) {
+        console.error('Sale refresh error:', err);
+        return null;
+      } finally {
+        endRefresh();
+      }
+    },
+    [beginRefresh, endRefresh]
+  );
 
   useEffect(() => {
     if (enabled) {
@@ -204,6 +277,7 @@ export function useSales(options?: UseSalesOptions): UseSalesReturn {
   return {
     sales,
     loading,
+    refreshing,
     error,
     totalCount,
     currentPage,
@@ -211,6 +285,7 @@ export function useSales(options?: UseSalesOptions): UseSalesReturn {
     hasNext,
     hasPrevious,
     refetch: fetchSales,
+    refreshSale,
     setPage: setCurrentPage
   };
 }
