@@ -26,7 +26,13 @@ export function BillPrintLayer({ bill, onDone }: BillPrintLayerProps) {
     window.addEventListener('afterprint', finish);
     // Give the template a frame to lay out (and the logo a chance to load)
     const printTimer = window.setTimeout(() => {
-      window.print();
+      // @ts-ignore
+      if (window.electronAPI && window.electronAPI.printSilent) {
+        // @ts-ignore
+        window.electronAPI.printSilent();
+      } else {
+        window.print();
+      }
       // Fallback for browsers that don't fire `afterprint`
       window.setTimeout(finish, 500);
     }, 350);
