@@ -26,20 +26,6 @@ export function BillPreview({
       window.print();
     }
   };
-  // Freshly generated bills go straight to the printer
-  useEffect(() => {
-    if (!autoPrint) return;
-    const timer = window.setTimeout(() => {
-      // @ts-ignore
-      if (window.electronAPI && window.electronAPI.printSilent) {
-        // @ts-ignore
-        window.electronAPI.printSilent();
-      } else {
-        window.print();
-      }
-    }, 600);
-    return () => window.clearTimeout(timer);
-  }, [autoPrint, bill.id]);
   const isRental = bill.items.some((item) => item.type === 'rent');
   return (
     <div className="min-h-screen bg-gray-100 py-8 print:py-0 print:bg-white px-4 sm:px-6 lg:px-8">
