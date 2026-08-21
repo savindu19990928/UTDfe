@@ -3,6 +3,7 @@ import { Lock, User, AlertCircle } from 'lucide-react';
 import { loginRequest, warmUpApi } from '../utils/auth';
 import { prefetchProducts } from '../hooks/useProducts';
 import { prefetchCategories } from '../hooks/useCategories';
+import { prefetchRentalConditions } from '../hooks/useRentalConditions';
 const LOGO_URL = "./WhatsApp_Image_2025-12-13_at_2.34.53_PM.jpg";
 
 interface LoginPageProps {
@@ -36,6 +37,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         page: 1
       });
       void prefetchCategories();
+      void prefetchRentalConditions();
       onLogin(isSuperUser);
     } catch (caughtError) {
       setError(

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { API_URL } from '../utils/config';
 import { getAuthHeaders } from '../utils/auth';
-import { getCached, setCache, isFresh } from '../utils/apiCache';
+import { getCached, setCache, isFresh, sharedRequest, getInflight } from '../utils/apiCache';
 
 export interface RentalCondition {
   id: number | string;
@@ -16,22 +16,61 @@ interface UseRentalConditionsReturn {
 
 const CACHE_KEY = 'rentalConditions';
 
+export async function prefetchRentalConditions(): Promise<void> {
+  if (isFresh(CACHE_KEY, Infinity)) return;
+  try {
+    await sharedRequest<RentalCondition[]>(CACHE_KEY, async () => {
+      const res = await fetch(`${API_URL}rental-conditions/active/`, {
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!res.ok) throw new Error(`Failed to fetch rental conditions (${res.status})`);
+      const data = await res.json();
+
+      const rawList: any[] = Array.isArray(data) ? data : data.results ? data.results : [data];
+      const mapped: RentalCondition[] = rawList.map((item: any, index: number) => ({
+        id: item.id ?? index,
+        text: item.text || item.condition || item.description || item.content || String(item)
+      }));
+
+      setCache(CACHE_KEY, mapped);
+      return mapped;
+    });
+  } catch (err) {
+    // Prefetch is best effort
+    console.error('Failed to prefetch rental conditions:', err);
+  }
+}
+
 export function useRentalConditions(): UseRentalConditionsReturn {
   const [conditions, setConditions] = useState<RentalCondition[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchConditions = useCallback(async () => {
-    // Conditions rarely change — use long TTL cache
-    const cached = getCached<RentalCondition[]>(CACHE_KEY, 10 * 60_000);
+    // Conditions rarely change — keep them for the entire session
+    const cached = getCached<RentalCondition[]>(CACHE_KEY, Infinity);
     if (cached) {
       setConditions(cached);
       setLoading(false);
-      if (isFresh(CACHE_KEY, 5 * 60_000)) return;
-    } else {
-      setLoading(true);
+      return;
     }
 
+    const pending = getInflight<RentalCondition[]>(CACHE_KEY);
+    if (pending) {
+      try {
+        const mapped = await pending;
+        setConditions(mapped);
+        setLoading(false);
+        return;
+      } catch {
+        // Fall through to fetch
+      }
+    }
+
+    setLoading(true);
     setError(null);
     try {
       const res = await fetch(`${API_URL}rental-conditions/active/`, {
@@ -40,28 +79,16 @@ export function useRentalConditions(): UseRentalConditionsReturn {
           'Content-Type': 'application/json'
         }
       });
-      if (!res.ok)
-      throw new Error(`Failed to fetch rental conditions (${res.status})`);
+      if (!res.ok) throw new Error(`Failed to fetch rental conditions (${res.status})`);
       const data = await res.json();
 
       // Handle array, paginated { results }, or single object responses
-      const rawList: any[] = Array.isArray(data) ?
-      data :
-      data.results ?
-      data.results :
-      [data];
+      const rawList: any[] = Array.isArray(data) ? data : data.results ? data.results : [data];
 
-      const mapped: RentalCondition[] = rawList.map(
-        (item: any, index: number) => ({
-          id: item.id ?? index,
-          text:
-          item.text ||
-          item.condition ||
-          item.description ||
-          item.content ||
-          String(item)
-        })
-      );
+      const mapped: RentalCondition[] = rawList.map((item: any, index: number) => ({
+        id: item.id ?? index,
+        text: item.text || item.condition || item.description || item.content || String(item)
+      }));
 
       setConditions(mapped);
       setCache(CACHE_KEY, mapped);
