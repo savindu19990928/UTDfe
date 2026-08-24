@@ -18,8 +18,9 @@ import {
   Undo2,
   Ban,
   Wrench,
-  Trash2 } from
-'lucide-react';
+  Trash2
+} from
+  'lucide-react';
 import { Bill, CartItem, Product, CashTransaction } from '../types';
 import { useProducts } from '../hooks/useProducts';
 import { useRentals } from '../hooks/useRentals';
@@ -36,12 +37,12 @@ import { BillPrintLayer } from './BillPrintLayer';
 // or after a full browser refresh.
 const FOCUS_BILL_KEY = 'pos_history_focus_bill';
 type RentalFilter =
-'all' |
-'active' |
-'returned' |
-'overdue' |
-'unpaid' |
-'closed';
+  'all' |
+  'active' |
+  'returned' |
+  'overdue' |
+  'unpaid' |
+  'closed';
 interface FocusRecord {
   id: string;
   type: 'rental' | 'sale';
@@ -108,7 +109,7 @@ export function HistoryPage({
   const modalSearchRef = useRef<HTMLInputElement>(null);
   // Two-step modal: select product, then set return date
   const [selectedProductForAdd, setSelectedProductForAdd] =
-  useState<Product | null>(null);
+    useState<Product | null>(null);
   const [newItemReturnDate, setNewItemReturnDate] = useState('');
   // Machine number selection for adding an item to an existing rental bill
   const [availableMachines, setAvailableMachines] = useState<string[]>([]);
@@ -156,7 +157,7 @@ export function HistoryPage({
       reason: string;
       fine: string;
     }[]>(
-    []);
+      []);
   const [rentalReturnResult, setRentalReturnResult] = useState<{
     refundAmount: number;
     totalRentalFee: number;
@@ -169,7 +170,7 @@ export function HistoryPage({
   const [returnModalBill, setReturnModalBill] = useState<Bill | null>(null);
   const [returnQuantities, setReturnQuantities] = useState<
     Record<number, number>>(
-    {});
+      {});
   const [returnLoading, setReturnLoading] = useState(false);
   const [returnError, setReturnError] = useState<string | null>(null);
   const [returnSuccess, setReturnSuccess] = useState<{
@@ -201,10 +202,9 @@ export function HistoryPage({
   // the list for scroll-back, and (unless suppressed) queue its receipt for
   // printing once fresh data lands. Returns and fines skip the receipt.
   const markBillChanged = (
-  bill: Bill,
-  type: 'rental' | 'sale',
-  options?: {print?: boolean;}) =>
-  {
+    bill: Bill,
+    type: 'rental' | 'sale',
+    options?: { print?: boolean; }) => {
     setFocusBillId(bill.id);
     setScrollRequest((n) => n + 1);
     try {
@@ -218,7 +218,8 @@ export function HistoryPage({
       sessionStorage.setItem(FOCUS_BILL_KEY, JSON.stringify(record));
     } catch {
 
-      /* storage unavailable — scrolling still works this session */}
+      /* storage unavailable — scrolling still works this session */
+}
     if (options?.print === false) return;
     setPendingPrint({
       id: bill.id,
@@ -277,52 +278,47 @@ export function HistoryPage({
   const refreshChangedRental = useCallback(
     async (bill: Bill) => {
       clearCache('rentals:');
-      await refetchRentals({ quiet: true });
-      // Runs last so the edited bill always ends on its own freshest data.
-      await refreshRental(bill.apiId);
+      return await refreshRental(bill.apiId);
     },
-    [refreshRental, refetchRentals]
+    [refreshRental]
   );
   const refreshChangedSale = useCallback(
     async (bill: Bill) => {
       clearCache('sales:');
-      await refetchSales({ quiet: true });
-      await refreshSale(bill.apiId);
+      return await refreshSale(bill.apiId);
     },
-    [refreshSale, refetchSales]
+    [refreshSale]
   );
   useEffect(() => {
     if (
-    addItemModalBillId &&
-    modalSearchRef.current &&
-    !selectedProductForAdd)
-    {
+      addItemModalBillId &&
+      modalSearchRef.current &&
+      !selectedProductForAdd) {
       modalSearchRef.current.focus();
     }
   }, [addItemModalBillId, selectedProductForAdd]);
   // Apply optimistic updates to rental bills
   const patchedRentalBills = useMemo(() => {
     if (localReturnedItems.size === 0 && localReturnedBills.size === 0)
-    return apiRentalBills;
+      return apiRentalBills;
     return apiRentalBills.map((bill) => {
       const hasLocalUpdates =
-      bill.items.some((_, idx) =>
-      localReturnedItems.has(`${bill.id}-${idx}`)
-      ) || localReturnedBills.has(bill.id);
+        bill.items.some((_, idx) =>
+          localReturnedItems.has(`${bill.id}-${idx}`)
+        ) || localReturnedBills.has(bill.id);
       if (!hasLocalUpdates) return bill;
       const updatedItems = bill.items.map((item, idx) => {
         if (
-        localReturnedItems.has(`${bill.id}-${idx}`) ||
-        localReturnedBills.has(bill.id) && item.status === 'active')
-        {
+          localReturnedItems.has(`${bill.id}-${idx}`) ||
+          localReturnedBills.has(bill.id) && item.status === 'active') {
           const now = new Date();
           return {
             ...item,
             status: 'returned' as const,
             actualReturnDate:
-            item.actualReturnDate || now.toISOString().split('T')[0],
+              item.actualReturnDate || now.toISOString().split('T')[0],
             actualReturnTime:
-            item.actualReturnTime || now.toTimeString().slice(0, 5)
+              item.actualReturnTime || now.toTimeString().slice(0, 5)
           };
         }
         return item;
@@ -350,9 +346,8 @@ export function HistoryPage({
   // Clear local patches when API data refreshes (the API data will have the real status)
   useEffect(() => {
     if (
-    !rentalsLoading && (
-    localReturnedItems.size > 0 || localReturnedBills.size > 0))
-    {
+      !rentalsLoading && (
+        localReturnedItems.size > 0 || localReturnedBills.size > 0)) {
       setLocalReturnedItems(new Set());
       setLocalReturnedBills(new Set());
     }
@@ -384,13 +379,13 @@ export function HistoryPage({
     }, 150);
     return () => window.clearTimeout(timer);
   }, [
-  focusBillId,
-  scrollRequest,
-  rentalsLoading,
-  salesLoading,
-  apiRentalBills,
-  apiSaleBills,
-  activeTab]
+    focusBillId,
+    scrollRequest,
+    rentalsLoading,
+    salesLoading,
+    apiRentalBills,
+    apiSaleBills,
+    activeTab]
   );
   // Send the changed bill to the printer once fresh data has come back
   useEffect(() => {
@@ -398,8 +393,8 @@ export function HistoryPage({
     const isRental = pendingPrint.type === 'rental';
     const list = isRental ? apiRentalBills : apiSaleBills;
     const loading = isRental ?
-    rentalsLoading || rentalsRefreshing :
-    salesLoading || salesRefreshing;
+      rentalsLoading || rentalsRefreshing :
+      salesLoading || salesRefreshing;
     const elapsed = Date.now() - pendingPrint.requestedAt;
     // Give the refetch a moment to start before trusting the current list
     if ((loading || elapsed < 700) && elapsed < 6000) {
@@ -412,17 +407,17 @@ export function HistoryPage({
     // Fall back to the bill as we knew it if the refreshed page no longer
     // contains it (e.g. a filter moved it out of view).
     const found =
-    list.find((b) => b.id === pendingPrint.id) || pendingPrint.fallback;
+      list.find((b) => b.id === pendingPrint.id) || pendingPrint.fallback;
     setPendingPrint(null);
     setPrintBill(found);
   }, [
-  pendingPrint,
-  apiRentalBills,
-  apiSaleBills,
-  rentalsLoading,
-  salesLoading,
-  rentalsRefreshing,
-  salesRefreshing]
+    pendingPrint,
+    apiRentalBills,
+    apiSaleBills,
+    rentalsLoading,
+    salesLoading,
+    rentalsRefreshing,
+    salesRefreshing]
   );
   // Separate bills by type
   const saleBills = apiSaleBills;
@@ -432,23 +427,22 @@ export function HistoryPage({
   const displayedRentalBills = filteredRentalBills;
   // Edit handlers
   const handleReturnItem = async (
-  bill: Bill,
-  itemIndex: number,
-  returnDate: string,
-  returnTime: string,
-  fines?: {
-    reason: string;
-    fine: string;
-  }[]) =>
-  {
+    bill: Bill,
+    itemIndex: number,
+    returnDate: string,
+    returnTime: string,
+    fines?: {
+      reason: string;
+      fine: string;
+    }[]) => {
     const item = bill.items[itemIndex];
     if (
-    item.type !== 'rent' ||
-    item.status !== 'active' ||
-    !item.apiItemId ||
-    !bill.apiId)
+      item.type !== 'rent' ||
+      item.status !== 'active' ||
+      !item.apiItemId ||
+      !bill.apiId)
 
-    return;
+      return;
     setActionLoading(`return-${bill.id}-${itemIndex}`);
     setActionError(null);
     try {
@@ -458,7 +452,7 @@ export function HistoryPage({
       };
       if (returnTime) {
         returnPayload.actual_return_time =
-        returnTime.length === 5 ? `${returnTime}:00` : returnTime;
+          returnTime.length === 5 ? `${returnTime}:00` : returnTime;
       }
       const requestBody: any = {
         items_to_return: [returnPayload]
@@ -484,20 +478,20 @@ export function HistoryPage({
       if (!res.ok) {
         const errData = await res.json().catch(() => null);
         const msg = errData ?
-        typeof errData === 'string' ?
-        errData :
-        errData.detail ||
-        errData.message ||
-        errData.error ||
-        JSON.stringify(errData) :
-        `Failed to return item (${res.status})`;
+          typeof errData === 'string' ?
+            errData :
+            errData.detail ||
+            errData.message ||
+            errData.error ||
+            JSON.stringify(errData) :
+          `Failed to return item (${res.status})`;
         throw new Error(msg);
       }
       const data = await res.json();
       setReturnSingleItemModal(null);
       // Show return result only if all items are returned
       const isAllReturned =
-      data.all_items_returned ?? data.all_items_being_returned ?? false;
+        data.all_items_returned ?? data.all_items_being_returned ?? false;
       if (isAllReturned) {
         setRentalReturnResult({
           refundAmount: parseFloat(data.refund_amount ?? 0),
@@ -510,10 +504,10 @@ export function HistoryPage({
       }
       // Optimistic local update
       setLocalReturnedItems((prev) =>
-      new Set(prev).add(`${bill.id}-${itemIndex}`)
+        new Set(prev).add(`${bill.id}-${itemIndex}`)
       );
       // Refresh only this bill on screen; everything else reloads silently
-      refreshChangedRental(bill);
+      await refreshChangedRental(bill);
       // Returns (and any fines added with them) don't print a receipt.
       markBillChanged(bill, 'rental', { print: false });
     } catch (err: any) {
@@ -569,13 +563,13 @@ export function HistoryPage({
       if (!res.ok) {
         const errData = await res.json().catch(() => null);
         const msg = errData ?
-        typeof errData === 'string' ?
-        errData :
-        errData.detail ||
-        errData.message ||
-        errData.error ||
-        JSON.stringify(errData) :
-        `Failed to return items (${res.status})`;
+          typeof errData === 'string' ?
+            errData :
+            errData.detail ||
+            errData.message ||
+            errData.error ||
+            JSON.stringify(errData) :
+          `Failed to return items (${res.status})`;
         throw new Error(msg);
       }
       const data = await res.json();
@@ -586,7 +580,7 @@ export function HistoryPage({
         paymentProcessed: parseFloat(data.payment_to_process ?? 0),
         totalFines: parseFloat(data.rental?.total_fines ?? 0),
         allReturned:
-        data.all_items_returned ?? data.all_items_being_returned ?? false,
+          data.all_items_returned ?? data.all_items_being_returned ?? false,
         billId: bill.id
       });
       // Optimistic local update — mark entire bill as returned
@@ -596,7 +590,7 @@ export function HistoryPage({
       setReturnPaymentAmount('');
       setReturnFines([]);
       // Refresh only this bill on screen; everything else reloads silently
-      refreshChangedRental(bill);
+      await refreshChangedRental(bill);
       // Returns (and any fines added with them) don't print a receipt.
       markBillChanged(bill, 'rental', { print: false });
     } catch (err: any) {
@@ -627,16 +621,16 @@ export function HistoryPage({
       if (!res.ok) {
         const errData = await res.json().catch(() => null);
         const msg = errData ?
-        typeof errData === 'string' ?
-        errData :
-        errData.detail || errData.message || JSON.stringify(errData) :
-        `Failed to add deposit (${res.status})`;
+          typeof errData === 'string' ?
+            errData :
+            errData.detail || errData.message || JSON.stringify(errData) :
+          `Failed to add deposit (${res.status})`;
         throw new Error(msg);
       }
       setNewDepositAmount('');
       // Refresh only this bill on screen; everything else reloads silently
-      refreshChangedRental(bill);
-      markBillChanged(bill, 'rental');
+      const updatedBill = await refreshChangedRental(bill);
+      markBillChanged(updatedBill || bill, 'rental');
     } catch (err: any) {
       setActionError(err.message || 'Failed to add deposit');
       console.error('Add deposit error:', err);
@@ -660,19 +654,19 @@ export function HistoryPage({
       if (!res.ok) {
         const errData = await res.json().catch(() => null);
         const msg = errData ?
-        typeof errData === 'string' ?
-        errData :
-        errData.detail ||
-        errData.message ||
-        errData.error ||
-        JSON.stringify(errData) :
-        `Failed to close bill (${res.status})`;
+          typeof errData === 'string' ?
+            errData :
+            errData.detail ||
+            errData.message ||
+            errData.error ||
+            JSON.stringify(errData) :
+          `Failed to close bill (${res.status})`;
         throw new Error(msg);
       }
       // Refresh only this bill on screen; everything else reloads silently
-      refreshChangedRental(bill);
+      const updatedBill = await refreshChangedRental(bill);
       markBillChanged(
-        {
+        updatedBill || {
           ...bill,
           rentalStatus: 'closed'
         },
@@ -744,9 +738,9 @@ export function HistoryPage({
   };
   const toggleAddItemMachine = (machine: string) => {
     setSelectedMachines((prev) =>
-    prev.includes(machine) ?
-    prev.filter((m) => m !== machine) :
-    [...prev, machine]
+      prev.includes(machine) ?
+        prev.filter((m) => m !== machine) :
+        [...prev, machine]
     );
   };
   // Add a rental product to an EXISTING rental bill via the API,
@@ -762,13 +756,12 @@ export function HistoryPage({
     }
     // If it's tracked but no machines are available, we fallback to manual quantity
     const isTracked =
-    product.isStockTracked !== false && availableMachines.length > 0;
+      product.isStockTracked !== false && availableMachines.length > 0;
     // Block: machine-tracked product with every machine rented out or damaged
     if (
-    product.isStockTracked !== false &&
-    availableMachines.length === 0 && (
-    rentedOutMachines.length > 0 || damagedMachines.length > 0))
-    {
+      product.isStockTracked !== false &&
+      availableMachines.length === 0 && (
+        rentedOutMachines.length > 0 || damagedMachines.length > 0)) {
       setAddItemError(
         `All machines for "${product.name}" are currently unavailable.`
       );
@@ -817,18 +810,18 @@ export function HistoryPage({
       if (!res.ok) {
         const errData = await res.json().catch(() => null);
         const msg = errData ?
-        typeof errData === 'string' ?
-        errData :
-        errData.detail ||
-        errData.message ||
-        errData.error ||
-        JSON.stringify(errData) :
-        `Failed to add item (${res.status})`;
+          typeof errData === 'string' ?
+            errData :
+            errData.detail ||
+            errData.message ||
+            errData.error ||
+            JSON.stringify(errData) :
+          `Failed to add item (${res.status})`;
         throw new Error(msg);
       }
       // Refresh only this bill on screen; everything else reloads silently
-      refreshChangedRental(bill);
-      markBillChanged(bill, 'rental');
+      const updatedBill = await refreshChangedRental(bill);
+      markBillChanged(updatedBill || bill, 'rental');
       resetAddItemModal();
     } catch (err: any) {
       setAddItemError(err.message || 'Failed to add item');
@@ -845,7 +838,7 @@ export function HistoryPage({
         type: showCashModal,
         amount,
         note:
-        cashNote || (showCashModal === 'cash_in' ? 'Cash In' : 'Cash Out'),
+          cashNote || (showCashModal === 'cash_in' ? 'Cash In' : 'Cash Out'),
         date: new Date().toLocaleDateString()
       });
       setCashAmount('');
@@ -854,10 +847,9 @@ export function HistoryPage({
     }
   };
   const recalcAndUpdate = (
-  bill: Bill,
-  items: CartItem[],
-  depositHistory: Bill['depositHistory']) =>
-  {
+    bill: Bill,
+    items: CartItem[],
+    depositHistory: Bill['depositHistory']) => {
     let newSubtotal = 0;
     let allReturned = true;
     let anyReturned = false;
@@ -866,9 +858,9 @@ export function HistoryPage({
         const price = item.product.rentPricePerDay || 0;
         const days = item.rentalDays || 1;
         newSubtotal +=
-        item.rentalFee !== undefined ?
-        item.rentalFee :
-        price * days * item.quantity;
+          item.rentalFee !== undefined ?
+            item.rentalFee :
+            price * days * item.quantity;
         if (item.status === 'active') allReturned = false;
         if (item.status === 'returned') anyReturned = true;
       } else {
@@ -881,13 +873,13 @@ export function HistoryPage({
     const taxAmount = afterDiscount * 0.08;
     const newTotal = afterDiscount + taxAmount;
     const totalDeposit =
-    depositHistory?.reduce((sum, entry) => sum + entry.amount, 0) || 0;
+      depositHistory?.reduce((sum, entry) => sum + entry.amount, 0) || 0;
     // Never auto-close — closing must be done manually
     let newStatus: Bill['rentalStatus'] = bill.rentalStatus || 'open';
     if (newStatus !== 'closed') {
-      if (allReturned && items.length > 0) newStatus = 'partially_closed';else
-      if (anyReturned) newStatus = 'partially_closed';else
-      newStatus = 'open';
+      if (allReturned && items.length > 0) newStatus = 'partially_closed'; else
+        if (anyReturned) newStatus = 'partially_closed'; else
+          newStatus = 'open';
     }
     onUpdateBill({
       ...bill,
@@ -938,13 +930,13 @@ export function HistoryPage({
         (i) => i.status === 'returned'
       ).length;
       const allReturned =
-      returnedCount === bill.items.length && bill.items.length > 0;
+        returnedCount === bill.items.length && bill.items.length > 0;
       const totalDeposit =
-      bill.depositHistory?.reduce((s, d) => s + d.amount, 0) ||
-      bill.deposit ||
-      0;
+        bill.depositHistory?.reduce((s, d) => s + d.amount, 0) ||
+        bill.deposit ||
+        0;
       const totalFines =
-      bill.fines?.reduce((s, f) => s + Number(f.fine), 0) || 0;
+        bill.fines?.reduce((s, f) => s + Number(f.fine), 0) || 0;
       const netOwed = bill.total + totalFines;
       const owes = netOwed > totalDeposit;
       if (allReturned && owes) {
@@ -992,17 +984,17 @@ export function HistoryPage({
   };
   // Get the bill for the modal
   const modalBill = addItemModalBillId ?
-  rentalBills.find((b) => b.id === addItemModalBillId) :
-  null;
+    rentalBills.find((b) => b.id === addItemModalBillId) :
+    null;
   // Handle sale item return
   const handleSaleReturn = async () => {
     if (!returnModalBill || !returnModalBill.apiId) return;
     const itemsToReturn = Object.entries(returnQuantities).
-    filter(([_, qty]) => qty > 0).
-    map(([itemId, quantity]) => ({
-      item_id: Number(itemId),
-      quantity
-    }));
+      filter(([_, qty]) => qty > 0).
+      map(([itemId, quantity]) => ({
+        item_id: Number(itemId),
+        quantity
+      }));
     if (itemsToReturn.length === 0) return;
     setReturnLoading(true);
     setReturnError(null);
@@ -1024,10 +1016,10 @@ export function HistoryPage({
       if (!res.ok) {
         const errData = await res.json().catch(() => null);
         const msg = errData ?
-        typeof errData === 'string' ?
-        errData :
-        errData.detail || errData.message || JSON.stringify(errData) :
-        `Failed to return items (${res.status})`;
+          typeof errData === 'string' ?
+            errData :
+            errData.detail || errData.message || JSON.stringify(errData) :
+          `Failed to return items (${res.status})`;
         throw new Error(msg);
       }
       const data = await res.json();
@@ -1035,8 +1027,8 @@ export function HistoryPage({
         refundAmount: parseFloat(data.refund_amount ?? 0)
       });
       // Refresh only this bill on screen; everything else reloads silently
-      refreshChangedSale(returnModalBill);
-      markBillChanged(returnModalBill, 'sale');
+      const updatedBill = await refreshChangedSale(returnModalBill);
+      markBillChanged(updatedBill || returnModalBill, 'sale');
     } catch (err: any) {
       setReturnError(err.message || 'Failed to return items');
       console.error('Sale return error:', err);
@@ -1076,7 +1068,7 @@ export function HistoryPage({
               setRentalFilter('all');
             }}
             className={`relative flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-colors ${activeTab === 'rentals' ? 'bg-[#2d4059] text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}>
-            
+
             <Clock className="w-4 h-4" />
             Rentals
           </button>
@@ -1087,36 +1079,36 @@ export function HistoryPage({
               setEditingBillId(null);
             }}
             className={`relative flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-colors ${activeTab === 'sales' ? 'bg-[#f5a623] text-[#1a1a2e] shadow-md' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}>
-            
+
             <ShoppingCart className="w-4 h-4" />
             Sales
           </button>
         </div>
         <div className="flex items-center gap-2">
           {activeTab === 'rentals' &&
-          <button
-            onClick={() => {
-              clearCache('rentals:');
-              refetchRentals();
-            }}
-            className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors">
-            
+            <button
+              onClick={() => {
+                clearCache('rentals:');
+                refetchRentals();
+              }}
+              className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors">
+
               <RefreshCw
-              className={`w-4 h-4 ${rentalsLoading ? 'animate-spin' : ''}`} />
-            
+                className={`w-4 h-4 ${rentalsLoading ? 'animate-spin' : ''}`} />
+
             </button>
           }
           {activeTab === 'sales' &&
-          <button
-            onClick={() => {
-              clearCache('sales:');
-              refetchSales();
-            }}
-            className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors">
-            
+            <button
+              onClick={() => {
+                clearCache('sales:');
+                refetchSales();
+              }}
+              className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors">
+
               <RefreshCw
-              className={`w-4 h-4 ${salesLoading ? 'animate-spin' : ''}`} />
-            
+                className={`w-4 h-4 ${salesLoading ? 'animate-spin' : ''}`} />
+
             </button>
           }
           <div className="relative w-full md:w-80">
@@ -1127,104 +1119,102 @@ export function HistoryPage({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#f5a623] text-sm" />
-            
+
           </div>
         </div>
       </div>
 
       {/* Rental History Tab */}
       {activeTab === 'rentals' &&
-      <div>
+        <div>
           <div className="flex flex-wrap gap-2 mb-6" aria-label="Filter rental bills by status">
             {([
-          ['all', 'All', 'total'],
-          ['active', 'Open', 'open'],
-          ['returned', 'Returned', 'returned'],
-          ['overdue', 'Overdue', 'overdue'],
-          ['unpaid', 'Unpaid', 'unpaid'],
-          ['closed', 'Closed', 'closed']] as
-          const).map(([value, label, statKey]) => {
-            const isActive = rentalFilter === value;
-            const count = isActive ? rentalTotalCount : rentalStats[statKey];
-            const shouldShowCount = rentalFilter === 'all' || isActive;
-            return (
-              <button
-                key={value}
-                type="button"
-                onClick={() => {
-                  setRentalFilter(value);
-                  setRentalPage(1);
-                }}
-                aria-pressed={isActive}
-                className={`px-4 py-2.5 rounded-lg text-sm font-bold border transition-colors flex items-center gap-2 ${
-                isActive ?
-                'bg-[#2d4059] text-white border-[#2d4059]' :
-                'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`
-                }>
-                
-                  {label}
-                  {shouldShowCount && count != null &&
-                <span
-                  className={`px-1.5 py-0.5 rounded-full text-xs tabular-nums ${
-                  isActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'}`
-                  }>
-                  
-                      {count}
-                    </span>
-                }
-                </button>);
+              ['all', 'All', 'total'],
+              ['active', 'Open', 'open'],
+              ['returned', 'Returned', 'returned'],
+              ['overdue', 'Overdue', 'overdue'],
+              ['unpaid', 'Unpaid', 'unpaid'],
+              ['closed', 'Closed', 'closed']] as
+              const).map(([value, label, statKey]) => {
+                const isActive = rentalFilter === value;
+                const count = isActive ? rentalTotalCount : rentalStats[statKey];
+                const shouldShowCount = rentalFilter === 'all' || isActive;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => {
+                      setRentalFilter(value);
+                      setRentalPage(1);
+                    }}
+                    aria-pressed={isActive}
+                    className={`px-4 py-2.5 rounded-lg text-sm font-bold border transition-colors flex items-center gap-2 ${isActive ?
+                        'bg-[#2d4059] text-white border-[#2d4059]' :
+                        'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`
+                    }>
 
-          })}
+                    {label}
+                    {shouldShowCount && count != null &&
+                      <span
+                        className={`px-1.5 py-0.5 rounded-full text-xs tabular-nums ${isActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'}`
+                        }>
+
+                        {count}
+                      </span>
+                    }
+                  </button>);
+
+              })}
           </div>
 
           {/* Active filter indicator */}
           {rentalFilter !== 'all' &&
-        <div className="mb-4 flex items-center gap-2">
+            <div className="mb-4 flex items-center gap-2">
               <span className="text-sm text-gray-500">
                 Showing{' '}
                 <span className="font-bold text-[#1a1a2e]">
                   {rentalFilter === 'active' ?
-              'Open' :
-              rentalFilter.charAt(0).toUpperCase() + rentalFilter.slice(1)}
+                    'Open' :
+                    rentalFilter.charAt(0).toUpperCase() + rentalFilter.slice(1)}
                 </span>{' '}
                 bills ({rentalTotalCount})
               </span>
               <button
-            onClick={() => setRentalFilter('all')}
-            className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1">
-            
+                onClick={() => setRentalFilter('all')}
+                className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1">
+
                 <X className="w-3 h-3" />
                 Clear filter
               </button>
             </div>
-        }
+          }
 
           {/* Loading */}
           {rentalsLoading && rentalBills.length === 0 &&
-        <div className="flex items-center justify-center py-20">
+            <div className="flex items-center justify-center py-20">
               <Loader2 className="w-8 h-8 text-[#f5a623] animate-spin" />
               <span className="ml-3 text-gray-500 font-medium">
                 Loading rentals...
               </span>
             </div>
-        }
+          }
 
           {/* Error */}
           {rentalsError && !rentalsLoading &&
-        <div className="bg-red-50 border border-red-200 rounded-xl p-6 mb-8 text-center">
+            <div className="bg-red-50 border border-red-200 rounded-xl p-6 mb-8 text-center">
               <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
               <p className="text-red-700 font-medium mb-3">{rentalsError}</p>
               <button
-            onClick={() => refetchRentals()}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors">
-            
+                onClick={() => refetchRentals()}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors">
+
                 Retry
               </button>
             </div>
-        }
+          }
 
           {!rentalsLoading && !rentalsError && rentalBills.length === 0 ?
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
               <Clock className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500 font-medium">No rental bills found</p>
               <p className="text-gray-400 text-sm mt-1">
@@ -1232,52 +1222,52 @@ export function HistoryPage({
               </p>
             </div> :
 
-        !rentalsLoading &&
-        !rentalsError &&
-        <>
-                <div className="space-y-4">
-                  {displayedRentalBills.length === 0 && rentalFilter !== 'all' ?
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+            !rentalsLoading &&
+            !rentalsError &&
+            <>
+              <div className="space-y-4">
+                {displayedRentalBills.length === 0 && rentalFilter !== 'all' ?
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
                     <Clock className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                     <p className="text-gray-500 font-medium">
                       No {rentalFilter === 'active' ? 'open' : rentalFilter} rental bills
                     </p>
                     <button
-                onClick={() => setRentalFilter('all')}
-                className="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium">
-                
+                      onClick={() => setRentalFilter('all')}
+                      className="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium">
+
                       Show all bills
                     </button>
                   </div> :
 
-            displayedRentalBills.map((bill) => {
-              const isEditing = editingBillId === bill.id;
-              const returnedCount = bill.items.filter(
-                (i) => i.status === 'returned'
-              ).length;
-              const totalDeposit =
-              bill.depositHistory?.reduce((s, d) => s + d.amount, 0) ||
-              bill.deposit ||
-              0;
-              const totalFines =
-              bill.fines?.reduce((s, f) => s + Number(f.fine), 0) || 0;
-              const allItemsReturned =
-              returnedCount === bill.items.length &&
-              bill.items.length > 0;
-              const netOwed = bill.total + totalFines;
-              const balance = totalDeposit - netOwed;
-              const hasOutstandingBalance = balance < 0;
-              const needsPayment =
-              allItemsReturned && hasOutstandingBalance;
-              return (
-                <div
-                  key={bill.id}
-                  data-bill-id={bill.id}
-                  ref={(el) => {
-                    billRefs.current[bill.id] = el;
-                  }}
-                  className={`bg-white rounded-xl shadow-sm border scroll-mt-24 transition-shadow duration-200 ${isEditing ? 'border-blue-300 ring-2 ring-blue-100' : needsPayment ? 'border-red-200 ring-1 ring-red-100' : 'border-gray-200'} ${highlightBillId === bill.id ? 'ring-2 ring-[#f5a623] ring-offset-2' : ''}`}>
-                  
+                  displayedRentalBills.map((bill) => {
+                    const isEditing = editingBillId === bill.id;
+                    const returnedCount = bill.items.filter(
+                      (i) => i.status === 'returned'
+                    ).length;
+                    const totalDeposit =
+                      bill.depositHistory?.reduce((s, d) => s + d.amount, 0) ||
+                      bill.deposit ||
+                      0;
+                    const totalFines =
+                      bill.fines?.reduce((s, f) => s + Number(f.fine), 0) || 0;
+                    const allItemsReturned =
+                      returnedCount === bill.items.length &&
+                      bill.items.length > 0;
+                    const netOwed = bill.total + totalFines;
+                    const balance = totalDeposit - netOwed;
+                    const hasOutstandingBalance = balance < 0;
+                    const needsPayment =
+                      allItemsReturned && hasOutstandingBalance;
+                    return (
+                      <div
+                        key={bill.id}
+                        data-bill-id={bill.id}
+                        ref={(el) => {
+                          billRefs.current[bill.id] = el;
+                        }}
+                        className={`bg-white rounded-xl shadow-sm border scroll-mt-24 transition-shadow duration-200 ${isEditing ? 'border-blue-300 ring-2 ring-blue-100' : needsPayment ? 'border-red-200 ring-1 ring-red-100' : 'border-gray-200'} ${highlightBillId === bill.id ? 'ring-2 ring-[#f5a623] ring-offset-2' : ''}`}>
+
                         {/* Bill Header */}
                         <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
                           <div>
@@ -1286,15 +1276,15 @@ export function HistoryPage({
                                 {bill.id}
                               </span>
                               {getStatusBadge(
-                          bill.apiStatus || bill.rentalStatus,
-                          bill
-                        )}
+                                bill.apiStatus || bill.rentalStatus,
+                                bill
+                              )}
                               {needsPayment &&
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">
                                   <Banknote className="w-3 h-3 mr-1" />
                                   {formatPrice(Math.abs(balance))} due
                                 </span>
-                        }
+                              }
                             </div>
                             <p className="text-sm text-gray-600">
                               {bill.customer.name} · {bill.customer.phone}
@@ -1303,12 +1293,12 @@ export function HistoryPage({
                               {bill.date} · {returnedCount}/{bill.items.length}{' '}
                               items returned
                               {(bill.nicTaken !== undefined || bill.isPassportTaken !== undefined || bill.isDrivingLicenceTaken !== undefined) &&
-                        <span
-                          className={`ml-2 px-1.5 py-0.5 rounded ${bill.nicTaken || bill.isPassportTaken || bill.isDrivingLicenceTaken ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600'}`}>
-                          
+                                <span
+                                  className={`ml-2 px-1.5 py-0.5 rounded ${bill.nicTaken || bill.isPassportTaken || bill.isDrivingLicenceTaken ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600'}`}>
+
                                   Taken ID: {bill.nicTaken ? 'NIC' : bill.isPassportTaken ? 'Passport' : bill.isDrivingLicenceTaken ? 'Driving Licence' : 'None'}
                                 </span>
-                        }
+                              }
                             </p>
                           </div>
                           <div className="flex items-center gap-3">
@@ -1319,13 +1309,13 @@ export function HistoryPage({
                               </p>
                             </div>
                             {totalFines > 0 &&
-                      <div className="text-right mr-2">
+                              <div className="text-right mr-2">
                                 <p className="text-xs text-gray-500">Fines</p>
                                 <p className="font-bold text-red-600">
                                   {formatPrice(totalFines)}
                                 </p>
                               </div>
-                      }
+                            }
                             <div className="text-right mr-2">
                               <p className="text-xs text-gray-500">Deposit</p>
                               <p className="font-bold text-blue-600">
@@ -1335,88 +1325,88 @@ export function HistoryPage({
                             <div className="text-right mr-4">
                               <p className="text-xs text-gray-500">Balance</p>
                               <p
-                          className={`font-bold ${balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          
+                                className={`font-bold ${balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+
                                 {balance >= 0 ?
-                          formatPrice(balance) :
-                          `-${formatPrice(Math.abs(balance))}`}
+                                  formatPrice(balance) :
+                                  `-${formatPrice(Math.abs(balance))}`}
                               </p>
                             </div>
                             {bill.rentalStatus !== 'closed' &&
-                      bill.items.some(
-                        (i) => i.status === 'active' && i.apiItemId
-                      ) &&
-                      <button
-                        onClick={() => {
-                          setReturnAllConfirmBill(bill);
-                          setReturnPaymentAmount('');
-                          setActionError(null);
-                        }}
-                        disabled={
-                        actionLoading === `return-all-${bill.id}`
-                        }
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold bg-amber-500 text-white hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
-                        
-                                  {actionLoading === `return-all-${bill.id}` ?
-                        <>
-                                      <Loader2 className="w-4 h-4 animate-spin" />{' '}
-                                      Returning...
-                                    </> :
+                              bill.items.some(
+                                (i) => i.status === 'active' && i.apiItemId
+                              ) &&
+                              <button
+                                onClick={() => {
+                                  setReturnAllConfirmBill(bill);
+                                  setReturnPaymentAmount('');
+                                  setActionError(null);
+                                }}
+                                disabled={
+                                  actionLoading === `return-all-${bill.id}`
+                                }
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold bg-amber-500 text-white hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
 
-                        <>
-                                      <RotateCcw className="w-4 h-4" /> Return
-                                      All
-                                    </>
-                        }
-                                </button>
-                      }
+                                {actionLoading === `return-all-${bill.id}` ?
+                                  <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />{' '}
+                                    Returning...
+                                  </> :
+
+                                  <>
+                                    <RotateCcw className="w-4 h-4" /> Return
+                                    All
+                                  </>
+                                }
+                              </button>
+                            }
                             {bill.rentalStatus !== 'closed' &&
-                      allItemsReturned &&
-                      <button
-                        onClick={() => handleManualClose(bill)}
-                        disabled={
-                        actionLoading === `close-${bill.id}`
-                        }
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
-                        
-                                  {actionLoading === `close-${bill.id}` ?
-                        <>
-                                      <Loader2 className="w-4 h-4 animate-spin" />{' '}
-                                      Closing...
-                                    </> :
+                              allItemsReturned &&
+                              <button
+                                onClick={() => handleManualClose(bill)}
+                                disabled={
+                                  actionLoading === `close-${bill.id}`
+                                }
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
 
-                        <>
-                                      <CheckCircle className="w-4 h-4" /> Close
-                                      Bill
-                                    </>
-                        }
-                                </button>
-                      }
+                                {actionLoading === `close-${bill.id}` ?
+                                  <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />{' '}
+                                    Closing...
+                                  </> :
+
+                                  <>
+                                    <CheckCircle className="w-4 h-4" /> Close
+                                    Bill
+                                  </>
+                                }
+                              </button>
+                            }
                             <button
-                        onClick={() => {
-                          setEditingBillId(isEditing ? null : bill.id);
-                          setAddItemModalBillId(null);
-                        }}
-                        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold transition-colors ${isEditing ? 'bg-gray-200 text-gray-700' : needsPayment ? 'bg-red-600 text-white hover:bg-red-700' : bill.rentalStatus === 'closed' ? 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
-                        
+                              onClick={() => {
+                                setEditingBillId(isEditing ? null : bill.id);
+                                setAddItemModalBillId(null);
+                              }}
+                              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold transition-colors ${isEditing ? 'bg-gray-200 text-gray-700' : needsPayment ? 'bg-red-600 text-white hover:bg-red-700' : bill.rentalStatus === 'closed' ? 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+
                               {isEditing ?
-                        <>
+                                <>
                                   <X className="w-4 h-4" /> Close
                                 </> :
-                        needsPayment ?
-                        <>
-                                  <Banknote className="w-4 h-4" /> Settle
-                                </> :
+                                needsPayment ?
+                                  <>
+                                    <Banknote className="w-4 h-4" /> Settle
+                                  </> :
 
-                        <>
-                                  <Edit className="w-4 h-4" /> Edit
-                                </>
-                        }
+                                  <>
+                                    <Edit className="w-4 h-4" /> Edit
+                                  </>
+                              }
                             </button>
                             <button
-                        onClick={() => onViewBill(bill)}
-                        className="flex items-center gap-1.5 px-3 py-2 bg-[#1a1a2e] text-white rounded-lg text-sm font-bold hover:bg-[#2d4059] transition-colors">
-                        
+                              onClick={() => onViewBill(bill)}
+                              className="flex items-center gap-1.5 px-3 py-2 bg-[#1a1a2e] text-white rounded-lg text-sm font-bold hover:bg-[#2d4059] transition-colors">
+
                               <Eye className="w-4 h-4" />
                               Invoice
                             </button>
@@ -1443,42 +1433,42 @@ export function HistoryPage({
                                   Status
                                 </th>
                                 {isEditing &&
-                          <th className="px-4 py-2 text-center">
+                                  <th className="px-4 py-2 text-center">
                                     Action
                                   </th>
-                          }
+                                }
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
                               {bill.items.map((item, idx) => {
-                          const unitPrice =
-                          item.product.rentPricePerDay || 0;
-                          const days = item.rentalDays || 1;
-                          const lineTotal =
-                          item.rentalFee !== undefined ?
-                          item.rentalFee :
-                          unitPrice * item.quantity * days;
-                          return (
-                            <tr
-                              key={idx}
-                              className={
-                              item.status === 'returned' ?
-                              'bg-green-50/50' :
-                              ''
-                              }>
-                              
+                                const unitPrice =
+                                  item.product.rentPricePerDay || 0;
+                                const days = item.rentalDays || 1;
+                                const lineTotal =
+                                  item.rentalFee !== undefined ?
+                                    item.rentalFee :
+                                    unitPrice * item.quantity * days;
+                                return (
+                                  <tr
+                                    key={idx}
+                                    className={
+                                      item.status === 'returned' ?
+                                        'bg-green-50/50' :
+                                        ''
+                                    }>
+
                                     <td className="px-4 py-2.5">
                                       <div className="flex items-center gap-2">
                                         <span
-                                    className={`w-2 h-2 rounded-full flex-shrink-0 ${item.status === 'returned' ? 'bg-green-500' : 'bg-blue-500'}`} />
-                                  
+                                          className={`w-2 h-2 rounded-full flex-shrink-0 ${item.status === 'returned' ? 'bg-green-500' : 'bg-blue-500'}`} />
+
                                         <span className="font-medium text-[#1a1a2e]">
                                           {item.product.name}
                                         </span>
                                         <span className="text-[10px] font-mono text-gray-400">
                                           {item.product.itemCode ||
-                                    item.product.barcode ||
-                                    ''}
+                                            item.product.barcode ||
+                                            ''}
                                         </span>
                                       </div>
                                     </td>
@@ -1487,14 +1477,14 @@ export function HistoryPage({
                                     </td>
                                     <td className="px-4 py-2.5 text-center text-xs">
                                       {item.status === 'returned' ?
-                                <span className="text-green-600 font-medium">
+                                        <span className="text-green-600 font-medium">
                                           {item.actualReturnDate}
                                         </span> :
 
-                                <span className="text-gray-500">
+                                        <span className="text-gray-500">
                                           {item.expectedReturnDate || '-'}
                                         </span>
-                                }
+                                      }
                                     </td>
                                     <td className="px-4 py-2.5 text-center font-medium">
                                       {days}
@@ -1510,45 +1500,45 @@ export function HistoryPage({
                                     </td>
                                     <td className="px-4 py-2.5 text-center text-xs">
                                       {item.status === 'returned' ?
-                                <span className="text-green-600 font-medium">
+                                        <span className="text-green-600 font-medium">
                                           Returned
                                         </span> :
 
-                                <span className="text-blue-600 font-medium">
+                                        <span className="text-blue-600 font-medium">
                                           Open
                                         </span>
-                                }
+                                      }
                                     </td>
                                     {isEditing &&
-                              <td className="px-4 py-2.5 text-center">
+                                      <td className="px-4 py-2.5 text-center">
                                         {item.status === 'active' &&
-                                <button
-                                  onClick={() => {
-                                    const now = new Date();
-                                    setReturnSingleItemModal({
-                                      bill,
-                                      itemIndex: idx,
-                                      returnDate: now.
-                                      toISOString().
-                                      split('T')[0],
-                                      returnTime: now.
-                                      toTimeString().
-                                      slice(0, 5),
-                                      fines: []
-                                    });
-                                    setActionError(null);
-                                  }}
-                                  className="px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-md hover:bg-blue-200 transition-colors">
-                                  
+                                          <button
+                                            onClick={() => {
+                                              const now = new Date();
+                                              setReturnSingleItemModal({
+                                                bill,
+                                                itemIndex: idx,
+                                                returnDate: now.
+                                                  toISOString().
+                                                  split('T')[0],
+                                                returnTime: now.
+                                                  toTimeString().
+                                                  slice(0, 5),
+                                                fines: []
+                                              });
+                                              setActionError(null);
+                                            }}
+                                            className="px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-md hover:bg-blue-200 transition-colors">
+
                                             <RotateCcw className="w-3 h-3 inline mr-1" />
                                             Return
                                           </button>
-                                }
+                                        }
                                       </td>
-                              }
+                                    }
                                   </tr>);
 
-                        })}
+                              })}
                             </tbody>
                           </table>
                         </div>
@@ -1556,24 +1546,24 @@ export function HistoryPage({
                         {/* Edit Controls */}
                         <AnimatePresence>
                           {isEditing &&
-                    <motion.div
-                      initial={{
-                        height: 0,
-                        opacity: 0
-                      }}
-                      animate={{
-                        height: 'auto',
-                        opacity: 1
-                      }}
-                      exit={{
-                        height: 0,
-                        opacity: 0
-                      }}
-                      className="overflow-hidden">
-                      
+                            <motion.div
+                              initial={{
+                                height: 0,
+                                opacity: 0
+                              }}
+                              animate={{
+                                height: 'auto',
+                                opacity: 1
+                              }}
+                              exit={{
+                                height: 0,
+                                opacity: 0
+                              }}
+                              className="overflow-hidden">
+
                               <div className="p-4 border-t border-blue-100 bg-blue-50/30">
                                 {bill.rentalStatus !== 'closed' ?
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {/* Add Deposit */}
                                     <div className="bg-white p-3 rounded-lg border border-gray-200">
                                       <h4 className="font-bold text-xs text-gray-700 mb-2 flex items-center gap-1.5">
@@ -1581,59 +1571,59 @@ export function HistoryPage({
                                         Add Deposit
                                       </h4>
                                       {actionError &&
-                            editingBillId === bill.id &&
-                            <div className="mb-2 bg-red-50 border border-red-200 rounded p-2 flex items-start gap-1.5 text-xs text-red-700">
-                                            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                                            <span>{actionError}</span>
-                                          </div>
-                            }
+                                        editingBillId === bill.id &&
+                                        <div className="mb-2 bg-red-50 border border-red-200 rounded p-2 flex items-start gap-1.5 text-xs text-red-700">
+                                          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                                          <span>{actionError}</span>
+                                        </div>
+                                      }
                                       <div className="flex gap-2">
                                         <input
-                                type="number"
-                                value={newDepositAmount}
-                                onChange={(e) =>
-                                setNewDepositAmount(e.target.value)
-                                }
-                                placeholder="Amount"
-                                className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-[#f5a623] outline-none" />
-                              
+                                          type="number"
+                                          value={newDepositAmount}
+                                          onChange={(e) =>
+                                            setNewDepositAmount(e.target.value)
+                                          }
+                                          placeholder="Amount"
+                                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-[#f5a623] outline-none" />
+
                                         <button
-                                onClick={() => handleAddDeposit(bill)}
-                                disabled={
-                                actionLoading ===
-                                `deposit-${bill.id}`
-                                }
-                                className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-bold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5">
-                                
+                                          onClick={() => handleAddDeposit(bill)}
+                                          disabled={
+                                            actionLoading ===
+                                            `deposit-${bill.id}`
+                                          }
+                                          className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-bold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5">
+
                                           {actionLoading ===
-                                `deposit-${bill.id}` &&
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                }
+                                            `deposit-${bill.id}` &&
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                          }
                                           {actionLoading ===
-                                `deposit-${bill.id}` ?
-                                'Adding...' :
-                                'Add'}
+                                            `deposit-${bill.id}` ?
+                                            'Adding...' :
+                                            'Add'}
                                         </button>
                                       </div>
                                       {bill.depositHistory &&
-                            bill.depositHistory.length > 0 &&
-                            <div className="mt-2 space-y-1">
-                                            {bill.depositHistory.map((d, i) =>
-                              <div
-                                key={i}
-                                className="flex justify-between text-xs text-gray-500">
-                                
-                                                <span>
-                                                  {d.date}{' '}
-                                                  {d.note && `· ${d.note}`}
-                                                </span>
-                                                <span className="font-mono font-medium">
-                                                  {formatPrice(d.amount)}
-                                                </span>
-                                              </div>
-                              )}
-                                          </div>
-                            }
+                                        bill.depositHistory.length > 0 &&
+                                        <div className="mt-2 space-y-1">
+                                          {bill.depositHistory.map((d, i) =>
+                                            <div
+                                              key={i}
+                                              className="flex justify-between text-xs text-gray-500">
+
+                                              <span>
+                                                {d.date}{' '}
+                                                {d.note && `· ${d.note}`}
+                                              </span>
+                                              <span className="font-mono font-medium">
+                                                {formatPrice(d.amount)}
+                                              </span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      }
                                     </div>
 
                                     {/* Add Item - opens modal */}
@@ -1643,82 +1633,82 @@ export function HistoryPage({
                                         Add Rental Item
                                       </h4>
                                       <button
-                              onClick={() => {
-                                setAddItemModalBillId(bill.id);
-                                setProductSearch('');
-                              }}
-                              className="w-full px-3 py-2 bg-blue-600 text-white rounded-md text-sm font-bold hover:bg-blue-700 flex items-center justify-center gap-2 transition-colors">
-                              
+                                        onClick={() => {
+                                          setAddItemModalBillId(bill.id);
+                                          setProductSearch('');
+                                        }}
+                                        className="w-full px-3 py-2 bg-blue-600 text-white rounded-md text-sm font-bold hover:bg-blue-700 flex items-center justify-center gap-2 transition-colors">
+
                                         <Plus className="w-4 h-4" />
                                         Select Product
                                       </button>
                                     </div>
                                   </div> :
 
-                        <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
+                                  <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
                                     <p className="text-sm text-gray-500 font-medium flex items-center justify-center gap-2">
                                       <CheckCircle className="w-4 h-4 text-green-500" />
                                       This bill is closed. You cannot add
                                       deposits or rental items.
                                     </p>
                                   </div>
-                        }
+                                }
                               </div>
                             </motion.div>
-                    }
+                          }
                         </AnimatePresence>
                       </div>);
 
-            })
-            }
+                  })
+                }
               </div>
-              
+
               {/* Rental Pagination */}
               {rentalTotalPages > 1 &&
-          <Pagination
-            currentPage={rentalPage}
-            totalPages={rentalTotalPages}
-            totalCount={rentalTotalCount}
-            itemLabel="bills"
-            onPageChange={setRentalPage}
-            variant="card" />
+                <Pagination
+                  currentPage={rentalPage}
+                  totalPages={rentalTotalPages}
+                  totalCount={rentalTotalCount}
+                  itemLabel="bills"
+                  onPageChange={setRentalPage}
+                  variant="card" />
 
-          }
+              }
             </>
 
-        }
+          }
         </div>
       }
 
       {/* Sale History Tab */}
       {activeTab === 'sales' &&
-      <div>
+        <div>
           {/* Loading */}
           {salesLoading && saleBills.length === 0 &&
-        <div className="flex items-center justify-center py-20">
+            <div className="flex items-center justify-center py-20">
               <Loader2 className="w-8 h-8 text-[#f5a623] animate-spin" />
               <span className="ml-3 text-gray-500 font-medium">
                 Loading sales...
               </span>
             </div>
-        }
+          }
 
           {/* Error */}
           {salesError && !salesLoading &&
-        <div className="bg-red-50 border border-red-200 rounded-xl p-6 mb-8 text-center">
+            <div className="bg-red-50 border border-red-200 rounded-xl p-6 mb-8 text-center">
               <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
               <p className="text-red-700 font-medium mb-3">{salesError}</p>
               <button
-            onClick={() => refetchSales()}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors">
-            
+                onClick={() => refetchSales()}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors">
+
                 Retry
               </button>
             </div>
-        }
+          }
 
           {!salesLoading && !salesError && saleBills.length === 0 ?
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
               <ShoppingCart className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500 font-medium">No sale bills found</p>
               <p className="text-gray-400 text-sm mt-1">
@@ -1726,11 +1716,11 @@ export function HistoryPage({
               </p>
             </div> :
 
-        !salesLoading &&
-        !salesError &&
-        <>
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                  <div className="overflow-x-auto">
+            !salesLoading &&
+            !salesError &&
+            <>
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
                     <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200">
                       <tr>
@@ -1744,42 +1734,42 @@ export function HistoryPage({
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {saleBills.map((bill) => {
-                    const hasReturnableItems = bill.items.some(
-                      (item) =>
-                      item.quantity - (item.returnedQuantity || 0) > 0
-                    );
-                    return (
-                      <tr
-                        key={bill.id}
-                        data-bill-id={bill.id}
-                        ref={(el) => {
-                          billRefs.current[bill.id] = el;
-                        }}
-                        className={`transition-colors scroll-mt-24 ${highlightBillId === bill.id ? 'bg-[#f5a623]/10' : 'hover:bg-gray-50'}`}>
-                        
+                        const hasReturnableItems = bill.items.some(
+                          (item) =>
+                            item.quantity - (item.returnedQuantity || 0) > 0
+                        );
+                        return (
+                          <tr
+                            key={bill.id}
+                            data-bill-id={bill.id}
+                            ref={(el) => {
+                              billRefs.current[bill.id] = el;
+                            }}
+                            className={`transition-colors scroll-mt-24 ${highlightBillId === bill.id ? 'bg-[#f5a623]/10' : 'hover:bg-gray-50'}`}>
+
                             <td className="px-6 py-4 font-mono text-sm font-bold text-[#1a1a2e]">
                               {bill.id}
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex flex-col gap-0.5">
                                 {bill.items.slice(0, 2).map((item, i) =>
-                            <span
-                              key={i}
-                              className="text-xs text-gray-600">
-                              
+                                  <span
+                                    key={i}
+                                    className="text-xs text-gray-600">
+
                                     {item.product.name} ×{item.quantity}
                                     {(item.returnedQuantity || 0) > 0 &&
-                              <span className="ml-1 text-orange-500 font-medium">
+                                      <span className="ml-1 text-orange-500 font-medium">
                                         ({item.returnedQuantity} returned)
                                       </span>
-                              }
+                                    }
                                   </span>
-                            )}
+                                )}
                                 {bill.items.length > 2 &&
-                            <span className="text-xs text-gray-400">
+                                  <span className="text-xs text-gray-400">
                                     +{bill.items.length - 2} more
                                   </span>
-                            }
+                                }
                               </div>
                             </td>
                             <td className="px-6 py-4">
@@ -1791,11 +1781,11 @@ export function HistoryPage({
                             <td className="px-6 py-4">
                               <span className="text-xs font-bold px-2 py-1 rounded bg-gray-100 text-gray-700 uppercase">
                                 {bill.paymentMethod === 'card' ?
-                            'Card' :
-                            bill.paymentMethod === 'bank_transfer' ||
-                            bill.paymentMethod === 'transfer' ?
-                            'Bank Transfer' :
-                            'Cash'}
+                                  'Card' :
+                                  bill.paymentMethod === 'bank_transfer' ||
+                                    bill.paymentMethod === 'transfer' ?
+                                    'Bank Transfer' :
+                                    'Cash'}
                               </span>
                             </td>
                             <td className="px-6 py-4 text-right font-bold text-[#1a1a2e]">
@@ -1804,18 +1794,18 @@ export function HistoryPage({
                             <td className="px-6 py-4 text-right">
                               <div className="flex items-center gap-2 justify-end">
                                 {hasReturnableItems &&
-                            <button
-                              onClick={() => openReturnModal(bill)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg text-xs font-bold hover:bg-orange-200 transition-colors">
-                              
+                                  <button
+                                    onClick={() => openReturnModal(bill)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg text-xs font-bold hover:bg-orange-200 transition-colors">
+
                                     <Undo2 className="w-3.5 h-3.5" />
                                     Return
                                   </button>
-                            }
+                                }
                                 <button
-                              onClick={() => onViewBill(bill)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1a2e] text-white rounded-lg text-xs font-bold hover:bg-[#2d4059] transition-colors">
-                              
+                                  onClick={() => onViewBill(bill)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1a2e] text-white rounded-lg text-xs font-bold hover:bg-[#2d4059] transition-colors">
+
                                   <Eye className="w-3.5 h-3.5" />
                                   View
                                 </button>
@@ -1823,85 +1813,85 @@ export function HistoryPage({
                             </td>
                           </tr>);
 
-                  })}
+                      })}
                     </tbody>
                   </table>
                 </div>
               </div>
-              
+
               {/* Sale Pagination */}
               {saleTotalPages > 1 &&
-          <Pagination
-            currentPage={salePage}
-            totalPages={saleTotalPages}
-            onPageChange={setSalePage}
-            variant="card" />
+                <Pagination
+                  currentPage={salePage}
+                  totalPages={saleTotalPages}
+                  onPageChange={setSalePage}
+                  variant="card" />
 
-          }
+              }
             </>
 
-        }
+          }
         </div>
       }
 
       {/* Add Product Modal */}
       <AnimatePresence>
         {addItemModalBillId && modalBill &&
-        <motion.div
-          initial={{
-            opacity: 0
-          }}
-          animate={{
-            opacity: 1
-          }}
-          exit={{
-            opacity: 0
-          }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => resetAddItemModal()}>
-          
-            <motion.div
+          <motion.div
             initial={{
-              scale: 0.95,
               opacity: 0
             }}
             animate={{
-              scale: 1,
               opacity: 1
             }}
             exit={{
-              scale: 0.95,
               opacity: 0
             }}
-            transition={{
-              duration: 0.15
-            }}
-            className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden"
-            onClick={(e) => e.stopPropagation()}>
-            
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={() => resetAddItemModal()}>
+
+            <motion.div
+              initial={{
+                scale: 0.95,
+                opacity: 0
+              }}
+              animate={{
+                scale: 1,
+                opacity: 1
+              }}
+              exit={{
+                scale: 0.95,
+                opacity: 0
+              }}
+              transition={{
+                duration: 0.15
+              }}
+              className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden"
+              onClick={(e) => e.stopPropagation()}>
+
               {/* Modal Header */}
               <div className="flex items-center justify-between p-4 border-b border-gray-200">
                 <div>
                   <h3 className="font-bold text-lg text-[#1a1a2e]">
                     {selectedProductForAdd ?
-                  'Set Return Date' :
-                  'Add Rental Item'}
+                      'Set Return Date' :
+                      'Add Rental Item'}
                   </h3>
                   <p className="text-xs text-gray-500">
                     Bill: {modalBill.id} · {modalBill.customer.name}
                   </p>
                 </div>
                 <button
-                onClick={() => resetAddItemModal()}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-                
+                  onClick={() => resetAddItemModal()}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               {/* Step 2: Set return date for selected product */}
               {selectedProductForAdd ?
-            <>
+                <>
                   <div className="p-5 space-y-5 overflow-y-auto flex-1">
                     {/* Selected product info */}
                     <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
@@ -1917,8 +1907,8 @@ export function HistoryPage({
                         <span>·</span>
                         <span className="font-bold text-[#1a1a2e]">
                           {formatPrice(
-                        selectedProductForAdd.rentPricePerDay || 0
-                      )}
+                            selectedProductForAdd.rentPricePerDay || 0
+                          )}
                           /day
                         </span>
                       </div>
@@ -1931,11 +1921,11 @@ export function HistoryPage({
                           Start Date
                         </label>
                         <input
-                      type="date"
-                      value={new Date().toISOString().split('T')[0]}
-                      disabled
-                      className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500" />
-                    
+                          type="date"
+                          value={new Date().toISOString().split('T')[0]}
+                          disabled
+                          className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500" />
+
                         <p className="text-[10px] text-gray-400 mt-1">
                           Today (auto)
                         </p>
@@ -1945,34 +1935,34 @@ export function HistoryPage({
                           Expected Return Date
                         </label>
                         <input
-                      type="date"
-                      value={newItemReturnDate}
-                      onChange={(e) => setNewItemReturnDate(e.target.value)}
-                      min={new Date().toISOString().split('T')[0]}
-                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#f5a623] outline-none"
-                      autoFocus />
-                    
+                          type="date"
+                          value={newItemReturnDate}
+                          onChange={(e) => setNewItemReturnDate(e.target.value)}
+                          min={new Date().toISOString().split('T')[0]}
+                          className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#f5a623] outline-none"
+                          autoFocus />
+
                       </div>
                     </div>
 
                     {/* Days preview */}
                     {newItemReturnDate &&
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
                         <div className="flex justify-between">
                           <span className="text-blue-700 font-medium">
                             Rental Days:
                           </span>
                           <span className="font-bold text-blue-800">
                             {Math.max(
-                        1,
-                        Math.ceil(
-                          Math.abs(
-                            new Date(newItemReturnDate).getTime() -
-                            new Date().getTime()
-                          ) / (
-                          1000 * 60 * 60 * 24)
-                        )
-                      )}{' '}
+                              1,
+                              Math.ceil(
+                                Math.abs(
+                                  new Date(newItemReturnDate).getTime() -
+                                  new Date().getTime()
+                                ) / (
+                                  1000 * 60 * 60 * 24)
+                              )
+                            )}{' '}
                             days
                           </span>
                         </div>
@@ -1982,282 +1972,281 @@ export function HistoryPage({
                           </span>
                           <span className="font-bold text-blue-800">
                             {formatPrice(
-                        (selectedProductForAdd.rentPricePerDay || 0) *
-                        Math.max(
-                          1,
-                          Math.ceil(
-                            Math.abs(
-                              new Date(newItemReturnDate).getTime() -
-                              new Date().getTime()
-                            ) / (
-                            1000 * 60 * 60 * 24)
-                          )
-                        ) * (
-                        selectedProductForAdd.isStockTracked ===
-                        false ||
+                              (selectedProductForAdd.rentPricePerDay || 0) *
+                              Math.max(
+                                1,
+                                Math.ceil(
+                                  Math.abs(
+                                    new Date(newItemReturnDate).getTime() -
+                                    new Date().getTime()
+                                  ) / (
+                                    1000 * 60 * 60 * 24)
+                                )
+                              ) * (
+                                selectedProductForAdd.isStockTracked ===
+                                  false ||
+                                  !machinesLoading &&
+                                  !machinesError &&
+                                  availableMachines.length === 0 &&
+                                  rentedOutMachines.length === 0 &&
+                                  damagedMachines.length === 0 ?
+                                  manualQuantity :
+                                  Math.max(1, selectedMachines.length))
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    }
+
+                    {/* Machine number or Quantity selection */}
+                    <div>
+                      {selectedProductForAdd.isStockTracked === false ||
                         !machinesLoading &&
                         !machinesError &&
                         availableMachines.length === 0 &&
                         rentedOutMachines.length === 0 &&
                         damagedMachines.length === 0 ?
-                        manualQuantity :
-                        Math.max(1, selectedMachines.length))
-                      )}
-                          </span>
-                        </div>
-                      </div>
-                }
-
-                    {/* Machine number or Quantity selection */}
-                    <div>
-                      {selectedProductForAdd.isStockTracked === false ||
-                  !machinesLoading &&
-                  !machinesError &&
-                  availableMachines.length === 0 &&
-                  rentedOutMachines.length === 0 &&
-                  damagedMachines.length === 0 ?
-                  <div>
+                        <div>
                           <label className="block text-xs font-bold text-gray-700 mb-1.5">
                             Quantity
                           </label>
                           <input
-                      type="number"
-                      min="1"
-                      max={selectedProductForAdd.stock}
-                      value={manualQuantity}
-                      onChange={(e) => {
-                        let val = parseInt(e.target.value) || 1;
-                        if (val < 1) val = 1;
-                        if (
-                        selectedProductForAdd.stock != null &&
-                        val > selectedProductForAdd.stock)
-                        {
-                          val = selectedProductForAdd.stock;
-                        }
-                        setManualQuantity(val);
-                      }}
-                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#f5a623] outline-none" />
-                    
+                            type="number"
+                            min="1"
+                            max={selectedProductForAdd.stock}
+                            value={manualQuantity}
+                            onChange={(e) => {
+                              let val = parseInt(e.target.value) || 1;
+                              if (val < 1) val = 1;
+                              if (
+                                selectedProductForAdd.stock != null &&
+                                val > selectedProductForAdd.stock) {
+                                val = selectedProductForAdd.stock;
+                              }
+                              setManualQuantity(val);
+                            }}
+                            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#f5a623] outline-none" />
+
                           <p className="text-xs text-gray-500 mt-1">
                             Available stock: {selectedProductForAdd.stock}
                           </p>
                           {selectedProductForAdd.stock != null &&
-                    selectedProductForAdd.stock <= 0 &&
-                    <div className="mt-3 bg-red-50 text-red-700 p-3 rounded-lg text-sm flex items-start gap-2">
-                                <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                                This product is out of stock and cannot be
-                                added.
-                              </div>
-                    }
+                            selectedProductForAdd.stock <= 0 &&
+                            <div className="mt-3 bg-red-50 text-red-700 p-3 rounded-lg text-sm flex items-start gap-2">
+                              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                              This product is out of stock and cannot be
+                              added.
+                            </div>
+                          }
                         </div> :
 
-                  <>
+                        <>
                           <label className="block text-xs font-bold text-gray-700 mb-2">
                             Select Machine Numbers
                           </label>
                           {machinesLoading ?
-                    <div className="flex items-center justify-center gap-2 py-6 text-gray-400">
+                            <div className="flex items-center justify-center gap-2 py-6 text-gray-400">
                               <Loader2 className="w-5 h-5 animate-spin" />
                               <span className="text-sm font-medium">
                                 Loading available machines...
                               </span>
                             </div> :
-                    machinesError ?
-                    <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm flex items-start gap-2">
-                              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                              {machinesError}
-                            </div> :
+                            machinesError ?
+                              <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm flex items-start gap-2">
+                                <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                                {machinesError}
+                              </div> :
 
-                    <>
-                              {availableMachines.length === 0 && (
-                      rentedOutMachines.length > 0 ||
-                      damagedMachines.length > 0) &&
-                      <div className="mb-3 bg-red-50 text-red-700 p-3 rounded-lg text-sm flex items-start gap-2">
+                              <>
+                                {availableMachines.length === 0 && (
+                                  rentedOutMachines.length > 0 ||
+                                  damagedMachines.length > 0) &&
+                                  <div className="mb-3 bg-red-50 text-red-700 p-3 rounded-lg text-sm flex items-start gap-2">
                                     <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                                     All machines are currently rented out or
                                     damaged.
                                   </div>
-                      }
-                              <div className="flex items-center justify-between mb-2">
-                                <p className="text-[10px] text-gray-400 uppercase font-bold">
-                                  Click a number to select
-                                </p>
-                                <div className="relative w-1/2">
-                                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
-                                  <input
-                            type="text"
-                            placeholder="Search machine..."
-                            value={machineSearch}
-                            onChange={(e) =>
-                            setMachineSearch(e.target.value)
-                            }
-                            className="w-full pl-7 pr-2 py-1.5 border border-gray-300 rounded-md text-xs focus:ring-1 focus:ring-[#f5a623] outline-none" />
-                          
+                                }
+                                <div className="flex items-center justify-between mb-2">
+                                  <p className="text-[10px] text-gray-400 uppercase font-bold">
+                                    Click a number to select
+                                  </p>
+                                  <div className="relative w-1/2">
+                                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                                    <input
+                                      type="text"
+                                      placeholder="Search machine..."
+                                      value={machineSearch}
+                                      onChange={(e) =>
+                                        setMachineSearch(e.target.value)
+                                      }
+                                      className="w-full pl-7 pr-2 py-1.5 border border-gray-300 rounded-md text-xs focus:ring-1 focus:ring-[#f5a623] outline-none" />
+
+                                  </div>
                                 </div>
-                              </div>
-                              <div className="grid grid-cols-5 gap-2 max-h-40 overflow-y-auto pr-1">
-                                {[
-                        ...availableMachines,
-                        ...rentedOutMachines,
-                        ...damagedMachines].
+                                <div className="grid grid-cols-5 gap-2 max-h-40 overflow-y-auto pr-1">
+                                  {[
+                                    ...availableMachines,
+                                    ...rentedOutMachines,
+                                    ...damagedMachines].
 
-                        sort().
-                        filter((m) =>
-                        m.
-                        toLowerCase().
-                        includes(machineSearch.toLowerCase())
-                        ).
-                        map((machine) => {
-                          const isRentedOut =
-                          rentedOutMachines.includes(machine);
-                          const isDamaged =
-                          damagedMachines.includes(machine);
-                          const isUnavailable =
-                          isRentedOut || isDamaged;
-                          const isSelected =
-                          selectedMachines.includes(machine);
-                          return (
-                            <button
-                              key={machine}
-                              type="button"
-                              disabled={isUnavailable}
-                              onClick={() =>
-                              !isUnavailable &&
-                              toggleAddItemMachine(machine)
-                              }
-                              className={`relative px-2 py-2.5 rounded-lg text-sm font-mono font-bold border-2 transition-colors ${isDamaged ? 'bg-red-50 border-red-200 text-red-500 cursor-not-allowed opacity-60' : isRentedOut ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-60' : isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-[#1a1a2e] hover:border-blue-400 hover:bg-blue-50'}`}>
-                              
-                                        {machine}
-                                        {isSelected &&
-                              <CheckCircle className="w-3.5 h-3.5 absolute top-1 right-1" />
-                              }
-                                      </button>);
+                                    sort().
+                                    filter((m) =>
+                                      m.
+                                        toLowerCase().
+                                        includes(machineSearch.toLowerCase())
+                                    ).
+                                    map((machine) => {
+                                      const isRentedOut =
+                                        rentedOutMachines.includes(machine);
+                                      const isDamaged =
+                                        damagedMachines.includes(machine);
+                                      const isUnavailable =
+                                        isRentedOut || isDamaged;
+                                      const isSelected =
+                                        selectedMachines.includes(machine);
+                                      return (
+                                        <button
+                                          key={machine}
+                                          type="button"
+                                          disabled={isUnavailable}
+                                          onClick={() =>
+                                            !isUnavailable &&
+                                            toggleAddItemMachine(machine)
+                                          }
+                                          className={`relative px-2 py-2.5 rounded-lg text-sm font-mono font-bold border-2 transition-colors ${isDamaged ? 'bg-red-50 border-red-200 text-red-500 cursor-not-allowed opacity-60' : isRentedOut ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-60' : isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-[#1a1a2e] hover:border-blue-400 hover:bg-blue-50'}`}>
 
-                        })}
-                              </div>
-                              <p className="text-xs text-gray-500 mt-2">
-                                <span className="font-bold text-[#1a1a2e]">
-                                  {selectedMachines.length}
-                                </span>{' '}
-                                selected · Quantity will be set to{' '}
-                                {selectedMachines.length || 0}
-                              </p>
-                            </>
-                    }
+                                          {machine}
+                                          {isSelected &&
+                                            <CheckCircle className="w-3.5 h-3.5 absolute top-1 right-1" />
+                                          }
+                                        </button>);
+
+                                    })}
+                                </div>
+                                <p className="text-xs text-gray-500 mt-2">
+                                  <span className="font-bold text-[#1a1a2e]">
+                                    {selectedMachines.length}
+                                  </span>{' '}
+                                  selected · Quantity will be set to{' '}
+                                  {selectedMachines.length || 0}
+                                </p>
+                              </>
+                          }
                         </>
-                  }
+                      }
                     </div>
 
                     {addItemError &&
-                <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm flex items-start gap-2">
+                      <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm flex items-start gap-2">
                         <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                         {addItemError}
                       </div>
-                }
+                    }
                   </div>
 
                   {/* Actions */}
                   <div className="p-4 border-t border-gray-200 flex gap-3 bg-gray-50">
                     <button
-                  onClick={() => {
-                    setSelectedProductForAdd(null);
-                    setNewItemReturnDate('');
-                    setAvailableMachines([]);
-                    setSelectedMachines([]);
-                    setMachineSearch('');
-                    setMachinesError(null);
-                    setAddItemError(null);
-                  }}
-                  disabled={addItemLoading}
-                  className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-200 disabled:opacity-50 transition-colors">
-                  
+                      onClick={() => {
+                        setSelectedProductForAdd(null);
+                        setNewItemReturnDate('');
+                        setAvailableMachines([]);
+                        setSelectedMachines([]);
+                        setMachineSearch('');
+                        setMachinesError(null);
+                        setAddItemError(null);
+                      }}
+                      disabled={addItemLoading}
+                      className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-200 disabled:opacity-50 transition-colors">
+
                       Back
                     </button>
                     <button
-                  onClick={() =>
-                  handleAddItem(modalBill, selectedProductForAdd)
-                  }
-                  disabled={
-                  !newItemReturnDate ||
-                  machinesLoading ||
-                  selectedProductForAdd.isStockTracked !== false &&
-                  availableMachines.length > 0 &&
-                  selectedMachines.length === 0 ||
-                  (selectedProductForAdd.isStockTracked === false ||
-                  availableMachines.length === 0) &&
-                  manualQuantity <= 0 ||
-                  // All machines rented out or damaged (machine-tracked product)
-                  selectedProductForAdd.isStockTracked !== false &&
-                  !machinesLoading &&
-                  availableMachines.length === 0 && (
-                  rentedOutMachines.length > 0 ||
-                  damagedMachines.length > 0) ||
-                  // Out of stock (non-machine product)
-                  (selectedProductForAdd.isStockTracked === false ||
-                  !machinesLoading &&
-                  availableMachines.length === 0 &&
-                  rentedOutMachines.length === 0 &&
-                  damagedMachines.length === 0) &&
-                  selectedProductForAdd.stock != null &&
-                  selectedProductForAdd.stock <= 0 ||
-                  addItemLoading
-                  }
-                  className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-                  
+                      onClick={() =>
+                        handleAddItem(modalBill, selectedProductForAdd)
+                      }
+                      disabled={
+                        !newItemReturnDate ||
+                        machinesLoading ||
+                        selectedProductForAdd.isStockTracked !== false &&
+                        availableMachines.length > 0 &&
+                        selectedMachines.length === 0 ||
+                        (selectedProductForAdd.isStockTracked === false ||
+                          availableMachines.length === 0) &&
+                        manualQuantity <= 0 ||
+                        // All machines rented out or damaged (machine-tracked product)
+                        selectedProductForAdd.isStockTracked !== false &&
+                        !machinesLoading &&
+                        availableMachines.length === 0 && (
+                          rentedOutMachines.length > 0 ||
+                          damagedMachines.length > 0) ||
+                        // Out of stock (non-machine product)
+                        (selectedProductForAdd.isStockTracked === false ||
+                          !machinesLoading &&
+                          availableMachines.length === 0 &&
+                          rentedOutMachines.length === 0 &&
+                          damagedMachines.length === 0) &&
+                        selectedProductForAdd.stock != null &&
+                        selectedProductForAdd.stock <= 0 ||
+                        addItemLoading
+                      }
+                      className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
+
                       {addItemLoading ?
-                  <>
+                        <>
                           <Loader2 className="w-4 h-4 animate-spin" />
                           Adding...
                         </> :
 
-                  <>
+                        <>
                           <Plus className="w-4 h-4" />
                           Add to Bill
                         </>
-                  }
+                      }
                     </button>
                   </div>
                 </> :
 
-            <>
+                <>
                   {/* Step 1: Search and select product */}
                   <div className="p-4 border-b border-gray-100">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <input
-                    ref={modalSearchRef}
-                    type="text"
-                    placeholder="Search by name or item code..."
-                    value={productSearch}
-                    onChange={(e) => setProductSearch(e.target.value)}
-                    className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#f5a623] outline-none" />
-                  
+                        ref={modalSearchRef}
+                        type="text"
+                        placeholder="Search by name or item code..."
+                        value={productSearch}
+                        onChange={(e) => setProductSearch(e.target.value)}
+                        className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#f5a623] outline-none" />
+
                     </div>
                   </div>
 
                   <div className="overflow-y-auto flex-1">
                     {filteredProducts.length === 0 ?
-                <div className="p-8 text-center text-gray-400">
+                      <div className="p-8 text-center text-gray-400">
                         <p className="font-medium">No rental products found</p>
                       </div> :
 
-                filteredProducts.map((p) =>
-                <button
-                  key={p.id}
-                  onClick={() => {
-                    setSelectedProductForAdd(p);
-                    setAddItemError(null);
-                    // Default to tomorrow
-                    const tomorrow = new Date();
-                    tomorrow.setDate(tomorrow.getDate() + 1);
-                    setNewItemReturnDate(
-                      tomorrow.toISOString().split('T')[0]
-                    );
-                    // Fetch available machine numbers for this product
-                    fetchAvailableMachines(p);
-                  }}
-                  className="w-full text-left px-4 py-3 hover:bg-[#f5a623]/10 border-b border-gray-50 last:border-0 flex items-center justify-between transition-colors">
-                  
+                      filteredProducts.map((p) =>
+                        <button
+                          key={p.id}
+                          onClick={() => {
+                            setSelectedProductForAdd(p);
+                            setAddItemError(null);
+                            // Default to tomorrow
+                            const tomorrow = new Date();
+                            tomorrow.setDate(tomorrow.getDate() + 1);
+                            setNewItemReturnDate(
+                              tomorrow.toISOString().split('T')[0]
+                            );
+                            // Fetch available machine numbers for this product
+                            fetchAvailableMachines(p);
+                          }}
+                          className="w-full text-left px-4 py-3 hover:bg-[#f5a623]/10 border-b border-gray-50 last:border-0 flex items-center justify-between transition-colors">
+
                           <div>
                             <p className="font-bold text-[#1a1a2e]">{p.name}</p>
                             <div className="flex items-center gap-2 mt-0.5">
@@ -2282,11 +2271,11 @@ export function HistoryPage({
                             <p className="text-[10px] text-gray-400">per day</p>
                           </div>
                         </button>
-                )
-                }
+                      )
+                    }
                   </div>
                 </>
-            }
+              }
             </motion.div>
           </motion.div>
         }
@@ -2295,38 +2284,38 @@ export function HistoryPage({
       {/* Sale Return Modal */}
       <AnimatePresence>
         {returnModalBill &&
-        <motion.div
-          initial={{
-            opacity: 0
-          }}
-          animate={{
-            opacity: 1
-          }}
-          exit={{
-            opacity: 0
-          }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={closeReturnModal}>
-          
-            <motion.div
+          <motion.div
             initial={{
-              scale: 0.95,
               opacity: 0
             }}
             animate={{
-              scale: 1,
               opacity: 1
             }}
             exit={{
-              scale: 0.95,
               opacity: 0
             }}
-            transition={{
-              duration: 0.15
-            }}
-            className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden"
-            onClick={(e) => e.stopPropagation()}>
-            
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={closeReturnModal}>
+
+            <motion.div
+              initial={{
+                scale: 0.95,
+                opacity: 0
+              }}
+              animate={{
+                scale: 1,
+                opacity: 1
+              }}
+              exit={{
+                scale: 0.95,
+                opacity: 0
+              }}
+              transition={{
+                duration: 0.15
+              }}
+              className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden"
+              onClick={(e) => e.stopPropagation()}>
+
               {/* Modal Header */}
               <div className="p-4 border-b border-gray-200 bg-orange-50">
                 <div className="flex items-center justify-between">
@@ -2344,9 +2333,9 @@ export function HistoryPage({
                     </div>
                   </div>
                   <button
-                  onClick={closeReturnModal}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-                  
+                    onClick={closeReturnModal}
+                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+
                     <X className="w-5 h-5" />
                   </button>
                 </div>
@@ -2354,7 +2343,7 @@ export function HistoryPage({
 
               {/* Success State */}
               {returnSuccess ?
-            <div className="p-6 text-center">
+                <div className="p-6 text-center">
                   <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                     <CheckCircle className="w-8 h-8 text-green-600" />
                   </div>
@@ -2371,35 +2360,35 @@ export function HistoryPage({
                   </div>
                   <div>
                     <button
-                  onClick={closeReturnModal}
-                  className="px-6 py-2.5 bg-[#1a1a2e] text-white rounded-lg font-bold hover:bg-[#2d4059] transition-colors">
-                  
+                      onClick={closeReturnModal}
+                      className="px-6 py-2.5 bg-[#1a1a2e] text-white rounded-lg font-bold hover:bg-[#2d4059] transition-colors">
+
                       Done
                     </button>
                   </div>
                 </div> :
 
-            <>
+                <>
                   {/* Items List */}
                   <div className="overflow-y-auto flex-1 p-4 space-y-3">
                     {returnError &&
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2 text-sm text-red-700">
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2 text-sm text-red-700">
                         <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                         <span>{returnError}</span>
                       </div>
-                }
+                    }
 
                     {returnModalBill.items.map((item) => {
-                  const remaining =
-                  item.quantity - (item.returnedQuantity || 0);
-                  const itemId = item.apiItemId;
-                  if (!itemId || remaining <= 0) return null;
-                  const currentReturnQty = returnQuantities[itemId] || 0;
-                  return (
-                    <div
-                      key={itemId}
-                      className={`border rounded-lg p-4 transition-colors ${currentReturnQty > 0 ? 'border-orange-300 bg-orange-50/50' : 'border-gray-200 bg-white'}`}>
-                      
+                      const remaining =
+                        item.quantity - (item.returnedQuantity || 0);
+                      const itemId = item.apiItemId;
+                      if (!itemId || remaining <= 0) return null;
+                      const currentReturnQty = returnQuantities[itemId] || 0;
+                      return (
+                        <div
+                          key={itemId}
+                          className={`border rounded-lg p-4 transition-colors ${currentReturnQty > 0 ? 'border-orange-300 bg-orange-50/50' : 'border-gray-200 bg-white'}`}>
+
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 min-w-0">
                               <p className="font-bold text-[#1a1a2e] text-sm">
@@ -2416,13 +2405,13 @@ export function HistoryPage({
                                   </span>
                                 </span>
                                 {(item.returnedQuantity || 0) > 0 &&
-                            <span className="text-orange-600">
+                                  <span className="text-orange-600">
                                     Already returned:{' '}
                                     <span className="font-bold">
                                       {item.returnedQuantity}
                                     </span>
                                   </span>
-                            }
+                                }
                                 <span className="text-blue-600">
                                   Remaining:{' '}
                                   <span className="font-bold">{remaining}</span>
@@ -2439,49 +2428,49 @@ export function HistoryPage({
                               </label>
                               <div className="flex items-center gap-1">
                                 <button
-                              onClick={() => {
-                                setReturnQuantities((prev) => ({
-                                  ...prev,
-                                  [itemId]: Math.max(
-                                    0,
-                                    (prev[itemId] || 0) - 1
-                                  )
-                                }));
-                              }}
-                              disabled={currentReturnQty <= 0}
-                              className="w-8 h-8 flex items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-bold">
-                              
+                                  onClick={() => {
+                                    setReturnQuantities((prev) => ({
+                                      ...prev,
+                                      [itemId]: Math.max(
+                                        0,
+                                        (prev[itemId] || 0) - 1
+                                      )
+                                    }));
+                                  }}
+                                  disabled={currentReturnQty <= 0}
+                                  className="w-8 h-8 flex items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-bold">
+
                                   −
                                 </button>
                                 <input
-                              type="number"
-                              min="0"
-                              max={remaining}
-                              value={currentReturnQty}
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value);
-                                setReturnQuantities((prev) => ({
-                                  ...prev,
-                                  [itemId]: isNaN(val) ?
-                                  0 :
-                                  Math.min(remaining, Math.max(0, val))
-                                }));
-                              }}
-                              className="w-12 h-8 text-center border border-gray-300 rounded-md text-sm font-bold focus:ring-2 focus:ring-orange-400 outline-none" />
-                            
+                                  type="number"
+                                  min="0"
+                                  max={remaining}
+                                  value={currentReturnQty}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    setReturnQuantities((prev) => ({
+                                      ...prev,
+                                      [itemId]: isNaN(val) ?
+                                        0 :
+                                        Math.min(remaining, Math.max(0, val))
+                                    }));
+                                  }}
+                                  className="w-12 h-8 text-center border border-gray-300 rounded-md text-sm font-bold focus:ring-2 focus:ring-orange-400 outline-none" />
+
                                 <button
-                              onClick={() => {
-                                setReturnQuantities((prev) => ({
-                                  ...prev,
-                                  [itemId]: Math.min(
-                                    remaining,
-                                    (prev[itemId] || 0) + 1
-                                  )
-                                }));
-                              }}
-                              disabled={currentReturnQty >= remaining}
-                              className="w-8 h-8 flex items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-bold">
-                              
+                                  onClick={() => {
+                                    setReturnQuantities((prev) => ({
+                                      ...prev,
+                                      [itemId]: Math.min(
+                                        remaining,
+                                        (prev[itemId] || 0) + 1
+                                      )
+                                    }));
+                                  }}
+                                  disabled={currentReturnQty >= remaining}
+                                  className="w-8 h-8 flex items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-bold">
+
                                   +
                                 </button>
                               </div>
@@ -2489,31 +2478,31 @@ export function HistoryPage({
                           </div>
                         </div>);
 
-                })}
+                    })}
 
                     {/* Show message if all items already returned */}
                     {returnModalBill.items.every(
-                  (item) =>
-                  item.quantity - (item.returnedQuantity || 0) <= 0 ||
-                  !item.apiItemId
-                ) &&
-                <div className="text-center py-8 text-gray-400">
+                      (item) =>
+                        item.quantity - (item.returnedQuantity || 0) <= 0 ||
+                        !item.apiItemId
+                    ) &&
+                      <div className="text-center py-8 text-gray-400">
                         <Undo2 className="w-10 h-10 mx-auto mb-2 opacity-30" />
                         <p className="font-medium">
                           All items have been returned
                         </p>
                       </div>
-                }
+                    }
                   </div>
 
                   {/* Footer */}
                   <div className="p-4 border-t border-gray-200 bg-gray-50">
                     {(() => {
-                  const totalReturning = Object.values(
-                    returnQuantities
-                  ).reduce((sum, qty) => sum + qty, 0);
-                  return (
-                    <>
+                      const totalReturning = Object.values(
+                        returnQuantities
+                      ).reduce((sum, qty) => sum + qty, 0);
+                      return (
+                        <>
                           <div className="flex items-center justify-between mb-3 text-sm">
                             <span className="text-gray-600">
                               Items to return:{' '}
@@ -2524,37 +2513,37 @@ export function HistoryPage({
                           </div>
                           <div className="flex gap-3">
                             <button
-                          onClick={closeReturnModal}
-                          className="flex-1 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-100 transition-colors">
-                          
+                              onClick={closeReturnModal}
+                              className="flex-1 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-100 transition-colors">
+
                               Cancel
                             </button>
                             <button
-                          onClick={() => {
-                            handleSaleReturn();
-                          }}
-                          disabled={totalReturning === 0 || returnLoading}
-                          className="flex-1 px-4 py-2.5 bg-orange-500 text-white rounded-lg text-sm font-bold hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-                          
+                              onClick={() => {
+                                handleSaleReturn();
+                              }}
+                              disabled={totalReturning === 0 || returnLoading}
+                              className="flex-1 px-4 py-2.5 bg-orange-500 text-white rounded-lg text-sm font-bold hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
+
                               {returnLoading ?
-                          <>
+                                <>
                                   <Loader2 className="w-4 h-4 animate-spin" />
                                   Processing...
                                 </> :
 
-                          <>
+                                <>
                                   <Undo2 className="w-4 h-4" />
                                   Return Items
                                 </>
-                          }
+                              }
                             </button>
                           </div>
                         </>);
 
-                })()}
+                    })()}
                   </div>
                 </>
-            }
+              }
             </motion.div>
           </motion.div>
         }
@@ -2563,42 +2552,42 @@ export function HistoryPage({
       {/* Rental Return All Confirmation Modal */}
       <AnimatePresence>
         {returnAllConfirmBill &&
-        <motion.div
-          initial={{
-            opacity: 0
-          }}
-          animate={{
-            opacity: 1
-          }}
-          exit={{
-            opacity: 0
-          }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => {
-            setReturnAllConfirmBill(null);
-            setReturnPaymentAmount('');
-            setReturnFines([]);
-          }}>
-          
-            <motion.div
+          <motion.div
             initial={{
-              scale: 0.95,
               opacity: 0
             }}
             animate={{
-              scale: 1,
               opacity: 1
             }}
             exit={{
-              scale: 0.95,
               opacity: 0
             }}
-            transition={{
-              duration: 0.15
-            }}
-            className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden max-h-[90vh] flex flex-col"
-            onClick={(e) => e.stopPropagation()}>
-            
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={() => {
+              setReturnAllConfirmBill(null);
+              setReturnPaymentAmount('');
+              setReturnFines([]);
+            }}>
+
+            <motion.div
+              initial={{
+                scale: 0.95,
+                opacity: 0
+              }}
+              animate={{
+                scale: 1,
+                opacity: 1
+              }}
+              exit={{
+                scale: 0.95,
+                opacity: 0
+              }}
+              transition={{
+                duration: 0.15
+              }}
+              className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden max-h-[90vh] flex flex-col"
+              onClick={(e) => e.stopPropagation()}>
+
               <div className="p-4 border-b border-gray-200 bg-amber-50 flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <div className="bg-amber-100 p-1.5 rounded-lg">
@@ -2620,9 +2609,9 @@ export function HistoryPage({
                 {/* Items summary */}
                 <div className="bg-gray-50 rounded-lg p-3 space-y-1.5">
                   {returnAllConfirmBill.items.
-                filter((i) => i.status === 'active').
-                map((item, i) =>
-                <div key={i} className="flex justify-between text-sm">
+                    filter((i) => i.status === 'active').
+                    map((item, i) =>
+                      <div key={i} className="flex justify-between text-sm">
                         <span className="text-gray-700">
                           {item.product.name} ×{item.quantity}
                         </span>
@@ -2630,39 +2619,39 @@ export function HistoryPage({
                           {formatPrice(item.product.rentPricePerDay || 0)}/day
                         </span>
                       </div>
-                )}
+                    )}
                   <div className="border-t border-gray-200 pt-1.5 mt-1.5 flex justify-between text-sm font-bold">
                     <span>Open items</span>
                     <span>
                       {
-                    returnAllConfirmBill.items.filter(
-                      (i) => i.status === 'active'
-                    ).length
-                    }
+                        returnAllConfirmBill.items.filter(
+                          (i) => i.status === 'active'
+                        ).length
+                      }
                     </span>
                   </div>
                 </div>
 
                 {/* Balance info */}
                 {(() => {
-                const totalDeposit =
-                returnAllConfirmBill.depositHistory?.reduce(
-                  (s, d) => s + d.amount,
-                  0
-                ) ||
-                returnAllConfirmBill.deposit ||
-                0;
-                const totalFinesPreview = returnFines.reduce(
-                  (sum, f) => sum + (parseFloat(f.fine) || 0),
-                  0
-                );
-                const totalOwed =
-                returnAllConfirmBill.total + totalFinesPreview;
-                const balance = totalDeposit - totalOwed;
-                return (
-                  <div
-                    className={`rounded-lg p-3 text-sm ${balance < 0 ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'}`}>
-                    
+                  const totalDeposit =
+                    returnAllConfirmBill.depositHistory?.reduce(
+                      (s, d) => s + d.amount,
+                      0
+                    ) ||
+                    returnAllConfirmBill.deposit ||
+                    0;
+                  const totalFinesPreview = returnFines.reduce(
+                    (sum, f) => sum + (parseFloat(f.fine) || 0),
+                    0
+                  );
+                  const totalOwed =
+                    returnAllConfirmBill.total + totalFinesPreview;
+                  const balance = totalDeposit - totalOwed;
+                  return (
+                    <div
+                      className={`rounded-lg p-3 text-sm ${balance < 0 ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'}`}>
+
                       <div className="flex justify-between mb-1">
                         <span className="text-gray-600">Rental Fee</span>
                         <span className="font-bold">
@@ -2670,7 +2659,7 @@ export function HistoryPage({
                         </span>
                       </div>
                       {totalFinesPreview > 0 &&
-                    <div className="flex justify-between mb-1">
+                        <div className="flex justify-between mb-1">
                           <span className="text-orange-600 flex items-center gap-1">
                             <Wrench className="w-3 h-3" />
                             Damage Fines
@@ -2679,7 +2668,7 @@ export function HistoryPage({
                             +{formatPrice(totalFinesPreview)}
                           </span>
                         </div>
-                    }
+                      }
                       <div className="flex justify-between mb-1">
                         <span className="text-gray-600">Total Deposit</span>
                         <span className="font-bold">
@@ -2687,18 +2676,18 @@ export function HistoryPage({
                         </span>
                       </div>
                       <div
-                      className={`flex justify-between font-bold border-t pt-1 mt-1 ${balance < 0 ? 'text-red-700 border-red-200' : 'text-green-700 border-green-200'}`}>
-                      
+                        className={`flex justify-between font-bold border-t pt-1 mt-1 ${balance < 0 ? 'text-red-700 border-red-200' : 'text-green-700 border-green-200'}`}>
+
                         <span>
                           {balance >= 0 ?
-                        'Refund to Customer' :
-                        'Customer Owes'}
+                            'Refund to Customer' :
+                            'Customer Owes'}
                         </span>
                         <span>{formatPrice(Math.abs(balance))}</span>
                       </div>
                     </div>);
 
-              })()}
+                })()}
 
                 {/* Damage Fines Section */}
                 <div className="bg-white rounded-lg border border-orange-200 p-3">
@@ -2711,123 +2700,123 @@ export function HistoryPage({
                       </span>
                     </h4>
                     <button
-                    onClick={() =>
-                    setReturnFines((prev) => [
-                    ...prev,
-                    {
-                      reason: '',
-                      fine: ''
-                    }]
-                    )
-                    }
-                    className="flex items-center gap-1 text-xs px-2 py-1 bg-orange-50 text-orange-600 border border-orange-200 rounded-md hover:bg-orange-100 transition-colors font-bold">
-                    
+                      onClick={() =>
+                        setReturnFines((prev) => [
+                          ...prev,
+                          {
+                            reason: '',
+                            fine: ''
+                          }]
+                        )
+                      }
+                      className="flex items-center gap-1 text-xs px-2 py-1 bg-orange-50 text-orange-600 border border-orange-200 rounded-md hover:bg-orange-100 transition-colors font-bold">
+
                       <Plus className="w-3 h-3" />
                       Add Fine
                     </button>
                   </div>
 
                   {returnFines.length === 0 ?
-                <p className="text-[11px] text-gray-400 italic text-center py-2">
+                    <p className="text-[11px] text-gray-400 italic text-center py-2">
                       No fines — click "Add Fine" if items are damaged
                     </p> :
 
-                <div className="space-y-2">
+                    <div className="space-y-2">
                       {returnFines.map((fine, idx) =>
-                  <div key={idx} className="flex items-start gap-2">
+                        <div key={idx} className="flex items-start gap-2">
                           <div className="flex-1 space-y-1">
                             <input
-                        type="text"
-                        value={fine.reason}
-                        onChange={(e) =>
-                        setReturnFines((prev) =>
-                        prev.map((f, i) =>
-                        i === idx ?
-                        {
-                          ...f,
-                          reason: e.target.value
-                        } :
-                        f
-                        )
-                        )
-                        }
-                        placeholder="Damage description (e.g. Motor seized)"
-                        className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-orange-400 outline-none" />
-                      
+                              type="text"
+                              value={fine.reason}
+                              onChange={(e) =>
+                                setReturnFines((prev) =>
+                                  prev.map((f, i) =>
+                                    i === idx ?
+                                      {
+                                        ...f,
+                                        reason: e.target.value
+                                      } :
+                                      f
+                                  )
+                                )
+                              }
+                              placeholder="Damage description (e.g. Motor seized)"
+                              className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-orange-400 outline-none" />
+
                             <div className="relative">
                               <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-bold">
                                 Rs.
                               </span>
                               <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={fine.fine}
-                          onChange={(e) =>
-                          setReturnFines((prev) =>
-                          prev.map((f, i) =>
-                          i === idx ?
-                          {
-                            ...f,
-                            fine: e.target.value
-                          } :
-                          f
-                          )
-                          )
-                          }
-                          placeholder="Fine amount"
-                          className="w-full pl-9 pr-3 py-1.5 border border-gray-300 rounded-md text-xs font-bold focus:ring-2 focus:ring-orange-400 outline-none" />
-                        
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={fine.fine}
+                                onChange={(e) =>
+                                  setReturnFines((prev) =>
+                                    prev.map((f, i) =>
+                                      i === idx ?
+                                        {
+                                          ...f,
+                                          fine: e.target.value
+                                        } :
+                                        f
+                                    )
+                                  )
+                                }
+                                placeholder="Fine amount"
+                                className="w-full pl-9 pr-3 py-1.5 border border-gray-300 rounded-md text-xs font-bold focus:ring-2 focus:ring-orange-400 outline-none" />
+
                             </div>
                           </div>
                           <button
-                      onClick={() =>
-                      setReturnFines((prev) =>
-                      prev.filter((_, i) => i !== idx)
-                      )
-                      }
-                      className="mt-1 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors">
-                      
+                            onClick={() =>
+                              setReturnFines((prev) =>
+                                prev.filter((_, i) => i !== idx)
+                              )
+                            }
+                            className="mt-1 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors">
+
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
-                  )}
+                      )}
                       {returnFines.some((f) => parseFloat(f.fine) > 0) &&
-                  <div className="flex justify-between text-xs font-bold text-orange-700 bg-orange-50 rounded-md px-2.5 py-1.5 border border-orange-200 mt-1">
+                        <div className="flex justify-between text-xs font-bold text-orange-700 bg-orange-50 rounded-md px-2.5 py-1.5 border border-orange-200 mt-1">
                           <span>Total Fines</span>
                           <span>
                             {formatPrice(
-                        returnFines.reduce(
-                          (sum, f) => sum + (parseFloat(f.fine) || 0),
-                          0
-                        )
-                      )}
+                              returnFines.reduce(
+                                (sum, f) => sum + (parseFloat(f.fine) || 0),
+                                0
+                              )
+                            )}
                           </span>
                         </div>
-                  }
+                      }
                     </div>
-                }
+                  }
                 </div>
 
                 {/* Payment input — shown when customer owes money */}
                 {(() => {
-                const totalDeposit =
-                returnAllConfirmBill.depositHistory?.reduce(
-                  (s, d) => s + d.amount,
-                  0
-                ) ||
-                returnAllConfirmBill.deposit ||
-                0;
-                const totalFinesPreview = returnFines.reduce(
-                  (sum, f) => sum + (parseFloat(f.fine) || 0),
-                  0
-                );
-                const totalOwed =
-                returnAllConfirmBill.total + totalFinesPreview;
-                const balance = totalDeposit - totalOwed;
-                if (balance >= 0) return null;
-                return (
-                  <div className="bg-white rounded-lg border border-gray-200 p-3">
+                  const totalDeposit =
+                    returnAllConfirmBill.depositHistory?.reduce(
+                      (s, d) => s + d.amount,
+                      0
+                    ) ||
+                    returnAllConfirmBill.deposit ||
+                    0;
+                  const totalFinesPreview = returnFines.reduce(
+                    (sum, f) => sum + (parseFloat(f.fine) || 0),
+                    0
+                  );
+                  const totalOwed =
+                    returnAllConfirmBill.total + totalFinesPreview;
+                  const balance = totalDeposit - totalOwed;
+                  if (balance >= 0) return null;
+                  return (
+                    <div className="bg-white rounded-lg border border-gray-200 p-3">
                       <label className="block text-xs font-bold text-gray-700 mb-1.5 flex items-center gap-1.5">
                         <Banknote className="w-3.5 h-3.5 text-green-600" />
                         Payment from Customer
@@ -2844,61 +2833,61 @@ export function HistoryPage({
                           Rs.
                         </span>
                         <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={returnPaymentAmount}
-                        onChange={(e) =>
-                        setReturnPaymentAmount(e.target.value)
-                        }
-                        placeholder="0.00"
-                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md text-sm font-bold text-right focus:ring-2 focus:ring-amber-400 outline-none" />
-                      
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={returnPaymentAmount}
+                          onChange={(e) =>
+                            setReturnPaymentAmount(e.target.value)
+                          }
+                          placeholder="0.00"
+                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md text-sm font-bold text-right focus:ring-2 focus:ring-amber-400 outline-none" />
+
                       </div>
                     </div>);
 
-              })()}
+                })()}
 
                 {actionError &&
-              <div className="bg-red-50 border border-red-200 rounded-lg p-2.5 flex items-start gap-1.5 text-xs text-red-700">
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-2.5 flex items-start gap-1.5 text-xs text-red-700">
                     <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                     <span>{actionError}</span>
                   </div>
-              }
+                }
               </div>
 
               {/* Footer */}
               <div className="p-4 border-t border-gray-200 bg-gray-50 flex gap-3 flex-shrink-0">
                 <button
-                onClick={() => {
-                  setReturnAllConfirmBill(null);
-                  setReturnFines([]);
-                  setActionError(null);
-                }}
-                className="flex-1 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-100 transition-colors">
-                
+                  onClick={() => {
+                    setReturnAllConfirmBill(null);
+                    setReturnFines([]);
+                    setActionError(null);
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-100 transition-colors">
+
                   Cancel
                 </button>
                 <button
-                onClick={() => {
-                  handleReturnAllItems(returnAllConfirmBill);
-                }}
-                disabled={
-                actionLoading === `return-all-${returnAllConfirmBill.id}`
-                }
-                className="flex-1 px-4 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-bold hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-                
+                  onClick={() => {
+                    handleReturnAllItems(returnAllConfirmBill);
+                  }}
+                  disabled={
+                    actionLoading === `return-all-${returnAllConfirmBill.id}`
+                  }
+                  className="flex-1 px-4 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-bold hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
+
                   {actionLoading === `return-all-${returnAllConfirmBill.id}` ?
-                <>
+                    <>
                       <Loader2 className="w-4 h-4 animate-spin" />
                       Processing...
                     </> :
 
-                <>
+                    <>
                       <RotateCcw className="w-4 h-4" />
                       Confirm Return
                     </>
-                }
+                  }
                 </button>
               </div>
             </motion.div>
@@ -2909,47 +2898,47 @@ export function HistoryPage({
       {/* Rental Return Result Modal */}
       <AnimatePresence>
         {rentalReturnResult &&
-        <motion.div
-          initial={{
-            opacity: 0
-          }}
-          animate={{
-            opacity: 1
-          }}
-          exit={{
-            opacity: 0
-          }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setRentalReturnResult(null)}>
-          
-            <motion.div
+          <motion.div
             initial={{
-              scale: 0.95,
               opacity: 0
             }}
             animate={{
-              scale: 1,
               opacity: 1
             }}
             exit={{
-              scale: 0.95,
               opacity: 0
             }}
-            transition={{
-              duration: 0.15
-            }}
-            className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden"
-            onClick={(e) => e.stopPropagation()}>
-            
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={() => setRentalReturnResult(null)}>
+
+            <motion.div
+              initial={{
+                scale: 0.95,
+                opacity: 0
+              }}
+              animate={{
+                scale: 1,
+                opacity: 1
+              }}
+              exit={{
+                scale: 0.95,
+                opacity: 0
+              }}
+              transition={{
+                duration: 0.15
+              }}
+              className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden"
+              onClick={(e) => e.stopPropagation()}>
+
               <div className="p-6 text-center">
                 <div
-                className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${rentalReturnResult.refundAmount >= 0 ? 'bg-green-100' : 'bg-red-100'}`}>
-                
-                  {rentalReturnResult.refundAmount >= 0 ?
-                <CheckCircle className="w-8 h-8 text-green-600" /> :
+                  className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${rentalReturnResult.refundAmount >= 0 ? 'bg-green-100' : 'bg-red-100'}`}>
 
-                <AlertTriangle className="w-8 h-8 text-red-600" />
-                }
+                  {rentalReturnResult.refundAmount >= 0 ?
+                    <CheckCircle className="w-8 h-8 text-green-600" /> :
+
+                    <AlertTriangle className="w-8 h-8 text-red-600" />
+                  }
                 </div>
                 <h4 className="text-lg font-bold text-[#1a1a2e] mb-1">
                   Items Returned
@@ -2967,7 +2956,7 @@ export function HistoryPage({
                   </div>
 
                   {rentalReturnResult.totalFines > 0 &&
-                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 flex justify-between text-sm">
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 flex justify-between text-sm">
                       <span className="text-orange-700 font-medium flex items-center gap-1.5">
                         <Wrench className="w-3.5 h-3.5" />
                         Damage Fines
@@ -2976,55 +2965,55 @@ export function HistoryPage({
                         {formatPrice(rentalReturnResult.totalFines)}
                       </span>
                     </div>
-                }
+                  }
 
                   {rentalReturnResult.paymentProcessed > 0 &&
-                <div className="bg-blue-50 rounded-lg p-3 flex justify-between text-sm">
+                    <div className="bg-blue-50 rounded-lg p-3 flex justify-between text-sm">
                       <span className="text-blue-700">Payment Received</span>
                       <span className="font-bold text-blue-700">
                         {formatPrice(rentalReturnResult.paymentProcessed)}
                       </span>
                     </div>
-                }
+                  }
 
                   <div
-                  className={`rounded-lg p-3 flex justify-between text-sm ${rentalReturnResult.refundAmount >= 0 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
-                  
+                    className={`rounded-lg p-3 flex justify-between text-sm ${rentalReturnResult.refundAmount >= 0 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+
                     <span
-                    className={`font-medium ${rentalReturnResult.refundAmount >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                    
+                      className={`font-medium ${rentalReturnResult.refundAmount >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+
                       {rentalReturnResult.refundAmount >= 0 ?
-                    'Refund to Customer' :
-                    'Customer Owes'}
+                        'Refund to Customer' :
+                        'Customer Owes'}
                     </span>
                     <span
-                    className={`text-lg font-bold ${rentalReturnResult.refundAmount >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                    
+                      className={`text-lg font-bold ${rentalReturnResult.refundAmount >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+
                       {formatPrice(Math.abs(rentalReturnResult.refundAmount))}
                     </span>
                   </div>
 
                   {rentalReturnResult.totalFines > 0 &&
-                <div className="bg-orange-50 border border-orange-100 rounded-lg p-2.5 text-xs text-orange-700 text-left">
+                    <div className="bg-orange-50 border border-orange-100 rounded-lg p-2.5 text-xs text-orange-700 text-left">
                       <p className="font-bold mb-0.5">⚠ Fines are separate</p>
                       <p className="text-orange-600">
                         Collect {formatPrice(rentalReturnResult.totalFines)} in
                         damage fines directly from the customer.
                       </p>
                     </div>
-                }
+                  }
                 </div>
 
                 {rentalReturnResult.allReturned &&
-              <p className="text-xs text-green-600 font-medium mb-4">
+                  <p className="text-xs text-green-600 font-medium mb-4">
                     ✓ All items in this bill have been returned
                   </p>
-              }
+                }
 
                 <button
-                onClick={() => setRentalReturnResult(null)}
-                className="w-full px-6 py-2.5 bg-[#1a1a2e] text-white rounded-lg font-bold hover:bg-[#2d4059] transition-colors">
-                
+                  onClick={() => setRentalReturnResult(null)}
+                  className="w-full px-6 py-2.5 bg-[#1a1a2e] text-white rounded-lg font-bold hover:bg-[#2d4059] transition-colors">
+
                   Done
                 </button>
               </div>
@@ -3036,41 +3025,41 @@ export function HistoryPage({
       {/* Return Single Item Modal */}
       <AnimatePresence>
         {returnSingleItemModal &&
-        <motion.div
-          initial={{
-            opacity: 0
-          }}
-          animate={{
-            opacity: 1
-          }}
-          exit={{
-            opacity: 0
-          }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => {
-            setReturnSingleItemModal(null);
-            setActionError(null);
-          }}>
-          
-            <motion.div
+          <motion.div
             initial={{
-              scale: 0.95,
               opacity: 0
             }}
             animate={{
-              scale: 1,
               opacity: 1
             }}
             exit={{
-              scale: 0.95,
               opacity: 0
             }}
-            transition={{
-              duration: 0.15
-            }}
-            className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden max-h-[90vh] flex flex-col"
-            onClick={(e) => e.stopPropagation()}>
-            
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={() => {
+              setReturnSingleItemModal(null);
+              setActionError(null);
+            }}>
+
+            <motion.div
+              initial={{
+                scale: 0.95,
+                opacity: 0
+              }}
+              animate={{
+                scale: 1,
+                opacity: 1
+              }}
+              exit={{
+                scale: 0.95,
+                opacity: 0
+              }}
+              transition={{
+                duration: 0.15
+              }}
+              className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden max-h-[90vh] flex flex-col"
+              onClick={(e) => e.stopPropagation()}>
+
               {/* Header */}
               <div className="p-4 border-b border-gray-200 bg-blue-50 flex-shrink-0">
                 <div className="flex items-center justify-between">
@@ -3085,20 +3074,20 @@ export function HistoryPage({
                       <p className="text-xs text-gray-500">
                         {returnSingleItemModal.bill.id} ·{' '}
                         {
-                      returnSingleItemModal.bill.items[
-                      returnSingleItemModal.itemIndex].
-                      product.name
-                      }
+                          returnSingleItemModal.bill.items[
+                            returnSingleItemModal.itemIndex].
+                            product.name
+                        }
                       </p>
                     </div>
                   </div>
                   <button
-                  onClick={() => {
-                    setReturnSingleItemModal(null);
-                    setActionError(null);
-                  }}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-                  
+                    onClick={() => {
+                      setReturnSingleItemModal(null);
+                      setActionError(null);
+                    }}
+                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+
                     <X className="w-5 h-5" />
                   </button>
                 </div>
@@ -3112,41 +3101,41 @@ export function HistoryPage({
                       Return Date
                     </label>
                     <input
-                    type="date"
-                    value={returnSingleItemModal.returnDate}
-                    onChange={(e) =>
-                    setReturnSingleItemModal((prev) =>
-                    prev ?
-                    {
-                      ...prev,
-                      returnDate: e.target.value
-                    } :
-                    prev
-                    )
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none"
-                    autoFocus />
-                  
+                      type="date"
+                      value={returnSingleItemModal.returnDate}
+                      onChange={(e) =>
+                        setReturnSingleItemModal((prev) =>
+                          prev ?
+                            {
+                              ...prev,
+                              returnDate: e.target.value
+                            } :
+                            prev
+                        )
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none"
+                      autoFocus />
+
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-gray-700 mb-1.5">
                       Return Time
                     </label>
                     <input
-                    type="time"
-                    value={returnSingleItemModal.returnTime}
-                    onChange={(e) =>
-                    setReturnSingleItemModal((prev) =>
-                    prev ?
-                    {
-                      ...prev,
-                      returnTime: e.target.value
-                    } :
-                    prev
-                    )
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none" />
-                  
+                      type="time"
+                      value={returnSingleItemModal.returnTime}
+                      onChange={(e) =>
+                        setReturnSingleItemModal((prev) =>
+                          prev ?
+                            {
+                              ...prev,
+                              returnTime: e.target.value
+                            } :
+                            prev
+                        )
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none" />
+
                   </div>
                 </div>
 
@@ -3161,179 +3150,179 @@ export function HistoryPage({
                       </span>
                     </h4>
                     <button
-                    onClick={() =>
-                    setReturnSingleItemModal((prev) =>
-                    prev ?
-                    {
-                      ...prev,
-                      fines: [
-                      ...prev.fines,
-                      {
-                        reason: '',
-                        fine: ''
-                      }]
+                      onClick={() =>
+                        setReturnSingleItemModal((prev) =>
+                          prev ?
+                            {
+                              ...prev,
+                              fines: [
+                                ...prev.fines,
+                                {
+                                  reason: '',
+                                  fine: ''
+                                }]
 
-                    } :
-                    prev
-                    )
-                    }
-                    className="flex items-center gap-1 text-xs px-2 py-1 bg-orange-50 text-orange-600 border border-orange-200 rounded-md hover:bg-orange-100 transition-colors font-bold">
-                    
+                            } :
+                            prev
+                        )
+                      }
+                      className="flex items-center gap-1 text-xs px-2 py-1 bg-orange-50 text-orange-600 border border-orange-200 rounded-md hover:bg-orange-100 transition-colors font-bold">
+
                       <Plus className="w-3 h-3" />
                       Add Fine
                     </button>
                   </div>
 
                   {returnSingleItemModal.fines.length === 0 ?
-                <p className="text-[11px] text-gray-400 italic text-center py-2">
+                    <p className="text-[11px] text-gray-400 italic text-center py-2">
                       No fines — click "Add Fine" if item is damaged
                     </p> :
 
-                <div className="space-y-2">
+                    <div className="space-y-2">
                       {returnSingleItemModal.fines.map((fine, idx) =>
-                  <div key={idx} className="flex items-start gap-2">
+                        <div key={idx} className="flex items-start gap-2">
                           <div className="flex-1 space-y-1">
                             <input
-                        type="text"
-                        value={fine.reason}
-                        onChange={(e) =>
-                        setReturnSingleItemModal((prev) =>
-                        prev ?
-                        {
-                          ...prev,
-                          fines: prev.fines.map((f, i) =>
-                          i === idx ?
-                          {
-                            ...f,
-                            reason: e.target.value
-                          } :
-                          f
-                          )
-                        } :
-                        prev
-                        )
-                        }
-                        placeholder="Damage description (e.g. Motor seized)"
-                        className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-orange-400 outline-none" />
-                      
+                              type="text"
+                              value={fine.reason}
+                              onChange={(e) =>
+                                setReturnSingleItemModal((prev) =>
+                                  prev ?
+                                    {
+                                      ...prev,
+                                      fines: prev.fines.map((f, i) =>
+                                        i === idx ?
+                                          {
+                                            ...f,
+                                            reason: e.target.value
+                                          } :
+                                          f
+                                      )
+                                    } :
+                                    prev
+                                )
+                              }
+                              placeholder="Damage description (e.g. Motor seized)"
+                              className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-orange-400 outline-none" />
+
                             <div className="relative">
                               <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-bold">
                                 Rs.
                               </span>
                               <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={fine.fine}
-                          onChange={(e) =>
-                          setReturnSingleItemModal((prev) =>
-                          prev ?
-                          {
-                            ...prev,
-                            fines: prev.fines.map((f, i) =>
-                            i === idx ?
-                            {
-                              ...f,
-                              fine: e.target.value
-                            } :
-                            f
-                            )
-                          } :
-                          prev
-                          )
-                          }
-                          placeholder="Fine amount"
-                          className="w-full pl-9 pr-3 py-1.5 border border-gray-300 rounded-md text-xs font-bold focus:ring-2 focus:ring-orange-400 outline-none" />
-                        
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={fine.fine}
+                                onChange={(e) =>
+                                  setReturnSingleItemModal((prev) =>
+                                    prev ?
+                                      {
+                                        ...prev,
+                                        fines: prev.fines.map((f, i) =>
+                                          i === idx ?
+                                            {
+                                              ...f,
+                                              fine: e.target.value
+                                            } :
+                                            f
+                                        )
+                                      } :
+                                      prev
+                                  )
+                                }
+                                placeholder="Fine amount"
+                                className="w-full pl-9 pr-3 py-1.5 border border-gray-300 rounded-md text-xs font-bold focus:ring-2 focus:ring-orange-400 outline-none" />
+
                             </div>
                           </div>
                           <button
-                      onClick={() =>
-                      setReturnSingleItemModal((prev) =>
-                      prev ?
-                      {
-                        ...prev,
-                        fines: prev.fines.filter(
-                          (_, i) => i !== idx
-                        )
-                      } :
-                      prev
-                      )
-                      }
-                      className="mt-1 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors">
-                      
+                            onClick={() =>
+                              setReturnSingleItemModal((prev) =>
+                                prev ?
+                                  {
+                                    ...prev,
+                                    fines: prev.fines.filter(
+                                      (_, i) => i !== idx
+                                    )
+                                  } :
+                                  prev
+                              )
+                            }
+                            className="mt-1 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors">
+
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
-                  )}
+                      )}
                       {returnSingleItemModal.fines.some(
-                    (f) => parseFloat(f.fine) > 0
-                  ) &&
-                  <div className="flex justify-between text-xs font-bold text-orange-700 bg-orange-50 rounded-md px-2.5 py-1.5 border border-orange-200 mt-1">
+                        (f) => parseFloat(f.fine) > 0
+                      ) &&
+                        <div className="flex justify-between text-xs font-bold text-orange-700 bg-orange-50 rounded-md px-2.5 py-1.5 border border-orange-200 mt-1">
                           <span>Total Fines</span>
                           <span>
                             {formatPrice(
-                        returnSingleItemModal.fines.reduce(
-                          (sum, f) => sum + (parseFloat(f.fine) || 0),
-                          0
-                        )
-                      )}
+                              returnSingleItemModal.fines.reduce(
+                                (sum, f) => sum + (parseFloat(f.fine) || 0),
+                                0
+                              )
+                            )}
                           </span>
                         </div>
-                  }
+                      }
                     </div>
-                }
+                  }
                 </div>
 
                 {actionError &&
-              <div className="bg-red-50 border border-red-200 rounded-lg p-2.5 flex items-start gap-1.5 text-xs text-red-700">
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-2.5 flex items-start gap-1.5 text-xs text-red-700">
                     <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                     <span>{actionError}</span>
                   </div>
-              }
+                }
               </div>
 
               {/* Footer */}
               <div className="p-4 border-t border-gray-200 bg-gray-50 flex gap-3 flex-shrink-0">
                 <button
-                onClick={() => {
-                  setReturnSingleItemModal(null);
-                  setActionError(null);
-                }}
-                className="flex-1 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-100 transition-colors">
-                
+                  onClick={() => {
+                    setReturnSingleItemModal(null);
+                    setActionError(null);
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-100 transition-colors">
+
                   Cancel
                 </button>
                 <button
-                onClick={() => {
-                  if (!returnSingleItemModal.returnDate) return;
-                  handleReturnItem(
-                    returnSingleItemModal.bill,
-                    returnSingleItemModal.itemIndex,
-                    returnSingleItemModal.returnDate,
-                    returnSingleItemModal.returnTime,
-                    returnSingleItemModal.fines
-                  );
-                }}
-                disabled={
-                !returnSingleItemModal.returnDate ||
-                actionLoading ===
-                `return-${returnSingleItemModal.bill.id}-${returnSingleItemModal.itemIndex}`
-                }
-                className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-                
+                  onClick={() => {
+                    if (!returnSingleItemModal.returnDate) return;
+                    handleReturnItem(
+                      returnSingleItemModal.bill,
+                      returnSingleItemModal.itemIndex,
+                      returnSingleItemModal.returnDate,
+                      returnSingleItemModal.returnTime,
+                      returnSingleItemModal.fines
+                    );
+                  }}
+                  disabled={
+                    !returnSingleItemModal.returnDate ||
+                    actionLoading ===
+                    `return-${returnSingleItemModal.bill.id}-${returnSingleItemModal.itemIndex}`
+                  }
+                  className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
+
                   {actionLoading ===
-                `return-${returnSingleItemModal.bill.id}-${returnSingleItemModal.itemIndex}` ?
-                <>
+                    `return-${returnSingleItemModal.bill.id}-${returnSingleItemModal.itemIndex}` ?
+                    <>
                       <Loader2 className="w-4 h-4 animate-spin" />
                       Returning...
                     </> :
 
-                <>
+                    <>
                       <RotateCcw className="w-4 h-4" />
                       Confirm Return
                     </>
-                }
+                  }
                 </button>
               </div>
             </motion.div>
