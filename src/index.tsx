@@ -3,6 +3,9 @@ import './index.css';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { API_URL } from './utils/config';
+import { warmUpApi } from './utils/auth';
+
+warmUpApi();
 
 const apiOrigin = new URL(API_URL, window.location.origin).origin;
 for (const rel of ['preconnect', 'dns-prefetch']) {

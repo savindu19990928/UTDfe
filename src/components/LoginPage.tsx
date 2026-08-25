@@ -1,9 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Lock, User, AlertCircle } from 'lucide-react';
-import { loginRequest, warmUpApi } from '../utils/auth';
-import { prefetchProducts } from '../hooks/useProducts';
-import { prefetchCategories } from '../hooks/useCategories';
-import { prefetchRentalConditions } from '../hooks/useRentalConditions';
+import { loginRequest } from '../utils/auth';
+
 const LOGO_URL = "./WhatsApp_Image_2025-12-13_at_2.34.53_PM.jpg";
 
 interface LoginPageProps {
@@ -16,11 +14,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const submittingRef = useRef(false);
 
-  // Wake the API while the user is still typing so signing in doesn't pay the
-  // backend's cold-start cost.
-  useEffect(() => {
-    warmUpApi();
-  }, []);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,11 +26,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       const { isSuperUser } = await loginRequest(username, password);
       // Start loading the catalog in the same tick we hand off to the app, so
       // the first screen renders from cache instead of a spinner.
-      void prefetchProducts({
-        categoryType: 'sell',
-        page: 1
-      });
-      void prefetchCategories();
+      const { prefetchRentalConditions } = await import('../hooks/useRentalConditions');
       void prefetchRentalConditions();
       onLogin(isSuperUser);
     } catch (caughtError) {

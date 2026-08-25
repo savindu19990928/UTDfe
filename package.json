@@ -29,6 +29,7 @@
     "@typescript-eslint/eslint-plugin": "^5.54.0",
     "@typescript-eslint/parser": "^5.54.0",
     "@vitejs/plugin-react": "^4.2.1",
+    "@vitejs/plugin-react-swc": "^4.3.3",
     "autoprefixer": "latest",
     "concurrently": "^9.2.1",
     "electron": "^41.5.0",
