@@ -1,5 +1,3 @@
-
-
 import React, { useState } from 'react';
 import {
   FileText,
@@ -434,8 +432,8 @@ function ReportTable({
                   <td
                     key={c}
                     className={`px-3 py-2.5 text-gray-700 whitespace-nowrap ${isNumericColumn(c) ?
-                        'text-right font-medium tabular-nums' :
-                        'text-left'}`
+                      'text-right font-medium tabular-nums' :
+                      'text-left'}`
                     }>
 
                     {formatCell(c, row[c])}
