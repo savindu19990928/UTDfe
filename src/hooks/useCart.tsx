@@ -1,14 +1,14 @@
-import React, { useState, createContext, useContext } from 'react';
+import React, { useState, createContext, useContext, ReactNode } from 'react';
 import { Product, CartItem, CartItemType } from '../types';
 interface CartContextType {
   cartItems: CartItem[];
   cartType: CartItemType | null;
   addToCart: (
-  product: Product,
-  type: CartItemType,
-  quantity: number,
-  rentalDays?: number)
-  => boolean;
+    product: Product,
+    type: CartItemType,
+    quantity: number,
+    rentalDays?: number)
+    => boolean;
   removeFromCart: (index: number) => void;
   updateQuantity: (index: number, quantity: number) => void;
   updateRentalDays: (index: number, days: number) => void;
@@ -17,17 +17,17 @@ interface CartContextType {
   cartCount: number;
 }
 const CartContext = createContext<CartContextType | undefined>(undefined);
-export function CartProvider({ children }: {children: ReactNode;}) {
+export function CartProvider({ children }: { children: ReactNode; }) {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   // Derived cart type — null if empty, otherwise the type of items in cart
   const cartType: CartItemType | null =
-  cartItems.length > 0 ? cartItems[0].type : null;
+    cartItems.length > 0 ? cartItems[0].type : null;
   const addToCart = (
-  product: Product,
-  type: CartItemType,
-  quantity: number,
-  rentalDays: number = 1)
-  : boolean => {
+    product: Product,
+    type: CartItemType,
+    quantity: number,
+    rentalDays: number = 1)
+    : boolean => {
     // Prevent mixing sale and rental items
     if (cartType !== null && cartType !== type) {
       return false;
@@ -42,13 +42,13 @@ export function CartProvider({ children }: {children: ReactNode;}) {
         return newItems;
       }
       return [
-      ...prev,
-      {
-        product,
-        quantity,
-        type,
-        rentalDays: type === 'rent' ? rentalDays : undefined
-      }];
+        ...prev,
+        {
+          product,
+          quantity,
+          type,
+          rentalDays: type === 'rent' ? rentalDays : undefined
+        }];
 
     });
     return true;
@@ -57,7 +57,7 @@ export function CartProvider({ children }: {children: ReactNode;}) {
     setCartItems((prev) => prev.filter((_, i) => i !== index));
   };
   const updateQuantity = (index: number, quantity: number) => {
-    if (quantity < 0.01) return;
+    if (quantity < 1) return;
     setCartItems((prev) => {
       const newItems = [...prev];
       newItems[index].quantity = quantity;
@@ -100,7 +100,7 @@ export function CartProvider({ children }: {children: ReactNode;}) {
         cartTotal,
         cartCount
       }}>
-      
+
       {children}
     </CartContext.Provider>);
 

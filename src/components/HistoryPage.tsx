@@ -2433,7 +2433,7 @@ export function HistoryPage({
                                       ...prev,
                                       [itemId]: Math.max(
                                         0,
-                                        parseFloat(((prev[itemId] || 0) - 0.1).toFixed(2))
+                                        (prev[itemId] || 0) - 1
                                       )
                                     }));
                                   }}
@@ -2446,10 +2446,9 @@ export function HistoryPage({
                                   type="number"
                                   min="0"
                                   max={remaining}
-                                  step="any"
                                   value={currentReturnQty}
                                   onChange={(e) => {
-                                    const val = parseFloat(e.target.value);
+                                    const val = parseInt(e.target.value);
                                     setReturnQuantities((prev) => ({
                                       ...prev,
                                       [itemId]: isNaN(val) ?
@@ -2457,7 +2456,7 @@ export function HistoryPage({
                                         Math.min(remaining, Math.max(0, val))
                                     }));
                                   }}
-                                  className="w-14 h-8 text-center border border-gray-300 rounded-md text-sm font-bold focus:ring-2 focus:ring-orange-400 outline-none" />
+                                  className="w-12 h-8 text-center border border-gray-300 rounded-md text-sm font-bold focus:ring-2 focus:ring-orange-400 outline-none" />
 
                                 <button
                                   onClick={() => {
@@ -2465,7 +2464,7 @@ export function HistoryPage({
                                       ...prev,
                                       [itemId]: Math.min(
                                         remaining,
-                                        parseFloat(((prev[itemId] || 0) + 0.1).toFixed(2))
+                                        (prev[itemId] || 0) + 1
                                       )
                                     }));
                                   }}
