@@ -219,7 +219,7 @@ export function HistoryPage({
     } catch {
 
       /* storage unavailable — scrolling still works this session */
-}
+    }
     if (options?.print === false) return;
     setPendingPrint({
       id: bill.id,
@@ -1149,8 +1149,8 @@ export function HistoryPage({
                     }}
                     aria-pressed={isActive}
                     className={`px-4 py-2.5 rounded-lg text-sm font-bold border transition-colors flex items-center gap-2 ${isActive ?
-                        'bg-[#2d4059] text-white border-[#2d4059]' :
-                        'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`
+                      'bg-[#2d4059] text-white border-[#2d4059]' :
+                      'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`
                     }>
 
                     {label}
@@ -2433,7 +2433,7 @@ export function HistoryPage({
                                       ...prev,
                                       [itemId]: Math.max(
                                         0,
-                                        (prev[itemId] || 0) - 1
+                                        parseFloat(((prev[itemId] || 0) - 0.1).toFixed(2))
                                       )
                                     }));
                                   }}
@@ -2446,9 +2446,10 @@ export function HistoryPage({
                                   type="number"
                                   min="0"
                                   max={remaining}
+                                  step="any"
                                   value={currentReturnQty}
                                   onChange={(e) => {
-                                    const val = parseInt(e.target.value);
+                                    const val = parseFloat(e.target.value);
                                     setReturnQuantities((prev) => ({
                                       ...prev,
                                       [itemId]: isNaN(val) ?
@@ -2456,7 +2457,7 @@ export function HistoryPage({
                                         Math.min(remaining, Math.max(0, val))
                                     }));
                                   }}
-                                  className="w-12 h-8 text-center border border-gray-300 rounded-md text-sm font-bold focus:ring-2 focus:ring-orange-400 outline-none" />
+                                  className="w-14 h-8 text-center border border-gray-300 rounded-md text-sm font-bold focus:ring-2 focus:ring-orange-400 outline-none" />
 
                                 <button
                                   onClick={() => {
@@ -2464,7 +2465,7 @@ export function HistoryPage({
                                       ...prev,
                                       [itemId]: Math.min(
                                         remaining,
-                                        (prev[itemId] || 0) + 1
+                                        parseFloat(((prev[itemId] || 0) + 0.1).toFixed(2))
                                       )
                                     }));
                                   }}
