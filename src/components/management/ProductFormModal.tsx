@@ -271,7 +271,7 @@ export function ProductFormModal({
                 className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f5a623] outline-none bg-white">
                 
                   <option value="pcs">Pieces</option>
-                  <option value="kg">Kilograms</option>
+                  <option value="g">Grams</option>
                   <option value="m">Meters</option>
                   <option value="l">Liters</option>
                   <option value="box">Box</option>
