@@ -26,6 +26,15 @@ export function BillPreview({
       window.print();
     }
   };
+
+  useEffect(() => {
+    if (autoPrint) {
+      const printTimer = setTimeout(() => {
+        handlePrint();
+      }, 500);
+      return () => clearTimeout(printTimer);
+    }
+  }, [autoPrint]);
   const isRental = bill.items.some((item) => item.type === 'rent');
   return (
     <div className="min-h-screen bg-gray-100 py-8 print:py-0 print:bg-white px-4 sm:px-6 lg:px-8">
