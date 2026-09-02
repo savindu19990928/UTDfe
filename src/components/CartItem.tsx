@@ -86,11 +86,12 @@ export function CartItem({ item, index }: CartItemProps) {
           <label className="text-xs font-semibold text-gray-500">Qty:</label>
           <input
             type="number"
-            min="1"
+            step="any"
+            min="0"
             max={item.product.stock}
             value={item.quantity}
             onChange={(e) => {
-              let val = parseInt(e.target.value) || 1;
+              let val = parseFloat(e.target.value) || 1;
               if (val < 1) val = 1;
               if (item.product.stock != null && val > item.product.stock) {
                 val = item.product.stock;

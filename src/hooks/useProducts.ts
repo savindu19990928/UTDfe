@@ -8,8 +8,9 @@ import {
   isFresh,
   clearCache,
   sharedRequest,
-  getInflight } from
-'../utils/apiCache';
+  getInflight
+} from
+  '../utils/apiCache';
 
 interface ProductsPayload {
   products: Product[];
@@ -45,29 +46,29 @@ const PER_PAGE = 20;
 
 export function mapApiProduct(raw: any): Product {
   const categoryObject =
-  raw.category && typeof raw.category === 'object' ? raw.category : null;
+    raw.category && typeof raw.category === 'object' ? raw.category : null;
   const scalarCategory = categoryObject ? undefined : raw.category;
   const scalarCategoryIsId =
-  typeof scalarCategory === 'number' ||
-  typeof scalarCategory === 'string' && /^\d+$/.test(scalarCategory.trim());
+    typeof scalarCategory === 'number' ||
+    typeof scalarCategory === 'string' && /^\d+$/.test(scalarCategory.trim());
   const rawCategoryId =
-  raw.category_id ??
-  raw.categoryId ??
-  categoryObject?.id ??
-  categoryObject?.pk ?? (
-  scalarCategoryIsId ? scalarCategory : undefined);
+    raw.category_id ??
+    raw.categoryId ??
+    categoryObject?.id ??
+    categoryObject?.pk ?? (
+      scalarCategoryIsId ? scalarCategory : undefined);
   const categoryName =
-  categoryObject?.name ??
-  categoryObject?.category_name ??
-  raw.category_name ??
-  raw.categoryName ?? (
-  !scalarCategoryIsId && typeof scalarCategory === 'string' ?
-  scalarCategory :
-  '');
+    categoryObject?.name ??
+    categoryObject?.category_name ??
+    raw.category_name ??
+    raw.categoryName ?? (
+      !scalarCategoryIsId && typeof scalarCategory === 'string' ?
+        scalarCategory :
+        '');
   const categoryType =
-  categoryObject?.category_type || raw.category_type || raw.listingType;
+    categoryObject?.category_type || raw.category_type || raw.listingType;
   const listingType: 'sale' | 'rent' =
-  categoryType === 'sell' ? 'sale' : categoryType === 'rent' ? 'rent' : 'sale';
+    categoryType === 'sell' ? 'sale' : categoryType === 'rent' ? 'rent' : 'sale';
   const price = parseFloat(raw.price ?? 0);
 
   return {
@@ -77,17 +78,17 @@ export function mapApiProduct(raw: any): Product {
     categoryId: rawCategoryId != null ? String(rawCategoryId) : undefined,
     listingType,
     salePrice:
-    listingType === 'sale' ?
-    price || parseFloat(raw.sale_price ?? raw.salePrice ?? 0) :
-    parseFloat(raw.sale_price ?? raw.salePrice ?? 0),
+      listingType === 'sale' ?
+        price || parseFloat(raw.sale_price ?? raw.salePrice ?? 0) :
+        parseFloat(raw.sale_price ?? raw.salePrice ?? 0),
     rentPricePerDay:
-    listingType === 'rent' ?
-    price ||
-    parseFloat(raw.rent_price_per_day ?? raw.rentPricePerDay ?? 0) :
-    raw.rent_price_per_day != null ?
-    parseFloat(raw.rent_price_per_day) :
-    raw.rentPricePerDay ?? null,
-    stock: parseInt(raw.current_stock ?? raw.stock ?? raw.quantity ?? 0, 10),
+      listingType === 'rent' ?
+        price ||
+        parseFloat(raw.rent_price_per_day ?? raw.rentPricePerDay ?? 0) :
+        raw.rent_price_per_day != null ?
+          parseFloat(raw.rent_price_per_day) :
+          raw.rentPricePerDay ?? null,
+    stock: parseFloat(raw.current_stock ?? raw.stock ?? raw.quantity ?? 0),
     itemCode: raw.item_number || raw.item_code || raw.itemCode || undefined,
     barcode: raw.barcode || undefined,
     isStockTracked: raw.is_stock_tracked ?? true,
@@ -99,7 +100,7 @@ export function mapApiProduct(raw: any): Product {
 // Build cache key from params
 function buildCacheKey(params: URLSearchParams): string {
   const sorted = Array.from(params.entries()).sort(([a], [b]) =>
-  a.localeCompare(b)
+    a.localeCompare(b)
   );
   return `products:${sorted.map(([k, v]) => `${k}=${v}`).join('&') || 'all'}`;
 }
@@ -135,8 +136,8 @@ function buildApiUrl(options?: UseProductsOptions): {
 // Warm the cache for the first catalog view before <CatalogPage /> mounts
 // (called right after login) so signing in lands on products, not a spinner.
 export async function prefetchProducts(
-options?: UseProductsOptions)
-: Promise<void> {
+  options?: UseProductsOptions)
+  : Promise<void> {
   const { url, cacheKey } = buildApiUrl(options);
   if (isFresh(cacheKey)) return;
   try {
@@ -152,17 +153,17 @@ options?: UseProductsOptions)
 
       const allResults: any[] = Array.isArray(data) ? data : data.results || [];
       const count = Array.isArray(data) ?
-      data.length :
-      data.count ?? allResults.length;
+        data.length :
+        data.count ?? allResults.length;
       const totalPages =
-      !Array.isArray(data) && typeof data.total_pages === 'number' ?
-      data.total_pages :
-      null;
+        !Array.isArray(data) && typeof data.total_pages === 'number' ?
+          data.total_pages :
+          null;
 
       const mapped = allResults.map(mapApiProduct);
       const filtered = options?.includeDeactivated ?
-      mapped :
-      mapped.filter((p) => p.isActive !== false);
+        mapped :
+        mapped.filter((p) => p.isActive !== false);
 
       const payload: ProductsPayload = {
         products: filtered,
@@ -175,7 +176,8 @@ options?: UseProductsOptions)
   } catch {
 
     // Prefetch is best effort — the hook will fetch normally on mount.
-  }}
+  }
+}
 
 export function useProducts(options?: UseProductsOptions): UseProductsReturn {
   const [products, setProducts] = useState<Product[]>([]);
@@ -241,7 +243,8 @@ export function useProducts(options?: UseProductsOptions): UseProductsReturn {
       } catch {
 
         // Fall through to a normal fetch below.
-      }}
+      }
+    }
 
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
@@ -325,9 +328,9 @@ export function useProducts(options?: UseProductsOptions): UseProductsReturn {
 
   // Prefer API-provided total_pages; fall back to count / PER_PAGE
   const totalPages =
-  apiTotalPages != null ?
-  Math.max(1, apiTotalPages) :
-  Math.max(1, Math.ceil(totalCount / PER_PAGE));
+    apiTotalPages != null ?
+      Math.max(1, apiTotalPages) :
+      Math.max(1, Math.ceil(totalCount / PER_PAGE));
   const currentPage = page ?? 1;
 
   return {

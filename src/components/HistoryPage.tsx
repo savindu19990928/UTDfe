@@ -630,7 +630,7 @@ export function HistoryPage({
       setNewDepositAmount('');
       // Refresh only this bill on screen; everything else reloads silently
       const updatedBill = await refreshChangedRental(bill);
-      markBillChanged(updatedBill || bill, 'rental');
+      markBillChanged(updatedBill || bill, 'rental', { print: false });
     } catch (err: any) {
       setActionError(err.message || 'Failed to add deposit');
       console.error('Add deposit error:', err);
@@ -821,7 +821,7 @@ export function HistoryPage({
       }
       // Refresh only this bill on screen; everything else reloads silently
       const updatedBill = await refreshChangedRental(bill);
-      markBillChanged(updatedBill || bill, 'rental');
+      markBillChanged(updatedBill || bill, 'rental', { print: false });
       resetAddItemModal();
     } catch (err: any) {
       setAddItemError(err.message || 'Failed to add item');
@@ -1028,7 +1028,7 @@ export function HistoryPage({
       });
       // Refresh only this bill on screen; everything else reloads silently
       const updatedBill = await refreshChangedSale(returnModalBill);
-      markBillChanged(updatedBill || returnModalBill, 'sale');
+      markBillChanged(updatedBill || returnModalBill, 'sale', { print: false });
     } catch (err: any) {
       setReturnError(err.message || 'Failed to return items');
       console.error('Sale return error:', err);
@@ -2012,11 +2012,12 @@ export function HistoryPage({
                           </label>
                           <input
                             type="number"
-                            min="1"
+                            step="any"
+                            min="0"
                             max={selectedProductForAdd.stock}
                             value={manualQuantity}
                             onChange={(e) => {
-                              let val = parseInt(e.target.value) || 1;
+                              let val = parseFloat(e.target.value) || 1;
                               if (val < 1) val = 1;
                               if (
                                 selectedProductForAdd.stock != null &&
@@ -2444,11 +2445,12 @@ export function HistoryPage({
                                 </button>
                                 <input
                                   type="number"
+                                  step="any"
                                   min="0"
                                   max={remaining}
                                   value={currentReturnQty}
                                   onChange={(e) => {
-                                    const val = parseInt(e.target.value);
+                                    const val = parseFloat(e.target.value);
                                     setReturnQuantities((prev) => ({
                                       ...prev,
                                       [itemId]: isNaN(val) ?

@@ -103,12 +103,12 @@ export type DamageRecord = {
 };
 
 export type ExpenseCategory =
-'transport' |
-'fuel' |
-'maintenance' |
-'office' |
-'utilities' |
-'other';
+  'transport' |
+  'fuel' |
+  'maintenance' |
+  'office' |
+  'utilities' |
+  'other';
 
 export type Expense = {
   id: string | number;
@@ -134,11 +134,11 @@ export type RentalFine = {
 export type RentalBillStatus = 'open' | 'partially_closed' | 'closed';
 
 export type ApiRentalStatus =
-'active' |
-'returned' |
-'overdue' |
-'unpaid' |
-'closed';
+  'active' |
+  'returned' |
+  'overdue' |
+  'unpaid' |
+  'closed';
 
 export type PaginatedResponse<T> = {
   count: number;

@@ -275,7 +275,7 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
   field: 'quantity' | 'days',
   value: string) =>
   {
-    let num = parseInt(value) || 0;
+    let num = parseFloat(value) || 0;
     // Enforce stock limit for quantity changes
     if (field === 'quantity') {
       const product = items[index]?.product;
@@ -1770,11 +1770,12 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                     </label>
                     <input
                   type="number"
-                  min="1"
+                  step="any"
+                  min="0"
                   max={machineModalProduct.stock}
                   value={manualQuantity}
                   onChange={(e) => {
-                    let val = parseInt(e.target.value) || 1;
+                    let val = parseFloat(e.target.value) || 1;
                     if (val < 1) val = 1;
                     if (
                     machineModalProduct.stock != null &&

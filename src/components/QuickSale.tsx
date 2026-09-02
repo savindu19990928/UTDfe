@@ -168,7 +168,7 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
     setItems((prev) => prev.filter((_, i) => i !== index));
   };
   const handleItemChange = (index: number, value: string) => {
-    let num = parseInt(value) || 0;
+    let num = parseFloat(value) || 0;
     // Enforce stock limit
     const product = items[index]?.product;
     if (product && product.stock != null) {
@@ -438,7 +438,8 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
                           <input
                             ref={(el) => qtyRefs.current[index] = el}
                             type="number"
-                            min="1"
+                            step="any"
+                            min="0"
                             max={
                               item.product.stock != null ?
                                 Math.max(

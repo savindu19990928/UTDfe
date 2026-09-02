@@ -7,9 +7,9 @@ export function formatPrice(amount: number): string {
  * percentage of the bill subtotal.
  */
 export function toDiscountPercent(
-discountAmount: number,
-subtotal: number)
-: number {
+  discountAmount: number,
+  subtotal: number)
+  : number {
   if (!Number.isFinite(discountAmount) || !Number.isFinite(subtotal)) return 0;
   if (subtotal <= 0 || discountAmount <= 0) return 0;
   return discountAmount / subtotal * 100;
@@ -24,8 +24,8 @@ export function formatPercent(value: number): string {
 const MEDIA_BASE_URL = 'https://storage.googleapis.com/utdposcs/media/';
 
 export function getPhotoUrl(
-path: string | null | undefined)
-: string | undefined {
+  path: string | null | undefined)
+  : string | undefined {
   if (!path) return undefined;
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
   return `${MEDIA_BASE_URL}${path}`;
