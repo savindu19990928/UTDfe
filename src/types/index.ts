@@ -29,6 +29,7 @@ export type Product = {
   barcode?: string;
   isStockTracked?: boolean;
   isActive?: boolean;
+  unit?: string;
   machines?: Machine[];
 };
 

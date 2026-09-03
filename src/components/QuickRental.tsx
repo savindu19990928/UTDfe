@@ -1775,8 +1775,15 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
                   max={machineModalProduct.stock}
                   value={manualQuantity}
                   onChange={(e) => {
-                    let val = parseFloat(e.target.value) || 1;
-                    if (val < 1) val = 1;
+                    const isFloatAllowed = ['kg', 'l', 'm', 'kilograms', 'liters', 'meters'].includes(machineModalProduct.unit?.toLowerCase() || '');
+                    let val = parseFloat(e.target.value);
+                    if (isNaN(val)) val = isFloatAllowed ? 0 : 1;
+                    if (!isFloatAllowed) {
+                      val = Math.floor(val);
+                      if (val < 1) val = 1;
+                    } else {
+                      if (val < 0) val = 0;
+                    }
                     if (
                     machineModalProduct.stock != null &&
                     val > machineModalProduct.stock)

@@ -168,9 +168,12 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
     setItems((prev) => prev.filter((_, i) => i !== index));
   };
   const handleItemChange = (index: number, value: string) => {
-    let num = parseFloat(value) || 0;
-    // Enforce stock limit
     const product = items[index]?.product;
+    const isFloatAllowed = ['kg', 'l', 'm', 'kilograms', 'liters', 'meters'].includes(product?.unit?.toLowerCase() || '');
+    let num = parseFloat(value);
+    if (isNaN(num)) num = isFloatAllowed ? 0 : 1;
+    if (!isFloatAllowed) num = Math.floor(num);
+    // Enforce stock limit
     if (product && product.stock != null) {
       const usedByOthers = getUsedQty(product.id, index);
       const maxAllowed = Math.max(0, product.stock - usedByOthers);

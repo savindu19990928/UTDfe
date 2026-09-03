@@ -2017,8 +2017,15 @@ export function HistoryPage({
                             max={selectedProductForAdd.stock}
                             value={manualQuantity}
                             onChange={(e) => {
-                              let val = parseFloat(e.target.value) || 1;
-                              if (val < 1) val = 1;
+                              const isFloatAllowed = ['kg', 'l', 'm', 'kilograms', 'liters', 'meters'].includes(selectedProductForAdd.unit?.toLowerCase() || '');
+                              let val = parseFloat(e.target.value);
+                              if (isNaN(val)) val = isFloatAllowed ? 0 : 1;
+                              if (!isFloatAllowed) {
+                                val = Math.floor(val);
+                                if (val < 1) val = 1;
+                              } else {
+                                if (val < 0) val = 0;
+                              }
                               if (
                                 selectedProductForAdd.stock != null &&
                                 val > selectedProductForAdd.stock) {
@@ -2450,25 +2457,28 @@ export function HistoryPage({
                                   max={remaining}
                                   value={currentReturnQty}
                                   onChange={(e) => {
-                                    const val = parseFloat(e.target.value);
+                                    const isFloatAllowed = ['kg', 'l', 'm', 'kilograms', 'liters', 'meters'].includes(item.product.unit?.toLowerCase() || '');
+                                    let val = parseFloat(e.target.value);
+                                    if (isNaN(val)) val = 0;
+                                    if (!isFloatAllowed) val = Math.floor(val);
                                     setReturnQuantities((prev) => ({
                                       ...prev,
-                                      [itemId]: isNaN(val) ?
-                                        0 :
-                                        Math.min(remaining, Math.max(0, val))
+                                      [itemId]: Math.min(remaining, Math.max(0, val))
                                     }));
                                   }}
                                   className="w-12 h-8 text-center border border-gray-300 rounded-md text-sm font-bold focus:ring-2 focus:ring-orange-400 outline-none" />
 
                                 <button
                                   onClick={() => {
-                                    setReturnQuantities((prev) => ({
-                                      ...prev,
-                                      [itemId]: Math.min(
-                                        remaining,
-                                        (prev[itemId] || 0) + 1
-                                      )
-                                    }));
+                                    setReturnQuantities((prev) => {
+                                      return {
+                                        ...prev,
+                                        [itemId]: Math.min(
+                                          remaining,
+                                          (prev[itemId] || 0) + 1
+                                        )
+                                      };
+                                    });
                                   }}
                                   disabled={currentReturnQty >= remaining}
                                   className="w-8 h-8 flex items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-bold">

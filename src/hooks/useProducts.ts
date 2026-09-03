@@ -93,6 +93,7 @@ export function mapApiProduct(raw: any): Product {
     barcode: raw.barcode || undefined,
     isStockTracked: raw.is_stock_tracked ?? true,
     isActive: raw.is_active ?? true,
+    unit: raw.unit || 'pcs',
     machines: raw.machines
   };
 }
