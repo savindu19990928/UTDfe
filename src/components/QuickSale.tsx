@@ -50,6 +50,9 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
   const [customerName, setCustomerName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [discountFocused, setDiscountFocused] = useState(false);
+  const [customerNameFocused, setCustomerNameFocused] = useState(false);
   // Refs for focus management
   const productSearchRef = useRef<HTMLInputElement>(null);
   const discountInputRef = useRef<HTMLInputElement>(null);
@@ -92,8 +95,6 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
   useEffect(() => {
     if (stage === 'items') {
       setTimeout(() => productSearchRef.current?.focus(), 100);
-    } else if (stage === 'payment') {
-      setTimeout(() => discountInputRef.current?.focus(), 100);
     }
   }, [stage]);
   const handleAddProduct = async (searchProduct: Product) => {
@@ -199,7 +200,7 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
         if (stage === 'payment') handleSubmit();
     }
     // Payment stage shortcuts
-    if (stage === 'payment') {
+    if (stage === 'payment' && !discountFocused && !customerNameFocused) {
       if (e.key === '1') setPaymentMethod('cash');
       if (e.key === '2') setPaymentMethod('card');
       if (e.key === '3') setPaymentMethod('bank_transfer');
@@ -558,6 +559,8 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
                         max="100"
                         value={discount}
                         onChange={(e) => setDiscount(e.target.value)}
+                        onFocus={() => setDiscountFocused(true)}
+                        onBlur={() => setDiscountFocused(false)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             e.preventDefault();
@@ -593,6 +596,8 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
                       type="text"
                       value={customerName}
                       onChange={(e) => setCustomerName(e.target.value)}
+                      onFocus={() => setCustomerNameFocused(true)}
+                      onBlur={() => setCustomerNameFocused(false)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
@@ -615,21 +620,21 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
                         className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all ${paymentMethod === 'cash' ? 'bg-orange-50 border-orange-500 text-orange-700 ring-1 ring-orange-500' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
 
                         <Banknote className="w-6 h-6 mb-1" />
-                        <span className="text-xs font-bold">Cash (1)</span>
+                        <span className="text-xs font-bold">Cash</span>
                       </button>
                       <button
                         onClick={() => setPaymentMethod('card')}
                         className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all ${paymentMethod === 'card' ? 'bg-orange-50 border-orange-500 text-orange-700 ring-1 ring-orange-500' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
 
                         <CreditCard className="w-6 h-6 mb-1" />
-                        <span className="text-xs font-bold">Card (2)</span>
+                        <span className="text-xs font-bold">Card</span>
                       </button>
                       <button
                         onClick={() => setPaymentMethod('bank_transfer')}
                         className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all ${paymentMethod === 'bank_transfer' ? 'bg-orange-50 border-orange-500 text-orange-700 ring-1 ring-orange-500' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
 
                         <Landmark className="w-6 h-6 mb-1" />
-                        <span className="text-xs font-bold">Transfer (3)</span>
+                        <span className="text-xs font-bold">Transfer</span>
                       </button>
                     </div>
                   </div>
@@ -685,14 +690,6 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
             </kbd>
             Confirm / Next Field
           </span>
-          {stage === 'payment' &&
-            <span className="flex items-center gap-1.5">
-              <kbd className="bg-white border border-gray-300 rounded px-1.5 py-0.5 font-sans">
-                1-3
-              </kbd>
-              Payment Method
-            </span>
-          }
         </div>
       </div>
     </div>);
