@@ -18,6 +18,7 @@ export interface SaleProductPayload {
   price: string;
   is_stock_tracked: boolean;
   initial_stock?: number;
+  barcode?: string;
 }
 
 export interface RentalProductMachinesPayload {

@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { X, Plus, Trash2, Loader2, AlertTriangle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Product, ApiCategory } from '../../types';
@@ -54,6 +54,8 @@ export function ProductFormModal({
     product?.isStockTracked ?? true
   );
   const [initialStock, setInitialStock] = useState<string>('');
+  const [barcode, setBarcode] = useState<string>(product?.barcode || '');
+  const scannerRef = useRef<HTMLInputElement>(null);
   const [machines, setMachines] = useState<MachineInput[]>(() => {
     if (mode === 'edit' && product?.machines && product.machines.length > 0) {
       return product.machines.map((m) => ({
@@ -84,6 +86,15 @@ export function ProductFormModal({
 
     if (!categoryId) setCategoryId(String(categories[0].id));
   }, [categories, categoryId, categoryTouched, mode, product]);
+
+  useEffect(() => {
+    if (kind === 'sale') {
+      const timer = setTimeout(() => {
+        scannerRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [kind]);
 
   const addMachineRow = () =>
     setMachines((prev) => [...prev, { machine_number: '', max_use_count: 10 }]);
@@ -147,14 +158,18 @@ export function ProductFormModal({
       }
 
       if (kind === 'sale') {
-        await createSaleProduct({
+        const payload: any = {
           name: name.trim(),
           category: parseInt(categoryId, 10),
           unit,
           price: parseFloat(price).toFixed(2),
           is_stock_tracked: isStockTracked,
           initial_stock: initialStock ? parseFloat(initialStock) : undefined
-        });
+        };
+        if (barcode.trim()) {
+          payload.barcode = barcode.trim();
+        }
+        await createSaleProduct(payload);
       } else if (kind === 'rental_machines') {
         const validMachines = machines.filter((m) => m.machine_number.trim());
         if (validMachines.length === 0)
@@ -216,6 +231,7 @@ export function ProductFormModal({
               Name
             </label>
             <input
+              id="product-name-input"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f5a623] outline-none"
@@ -283,6 +299,51 @@ export function ProductFormModal({
 
               {kind === 'sale' &&
                 <>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-sm font-bold text-gray-700 block">
+                        Barcode (Scanned)
+                      </label>
+                      {barcode && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBarcode('');
+                            scannerRef.current?.focus();
+                          }}
+                          className="text-xs text-red-500 hover:text-red-700 font-bold"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <div 
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 flex items-center min-h-[46px] cursor-pointer"
+                      onClick={() => scannerRef.current?.focus()}
+                      title="Click here to scan barcode"
+                    >
+                      {barcode ? (
+                        <span className="font-mono text-[#1a1a2e] font-bold">{barcode}</span>
+                      ) : (
+                        <span className="italic text-sm">Ready to scan...</span>
+                      )}
+                    </div>
+                    <input
+                      ref={scannerRef}
+                      type="text"
+                      className="opacity-0 absolute w-0 h-0"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (e.currentTarget.value.trim()) {
+                            setBarcode(e.currentTarget.value.trim());
+                            e.currentTarget.value = '';
+                            document.getElementById('product-name-input')?.focus();
+                          }
+                        }
+                      }}
+                    />
+                  </div>
                   <label className="flex items-center gap-2">
                     <input
                       type="checkbox"
