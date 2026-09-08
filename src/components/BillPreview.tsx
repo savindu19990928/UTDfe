@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Bill } from '../types';
 import { Printer, ArrowLeft, CheckCircle } from 'lucide-react';
-import { formatPercent, formatPrice } from '../utils/format';
+import { formatPercent, formatPrice, formatQuantity } from '../utils/format';
 import { useRentalConditions } from '../hooks/useRentalConditions';
 const LOGO_URL = "./WhatsApp_Image_2025-12-13_at_2.34.53_PM.jpg";
 
@@ -273,7 +273,7 @@ export function RentalBillTemplate({ bill }: {bill: Bill;}) {
                     {formatPrice(unitPrice).replace('Rs. ', '')}
                   </td>
                   <td className="border border-black px-2 py-1 text-center font-bold">
-                    {item.quantity}
+                    {formatQuantity(item.quantity, item.product.unit)}
                   </td>
                   <td className="border border-black px-2 py-1 text-center text-[10px]">
                     {item.borrowedDate || bill.date}
@@ -472,9 +472,9 @@ export function SaleBillTemplate({ bill }: {bill: Bill;}) {
   'Bank Transfer' :
   'Cash';
   // Return state is derived from how much of each line item came back
-  const totalQty = bill.items.reduce((sum, item) => sum + item.quantity, 0);
+  const totalQty = bill.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   const returnedQty = bill.items.reduce(
-    (sum, item) => sum + (item.returnedQuantity || 0),
+    (sum, item) => sum + Number(item.returnedQuantity || 0),
     0
   );
   const isFullyReturned = totalQty > 0 && returnedQty >= totalQty;
@@ -590,7 +590,7 @@ export function SaleBillTemplate({ bill }: {bill: Bill;}) {
                   }
                 </td>
                 <td className="py-4 text-center font-medium text-gray-700 print-black-text">
-                  {item.quantity}
+                  {formatQuantity(item.quantity, item.product.unit)}
                 </td>
                 <td className="py-4 text-right text-gray-700 print-black-text">
                   {formatPrice(unitPrice)}

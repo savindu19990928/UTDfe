@@ -195,7 +195,7 @@ export function ProductFormModal({
     } catch {
 
       /* error surfaced by hook */
-}
+    }
   };
 
   return (
@@ -302,7 +302,7 @@ export function ProductFormModal({
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-sm font-bold text-gray-700 block">
-                        Barcode (Scanned)
+                        Barcode (Scanner Active)
                       </label>
                       {barcode && (
                         <button
@@ -317,7 +317,7 @@ export function ProductFormModal({
                         </button>
                       )}
                     </div>
-                    <div 
+                    <div
                       className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 flex items-center min-h-[46px] cursor-pointer"
                       onClick={() => scannerRef.current?.focus()}
                       title="Click here to scan barcode"

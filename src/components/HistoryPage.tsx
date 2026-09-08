@@ -25,7 +25,7 @@ import { Bill, CartItem, Product, CashTransaction } from '../types';
 import { useProducts } from '../hooks/useProducts';
 import { useRentals } from '../hooks/useRentals';
 import { useSales } from '../hooks/useSales';
-import { formatPrice, toDiscountPercent } from '../utils/format';
+import { formatPrice, toDiscountPercent, formatQuantity } from '../utils/format';
 import { API_URL } from '../utils/config';
 import { getAuthHeaders } from '../utils/auth';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -1490,7 +1490,7 @@ export function HistoryPage({
                                       {days}
                                     </td>
                                     <td className="px-4 py-2.5 text-center font-medium">
-                                      {item.quantity}
+                                      {formatQuantity(item.quantity, item.product.unit)}
                                     </td>
                                     <td className="px-4 py-2.5 text-right text-gray-600">
                                       {formatPrice(unitPrice)}
@@ -1757,10 +1757,10 @@ export function HistoryPage({
                                     key={i}
                                     className="text-xs text-gray-600">
 
-                                    {item.product.name} ×{item.quantity}
+                                    {item.product.name} ×{formatQuantity(item.quantity, item.product.unit)}
                                     {(item.returnedQuantity || 0) > 0 &&
                                       <span className="ml-1 text-orange-500 font-medium">
-                                        ({item.returnedQuantity} returned)
+                                        ({formatQuantity(item.returnedQuantity || 0, item.product.unit)} returned)
                                       </span>
                                     }
                                   </span>
@@ -2409,20 +2409,20 @@ export function HistoryPage({
                                 <span className="text-gray-500">
                                   Purchased:{' '}
                                   <span className="font-bold text-[#1a1a2e]">
-                                    {item.quantity}
+                                    {formatQuantity(item.quantity, item.product.unit)}
                                   </span>
                                 </span>
                                 {(item.returnedQuantity || 0) > 0 &&
                                   <span className="text-orange-600">
                                     Already returned:{' '}
                                     <span className="font-bold">
-                                      {item.returnedQuantity}
+                                      {formatQuantity(item.returnedQuantity || 0, item.product.unit)}
                                     </span>
                                   </span>
                                 }
                                 <span className="text-blue-600">
                                   Remaining:{' '}
-                                  <span className="font-bold">{remaining}</span>
+                                  <span className="font-bold">{formatQuantity(remaining, item.product.unit)}</span>
                                 </span>
                               </div>
                               <p className="text-xs text-gray-500 mt-1">
@@ -2625,7 +2625,7 @@ export function HistoryPage({
                     map((item, i) =>
                       <div key={i} className="flex justify-between text-sm">
                         <span className="text-gray-700">
-                          {item.product.name} ×{item.quantity}
+                          {item.product.name} ×{formatQuantity(item.quantity, item.product.unit)}
                         </span>
                         <span className="font-medium text-gray-500">
                           {formatPrice(item.product.rentPricePerDay || 0)}/day

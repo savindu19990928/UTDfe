@@ -45,7 +45,7 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
   // Payment state
   const [discount, setDiscount] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<
-    'cash' | 'card' | 'bank_transfer'>(
+    'cash' | 'card' | 'transfer'>(
       'cash');
   const [customerName, setCustomerName] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -203,7 +203,7 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
     if (stage === 'payment' && !discountFocused && !customerNameFocused) {
       if (e.key === '1') setPaymentMethod('cash');
       if (e.key === '2') setPaymentMethod('card');
-      if (e.key === '3') setPaymentMethod('bank_transfer');
+      if (e.key === '3') setPaymentMethod('transfer');
     }
   };
   const handleSubmit = async () => {
@@ -630,8 +630,8 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
                         <span className="text-xs font-bold">Card</span>
                       </button>
                       <button
-                        onClick={() => setPaymentMethod('bank_transfer')}
-                        className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all ${paymentMethod === 'bank_transfer' ? 'bg-orange-50 border-orange-500 text-orange-700 ring-1 ring-orange-500' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                        onClick={() => setPaymentMethod('transfer')}
+                        className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all ${paymentMethod === 'transfer' ? 'bg-orange-50 border-orange-500 text-orange-700 ring-1 ring-orange-500' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
 
                         <Landmark className="w-6 h-6 mb-1" />
                         <span className="text-xs font-bold">Transfer</span>

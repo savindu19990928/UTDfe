@@ -2,6 +2,13 @@ export function formatPrice(amount: number): string {
   return `Rs. ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+export function formatQuantity(quantity: number, unit?: string): string {
+  if (quantity == null) return '0';
+  // Number() automatically removes meaningless trailing zeros (e.g., 25.000 -> 25, 1.500 -> 1.5)
+  // toFixed(3) ensures we don't get floating point anomalies like 1.50000000001
+  return String(Number(Number(quantity).toFixed(3)));
+}
+
 /**
  * Discounts are stored as amounts on the API but shown to users as a
  * percentage of the bill subtotal.

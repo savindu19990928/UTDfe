@@ -5,4 +5,4 @@
 export const API_URL =
     typeof import.meta !== 'undefined' &&
     (import.meta as any).env?.VITE_API_URL ||
-    'https://tdpos-762230283653.asia-southeast1.run.app/api/';
+    'http://127.0.0.1:8000/api/';
