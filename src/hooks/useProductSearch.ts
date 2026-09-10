@@ -71,20 +71,61 @@ id: string)
   }
 }
 
-// Resolve a scanned barcode / typed item code to a product using the same
-// server-side search endpoints (falls back to the single result when the
-// scanner code isn't stored on the record itself).
 export async function lookupProductByCode(
 type: ProductSearchType,
 code: string)
 : Promise<Product | null> {
   const term = code.trim();
   if (!term) return null;
-  const cacheKey = `productSearch:${type}:${term.toLowerCase()}`;
-  let results = getCached<Product[]>(cacheKey, 60_000);
+
+  const cacheKey = `productIdentifier:${term.toLowerCase()}`;
+  let match = getCached<Product>(cacheKey, 60_000);
+
+  if (!match) {
+    try {
+      const res = await sharedRequest<Product>(cacheKey, async () => {
+        const fetchRes = await fetch(
+          `${API_URL}products/search_by_identifier/?identifier=${encodeURIComponent(term)}`,
+          {
+            headers: {
+              ...getAuthHeaders(),
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        if (!fetchRes.ok) {
+          throw new Error(`Search by identifier failed (${fetchRes.status})`);
+        }
+        const data = await fetchRes.json();
+        return {
+          id: String(data.id),
+          name: data.name || '',
+          category: '',
+          listingType: type, // Adjusted when returned from cache if needed
+          salePrice: parseFloat(data.price ?? 0) || 0,
+          rentPricePerDay: type === 'rent' ? (parseFloat(data.price ?? 0) || 0) : null,
+          stock: 0,
+          itemCode: data.item_number || data.item_code || undefined,
+          barcode: data.barcode || undefined
+        };
+      });
+      match = res;
+      setCache(cacheKey, match);
+    } catch (err) {
+      console.log('Identifier lookup missed, falling back to search...', err);
+    }
+  }
+
+  if (match) {
+    return { ...match, listingType: type };
+  }
+
+  // Fallback to original search code just in case
+  const searchCacheKey = `productSearch:${type}:${term.toLowerCase()}`;
+  let results = getCached<Product[]>(searchCacheKey, 60_000);
   if (!results) {
     try {
-      results = await sharedRequest<Product[]>(cacheKey, async () => {
+      results = await sharedRequest<Product[]>(searchCacheKey, async () => {
         const res = await fetch(
           `${API_URL}${SEARCH_ENDPOINT[type]}?q=${encodeURIComponent(term)}`,
           {
@@ -99,7 +140,7 @@ code: string)
         const rawList: any[] = Array.isArray(data) ? data : data?.results || [];
         return rawList.map((raw) => mapSearchResult(raw, type));
       });
-      setCache(cacheKey, results);
+      setCache(searchCacheKey, results);
     } catch (err) {
       console.error('Barcode lookup error:', err);
       return null;
