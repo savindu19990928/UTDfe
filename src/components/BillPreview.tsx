@@ -27,15 +27,16 @@ export function BillPreview({
     }
   };
 
+  const isRental = bill.items.some((item) => item.type === 'rent');
+
   useEffect(() => {
-    if (autoPrint) {
+    if (autoPrint && isRental) {
       const printTimer = setTimeout(() => {
         handlePrint();
       }, 500);
       return () => clearTimeout(printTimer);
     }
-  }, [autoPrint]);
-  const isRental = bill.items.some((item) => item.type === 'rent');
+  }, [autoPrint, isRental]);
   return (
     <div className="min-h-screen bg-gray-100 py-8 print:py-0 print:bg-white px-4 sm:px-6 lg:px-8">
       <div className="max-w-[8.5in] mx-auto mb-6 flex justify-between items-center no-print">

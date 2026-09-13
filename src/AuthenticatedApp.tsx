@@ -62,7 +62,12 @@ function MainContent({ superUser, onLogoutProp }: { superUser: boolean; onLogout
     clearCart();
     setBills((prev) => [bill, ...prev]);
     setCurrentBill(bill);
-    setAutoPrintBillId(bill.id);
+    const isRental = bill.items.some((item) => item.type === 'rent');
+    if (isRental) {
+      setAutoPrintBillId(bill.id);
+    } else {
+      setAutoPrintBillId(null);
+    }
     setCurrentPage('bill');
     window.scrollTo(0, 0);
   };

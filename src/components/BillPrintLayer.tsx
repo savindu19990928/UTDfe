@@ -14,6 +14,11 @@ interface BillPrintLayerProps {
 export function BillPrintLayer({ bill, onDone }: BillPrintLayerProps) {
   useEffect(() => {
     if (!bill) return;
+    const isRental = bill.items.some((item) => item.type === 'rent');
+    if (!isRental) {
+      onDone();
+      return;
+    }
     let finished = false;
     document.body.classList.add('printing-bill');
     const finish = () => {
@@ -46,14 +51,11 @@ export function BillPrintLayer({ bill, onDone }: BillPrintLayerProps) {
   }, [bill, onDone]);
   if (!bill) return null;
   const isRental = bill.items.some((item) => item.type === 'rent');
+  if (!isRental) return null;
   return createPortal(
     <div className="bill-print-layer" aria-hidden="true">
       <div id="print-area" className="bg-white">
-        {isRental ?
-        <RentalBillTemplate bill={bill} /> :
-
-        <SaleBillTemplate bill={bill} />
-        }
+        <RentalBillTemplate bill={bill} />
       </div>
     </div>,
     document.body

@@ -220,7 +220,7 @@ export function HistoryPage({
 
       /* storage unavailable — scrolling still works this session */
     }
-    if (options?.print === false) return;
+    if (type === 'sale' || options?.print === false) return;
     setPendingPrint({
       id: bill.id,
       type,
