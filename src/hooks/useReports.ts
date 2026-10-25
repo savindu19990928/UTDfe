@@ -9,6 +9,7 @@ export type ReportType =
 'stock_rentals' |
 'profit' |
 'financial' |
+'closed_bills' |
 'damaged' |
 'customers' |
 'banned' |

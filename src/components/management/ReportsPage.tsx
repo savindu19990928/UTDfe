@@ -1,32 +1,35 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   FileText,
   Loader2,
   AlertTriangle,
   Download,
   BarChart3
-} from
-  'lucide-react';
+} from 'lucide-react';
 import { useReports, ReportType } from '../../hooks/useReports';
 import { formatPrice } from '../../utils/format';
+import { ClosedBillsReportView } from './reports/ClosedBillsReportView';
+import { FinancialReportView } from './reports/FinancialReportView';
 
 const REPORTS: { value: ReportType; label: string; dated: boolean; }[] = [
   { value: 'profit', label: 'Profit & Loss', dated: true },
   { value: 'financial', label: 'Financial Summary', dated: true },
+  { value: 'closed_bills', label: 'Closed Bills', dated: true },
   { value: 'stock_all', label: 'Stock — All', dated: false },
   { value: 'stock_sales', label: 'Stock — Sales', dated: false },
   { value: 'stock_rentals', label: 'Stock — Rentals', dated: false },
   { value: 'damaged', label: 'Damaged Items', dated: true },
   { value: 'customers', label: 'Customers', dated: false },
   { value: 'banned', label: 'Banned Customers', dated: false },
-  { value: 'machines', label: 'Machine Usage', dated: false }];
-
+  { value: 'machines', label: 'Machine Usage', dated: false }
+];
 
 // Columns that are intentionally omitted from a report's detail tables.
 // Keys are matched loosely (case and separators ignored) since the tables are
 // built straight from whatever the API returns.
 const HIDDEN_COLUMNS: Partial<Record<ReportType, string[]>> = {
-  financial: ['transaction_type']
+  financial: ['transaction_type'],
+  closed_bills: ['detailed_bills', 'rental_fee_raw', 'fines_raw', 'income_raw', 'refunds_raw', 'profit_raw']
 };
 
 function normalizeKey(key: string): string {
@@ -144,7 +147,11 @@ function extractReport(data: any): {
       }
 
       // Mixed object: scalars become summary, arrays/objects recurse
-      scalarValues.forEach(([k, v]) => addSummary(k, v));
+      scalarValues.forEach(([k, v]) => {
+        if (k !== 'start_date' && k !== 'end_date' && k !== 'total closed bill profit') {
+          addSummary(k, v);
+        }
+      });
       arrayValues.forEach(([k, v]) => walk(v, humanize(k)));
       objectValues.forEach(([k, v]) => walk(v, humanize(k)));
       return;
@@ -283,42 +290,65 @@ export function ReportsPage() {
             </button>
           </div>
 
-          {/* Summary cards */}
-          {summaryEntries.length > 0 &&
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-              {summaryEntries.map(([k, v]) =>
-                <div
-                  key={k}
-                  className="bg-gray-50 border border-gray-100 rounded-lg p-4">
-
-                  <p className="text-xs font-medium text-gray-500">
-                    {humanize(k)}
-                  </p>
-                  <p className="text-lg font-bold text-[#2d4059]">
-                    {isMoneyKey(k) && !isNaN(Number(v)) ?
-                      formatPrice(Number(v)) :
-                      String(v)}
-                  </p>
-                </div>
-              )}
-            </div>
-          }
-
-          {/* Detail tables */}
-          {extracted.tables.map((t, idx) =>
-            <ReportTable
-              key={`${t.title}-${idx}`}
-              title={t.title}
-              rows={t.rows}
-              hiddenColumns={HIDDEN_COLUMNS[reportType]} />
-
+          {/* Closed Bills Report View */}
+          {report && reportType === 'closed_bills' && (
+            <ClosedBillsReportView
+              data={report.data as any}
+              startDate={startDate}
+              endDate={endDate}
+            />
           )}
 
-          {report && extracted.tables.length === 0 && summaryEntries.length === 0 &&
-            <p className="text-center py-8 text-gray-400">
-              No data available for this report.
-            </p>
-          }
+          {/* Financial Report View */}
+          {report && reportType === 'financial' && (
+            <FinancialReportView
+              data={report.data as any}
+              startDate={startDate}
+              endDate={endDate}
+            />
+          )}
+
+          {/* Generic view for all other reports */}
+          {report && reportType !== 'closed_bills' && reportType !== 'financial' && (
+            <>
+              {/* Summary cards */}
+              {summaryEntries.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                  {summaryEntries.map(([k, v]) => (
+                    <div
+                      key={k}
+                      className="bg-gray-50 border border-gray-100 rounded-lg p-4"
+                    >
+                      <p className="text-xs font-medium text-gray-500">
+                        {humanize(k)}
+                      </p>
+                      <p className="text-lg font-bold text-[#2d4059]">
+                        {isMoneyKey(k) && !isNaN(Number(v))
+                          ? formatPrice(Number(v))
+                          : String(v)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Detail tables */}
+              {extracted.tables.map((t, idx) => (
+                <ReportTable
+                  key={`${t.title}-${idx}`}
+                  title={t.title}
+                  rows={t.rows}
+                  hiddenColumns={HIDDEN_COLUMNS[reportType]}
+                />
+              ))}
+
+              {extracted.tables.length === 0 && summaryEntries.length === 0 && (
+                <p className="text-center py-8 text-gray-400">
+                  No data available for this report.
+                </p>
+              )}
+            </>
+          )}
 
           {/* Machine report */}
           {machineReport &&
