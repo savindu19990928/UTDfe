@@ -8,8 +8,7 @@ import {
   Wallet,
   AlertCircle,
   Receipt,
-  Search,
-  FileSpreadsheet
+  Search
 } from 'lucide-react';
 import {
   FinancialReportData,
@@ -17,7 +16,6 @@ import {
   FinancialExpenseItem
 } from '../../../types/reports';
 import { formatPrice } from '../../../utils/format';
-import { exportFinancialReportToExcel } from '../../../utils/excelExport';
 
 interface FinancialReportViewProps {
   data: FinancialReportData;
@@ -123,23 +121,8 @@ export function FinancialReportView({
       ? `${startDate || data?.start_date || 'Start'} → ${endDate || data?.end_date || 'Today'}`
       : 'Selected date range';
 
-  const handleExportExcel = () => {
-    exportFinancialReportToExcel(data, startDate, endDate);
-  };
-
   return (
     <div className="space-y-6">
-      <div className="flex justify-end no-print">
-        <button
-          type="button"
-          onClick={handleExportExcel}
-          className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#1a1a2e] bg-[#f5a623]/20 hover:bg-[#f5a623]/30 border border-[#f5a623]/40 rounded-lg transition-colors"
-        >
-          <FileSpreadsheet className="w-3.5 h-3.5 text-[#1a1a2e]" />
-          Export Excel
-        </button>
-      </div>
-
       {/* Row 1: Primary Cash Flow Metrics (3 Cards) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* 1. Total Money Came In */}

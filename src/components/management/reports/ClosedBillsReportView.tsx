@@ -10,12 +10,10 @@ import {
   ChevronDown,
   ChevronUp,
   Layers,
-  FileSpreadsheet,
   PackageCheck
 } from 'lucide-react';
 import { ClosedBillsReportData, ClosedBill } from '../../../types/reports';
 import { formatPrice } from '../../../utils/format';
-import { exportClosedBillsReportToExcel } from '../../../utils/excelExport';
 
 interface ClosedBillsReportViewProps {
   data: ClosedBillsReportData;
@@ -106,19 +104,6 @@ export function ClosedBillsReportView({
       { fee: 0, fines: 0, income: 0, refunds: 0, closedProfit: 0 }
     );
   }, [filteredBills]);
-
-  // Export to Excel
-  const handleExportExcel = () => {
-    if (filteredBills.length === 0) return;
-    exportClosedBillsReportToExcel(
-      {
-        ...data,
-        bills: filteredBills
-      },
-      startDate,
-      endDate
-    );
-  };
 
   const totalCount = data.closed_bills_count ?? bills.length;
   const closedBillProfitRaw =
@@ -266,16 +251,6 @@ export function ClosedBillsReportView({
           >
             <Layers className="w-3.5 h-3.5 text-slate-500" />
             {expandedIds.size === filteredBills.length ? 'Collapse All' : 'Expand All Items'}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleExportExcel}
-            disabled={filteredBills.length === 0}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#1a1a2e] bg-[#f5a623]/20 hover:bg-[#f5a623]/30 border border-[#f5a623]/40 rounded-lg transition-colors disabled:opacity-50"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-[#1a1a2e]" />
-            Export Excel
           </button>
         </div>
       </div>
