@@ -73,5 +73,5 @@ export const ADMIN_SECTIONS: {
   id: 'reports',
   label: 'Reports',
   icon: FileText,
-  desc: 'Generate and download PDF reports.'
+  desc: 'Generate and export PDF & Excel reports.'
 }];

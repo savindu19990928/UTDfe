@@ -4,16 +4,17 @@ import { API_URL } from '../utils/config';
 import { getAuthHeaders } from '../utils/auth';
 
 export type ReportType =
-'stock_all' |
-'stock_sales' |
-'stock_rentals' |
-'profit' |
-'financial' |
-'closed_bills' |
-'damaged' |
-'customers' |
-'banned' |
-'machines';
+  | 'financial'
+  | 'opened_bills'
+  | 'unsettled_bills'
+  | 'closed_bills'
+  | 'stock_all'
+  | 'stock_sales'
+  | 'stock_rentals'
+  | 'damaged'
+  | 'customers'
+  | 'banned'
+  | 'machines';
 
 export interface ReportResponse {
   report_type: string;
@@ -54,7 +55,13 @@ export function useReports() {
 
         const params = new URLSearchParams();
         params.set('report_type', reportType);
-        if (startDate) params.set('start_date', startDate);
+        if (
+          startDate &&
+          reportType !== 'opened_bills' &&
+          reportType !== 'unsettled_bills'
+        ) {
+          params.set('start_date', startDate);
+        }
         if (endDate) params.set('end_date', endDate);
 
         const res = await fetch(`${API_URL}reports/?${params.toString()}`, {

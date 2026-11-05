@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   AlertTriangle,
@@ -8,16 +8,24 @@ import {
   Send,
   ShieldOff,
   Smartphone,
-  X } from
-'lucide-react';
+  X,
+  FileSpreadsheet,
+  Download
+} from 'lucide-react';
 import { useBulkSms } from '../../hooks/useBulkSms';
 import { countSms } from '../../utils/sms';
+import { API_URL } from '../../utils/config';
+import { getAuthHeaders } from '../../utils/auth';
 
 const MAX_LENGTH = 1000;
 
 export function BulkSmsPage() {
   const [message, setMessage] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
+
   const { sending, error, result, sendBulkSms, reset } = useBulkSms();
 
   const count = useMemo(() => countSms(message), [message]);
@@ -37,6 +45,60 @@ export function BulkSmsPage() {
     setConfirmOpen(true);
   };
 
+  const handleDownloadNumbersExcel = async () => {
+    setDownloading(true);
+    setDownloadError(null);
+    setDownloadSuccess(null);
+    try {
+      const res = await fetch(`${API_URL}reports/customer-phone-numbers-excel/`, {
+        method: 'GET',
+        headers: {
+          ...getAuthHeaders()
+        }
+      });
+
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          throw new Error('Super user or staff access is required to download customer phone numbers.');
+        }
+        let detail = `Failed to download customer numbers (${res.status}).`;
+        try {
+          const errData = await res.json();
+          if (errData?.detail || errData?.message) {
+            detail = errData.detail || errData.message;
+          }
+        } catch {
+          // ignore non-json errors
+        }
+        throw new Error(detail);
+      }
+
+      const blob = await res.blob();
+      const disposition = res.headers.get('content-disposition');
+      let filename = `customer_phone_numbers_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      if (disposition && disposition.includes('filename=')) {
+        const match = disposition.match(/filename=["']?([^"']+)["']?/);
+        if (match && match[1]) {
+          filename = match[1];
+        }
+      }
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setDownloadSuccess('Customer phone numbers Excel downloaded successfully.');
+    } catch (err: any) {
+      setDownloadError(err?.message || 'Failed to download customer phone numbers Excel file.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <div>
       <div className="mb-6">
@@ -50,24 +112,62 @@ export function BulkSmsPage() {
         </p>
       </div>
 
-      {result &&
-      <div
-        role="status"
-        className="mb-4 bg-green-50 border border-green-200 rounded-lg p-3 flex items-start gap-2 text-sm text-green-800">
-        
+      {result && (
+        <div
+          role="status"
+          className="mb-4 bg-green-50 border border-green-200 rounded-lg p-3 flex items-start gap-2 text-sm text-green-800"
+        >
           <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
           <span className="font-medium">{result}</span>
         </div>
-      }
+      )}
 
-      {error && !confirmOpen &&
-      <div
-        role="alert"
-        className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2 text-sm text-red-700">
-        
+      {downloadSuccess && (
+        <div
+          role="status"
+          className="mb-4 bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-start justify-between gap-2 text-sm text-emerald-800"
+        >
+          <div className="flex items-start gap-2">
+            <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-emerald-600" />
+            <span className="font-medium">{downloadSuccess}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setDownloadSuccess(null)}
+            className="text-emerald-700 hover:text-emerald-900"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {downloadError && (
+        <div
+          role="alert"
+          className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3 flex items-start justify-between gap-2 text-sm text-red-700"
+        >
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+            <span>{downloadError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setDownloadError(null)}
+            className="text-red-600 hover:text-red-800"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {error && !confirmOpen && (
+        <div
+          role="alert"
+          className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2 text-sm text-red-700"
+        >
           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" /> {error}
         </div>
-      }
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-6 items-start">
         {/* Composer — the primary surface */}
@@ -75,8 +175,8 @@ export function BulkSmsPage() {
           <div className="px-5 pt-5">
             <label
               htmlFor="bulk-sms-message"
-              className="block text-sm font-bold text-[#1a1a2e]">
-              
+              className="block text-sm font-bold text-[#1a1a2e]"
+            >
               Message
             </label>
             <textarea
@@ -85,8 +185,9 @@ export function BulkSmsPage() {
               onChange={(e) => setMessage(e.target.value.slice(0, MAX_LENGTH))}
               rows={9}
               placeholder="Special discount this weekend at Tool Depot!"
-              className="mt-2 w-full resize-none rounded-lg border border-gray-200 px-4 py-3 text-[15px] leading-relaxed text-[#1a1a2e] placeholder:text-gray-400 focus:border-[#f5a623] focus:outline-none focus:ring-2 focus:ring-[#f5a623]/25" />
-            
+              className="mt-2 w-full resize-none rounded-lg border border-gray-200 px-4 py-3 text-[15px] leading-relaxed text-[#1a1a2e] placeholder:text-gray-400 focus:border-[#f5a623] focus:outline-none focus:ring-2 focus:ring-[#f5a623]/25"
+            />
+
             <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
               <span className="font-medium text-gray-600">
                 {count.characters} characters
@@ -95,14 +196,14 @@ export function BulkSmsPage() {
               <span>
                 {count.segments} SMS {count.segments === 1 ? 'part' : 'parts'}
               </span>
-              {count.encoding === 'Unicode' &&
-              <>
+              {count.encoding === 'Unicode' && (
+                <>
                   <span className="text-gray-300">·</span>
                   <span className="text-amber-700 font-medium">
                     Special characters shorten each part to 67
                   </span>
                 </>
-              }
+              )}
             </div>
           </div>
 
@@ -118,16 +219,16 @@ export function BulkSmsPage() {
                   reset();
                 }}
                 disabled={!message || sending}
-                className="px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:hover:bg-transparent">
-                
+                className="px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+              >
                 Clear
               </button>
               <button
                 type="button"
                 onClick={openConfirm}
                 disabled={!canSend}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold text-white bg-[#2d4059] hover:bg-[#1a1a2e] transition-colors disabled:opacity-50 disabled:hover:bg-[#2d4059]">
-                
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold text-white bg-[#2d4059] hover:bg-[#1a1a2e] transition-colors disabled:opacity-50 disabled:hover:bg-[#2d4059]"
+              >
                 <Send className="w-4 h-4" />
                 Review &amp; Send
               </button>
@@ -144,9 +245,9 @@ export function BulkSmsPage() {
             <div className="mt-3 rounded-2xl rounded-tl-sm bg-white px-4 py-3">
               <p
                 className={`text-[13px] leading-relaxed whitespace-pre-wrap break-words ${
-                trimmed ? 'text-[#1a1a2e]' : 'text-gray-400 italic'}`
-                }>
-                
+                  trimmed ? 'text-[#1a1a2e]' : 'text-gray-400 italic'
+                }`}
+              >
                 {trimmed || 'Your message will appear here.'}
               </p>
             </div>
@@ -165,45 +266,61 @@ export function BulkSmsPage() {
                 Banned customers are automatically excluded.
               </li>
             </ul>
+
+            <div className="mt-4 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={handleDownloadNumbersExcel}
+                disabled={downloading}
+                className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold text-[#1a1a2e] bg-[#f5a623]/20 hover:bg-[#f5a623]/30 border border-[#f5a623]/40 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {downloading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" />
+                )}
+                Export Customer Phone Numbers (.xlsx)
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       <AnimatePresence>
-        {confirmOpen &&
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.15, ease: 'easeOut' }}
-          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-          onClick={() => !sending && setConfirmOpen(false)}>
-          
+        {confirmOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
+            className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+            onClick={() => !sending && setConfirmOpen(false)}
+          >
             <motion.div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="bulk-sms-confirm-title"
-            initial={{ opacity: 0, scale: 0.96, y: 8 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 8 }}
-            transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md bg-white rounded-xl shadow-xl overflow-hidden">
-            
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="bulk-sms-confirm-title"
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+              transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md bg-white rounded-xl shadow-xl overflow-hidden"
+            >
               <div className="flex items-start justify-between gap-4 bg-[#1a1a2e] px-5 py-4">
                 <h3
-                id="bulk-sms-confirm-title"
-                className="text-base font-bold text-white">
-                
+                  id="bulk-sms-confirm-title"
+                  className="text-base font-bold text-white"
+                >
                   Send to all customers?
                 </h3>
                 <button
-                type="button"
-                onClick={() => setConfirmOpen(false)}
-                disabled={sending}
-                aria-label="Close"
-                className="text-white/50 hover:text-white transition-colors disabled:opacity-40">
-                
+                  type="button"
+                  onClick={() => setConfirmOpen(false)}
+                  disabled={sending}
+                  aria-label="Close"
+                  className="text-white/50 hover:text-white transition-colors disabled:opacity-40"
+                >
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -225,44 +342,44 @@ export function BulkSmsPage() {
                   {count.segments === 1 ? 'part' : 'parts'} per customer
                 </p>
 
-                {error &&
-              <div
-                role="alert"
-                className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2 text-sm text-red-700">
-                
+                {error && (
+                  <div
+                    role="alert"
+                    className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2 text-sm text-red-700"
+                  >
                     <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
                     {error}
                   </div>
-              }
+                )}
               </div>
 
               <div className="flex justify-end gap-2 border-t border-gray-100 bg-gray-50 px-5 py-4">
                 <button
-                type="button"
-                onClick={() => setConfirmOpen(false)}
-                disabled={sending}
-                className="px-4 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-40">
-                
+                  type="button"
+                  onClick={() => setConfirmOpen(false)}
+                  disabled={sending}
+                  className="px-4 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-40"
+                >
                   Cancel
                 </button>
                 <button
-                type="button"
-                onClick={handleSend}
-                disabled={sending}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold text-white bg-[#2d4059] hover:bg-[#1a1a2e] transition-colors disabled:opacity-60">
-                
-                  {sending ?
-                <Loader2 className="w-4 h-4 animate-spin" /> :
-
-                <Send className="w-4 h-4" />
-                }
+                  type="button"
+                  onClick={handleSend}
+                  disabled={sending}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold text-white bg-[#2d4059] hover:bg-[#1a1a2e] transition-colors disabled:opacity-60"
+                >
+                  {sending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
                   {sending ? 'Sending...' : 'Send now'}
                 </button>
               </div>
             </motion.div>
           </motion.div>
-        }
+        )}
       </AnimatePresence>
-    </div>);
-
+    </div>
+  );
 }

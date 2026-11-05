@@ -4,24 +4,96 @@ import {
   Loader2,
   AlertTriangle,
   Download,
-  BarChart3
+  BarChart3,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useReports, ReportType } from '../../hooks/useReports';
 import { formatPrice } from '../../utils/format';
 import { ClosedBillsReportView } from './reports/ClosedBillsReportView';
 import { FinancialReportView } from './reports/FinancialReportView';
+import { OpenedBillsReportView } from './reports/OpenedBillsReportView';
+import { UnsettledBillsReportView } from './reports/UnsettledBillsReportView';
+import {
+  exportFinancialReportToExcel,
+  exportOpenedBillsReportToExcel,
+  exportUnsettledBillsReportToExcel,
+  exportClosedBillsReportToExcel,
+  exportGenericReportToExcel,
+  exportMachineReportToExcel
+} from '../../utils/excelExport';
 
-const REPORTS: { value: ReportType; label: string; dated: boolean; }[] = [
-  { value: 'profit', label: 'Profit & Loss', dated: true },
-  { value: 'financial', label: 'Financial Summary', dated: true },
-  { value: 'closed_bills', label: 'Closed Bills', dated: true },
-  { value: 'stock_all', label: 'Stock — All', dated: false },
-  { value: 'stock_sales', label: 'Stock — Sales', dated: false },
-  { value: 'stock_rentals', label: 'Stock — Rentals', dated: false },
-  { value: 'damaged', label: 'Damaged Items', dated: true },
-  { value: 'customers', label: 'Customers', dated: false },
-  { value: 'banned', label: 'Banned Customers', dated: false },
-  { value: 'machines', label: 'Machine Usage', dated: false }
+const REPORTS: {
+  value: ReportType;
+  label: string;
+  hasStartDate: boolean;
+  hasEndDate: boolean;
+}[] = [
+  {
+    value: 'financial',
+    label: 'Financial Report',
+    hasStartDate: true,
+    hasEndDate: true
+  },
+  {
+    value: 'opened_bills',
+    label: 'Opened Bills Report',
+    hasStartDate: false,
+    hasEndDate: true
+  },
+  {
+    value: 'unsettled_bills',
+    label: 'Payment Unsettled Bills Report',
+    hasStartDate: false,
+    hasEndDate: true
+  },
+  {
+    value: 'closed_bills',
+    label: 'Closed Bills Report',
+    hasStartDate: true,
+    hasEndDate: true
+  },
+  {
+    value: 'stock_all',
+    label: 'Stock — All',
+    hasStartDate: false,
+    hasEndDate: false
+  },
+  {
+    value: 'stock_sales',
+    label: 'Stock — Sales',
+    hasStartDate: false,
+    hasEndDate: false
+  },
+  {
+    value: 'stock_rentals',
+    label: 'Stock — Rentals',
+    hasStartDate: false,
+    hasEndDate: false
+  },
+  {
+    value: 'damaged',
+    label: 'Damaged Items',
+    hasStartDate: true,
+    hasEndDate: true
+  },
+  {
+    value: 'customers',
+    label: 'Customers',
+    hasStartDate: true,
+    hasEndDate: true
+  },
+  {
+    value: 'banned',
+    label: 'Banned Customers',
+    hasStartDate: true,
+    hasEndDate: true
+  },
+  {
+    value: 'machines',
+    label: 'Machine Usage',
+    hasStartDate: false,
+    hasEndDate: false
+  }
 ];
 
 // Columns that are intentionally omitted from a report's detail tables.
@@ -29,7 +101,38 @@ const REPORTS: { value: ReportType; label: string; dated: boolean; }[] = [
 // built straight from whatever the API returns.
 const HIDDEN_COLUMNS: Partial<Record<ReportType, string[]>> = {
   financial: ['transaction_type'],
-  closed_bills: ['detailed_bills', 'rental_fee_raw', 'fines_raw', 'income_raw', 'refunds_raw', 'profit_raw']
+  closed_bills: [
+    'detailed_bills',
+    'rental_fee_raw',
+    'fines_raw',
+    'income_raw',
+    'refunds_raw',
+    'profit_raw',
+    'closed_bill_profit_raw'
+  ],
+  opened_bills: [
+    'detailed_bills',
+    'rental_fee_raw',
+    'fines_raw',
+    'income_raw',
+    'charged_amount_raw',
+    'deposit_raw',
+    'deposit_taken_raw'
+  ],
+  unsettled_bills: [
+    'detailed_bills',
+    'rental_fee_raw',
+    'fines_raw',
+    'income_raw',
+    'charged_amount_raw',
+    'deposit_raw',
+    'deposit_taken_raw',
+    'refunds_raw',
+    'remaining_deposit_raw',
+    'unsettled_amount_raw',
+    'amount_owed_raw',
+    'due_amount_raw'
+  ]
 };
 
 function normalizeKey(key: string): string {
@@ -37,13 +140,20 @@ function normalizeKey(key: string): string {
 }
 
 function humanize(key: string): string {
-  return key.
-    replace(/_/g, ' ').
-    replace(/\b\w/g, (c) => c.toUpperCase());
+  return key
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function isMoneyKey(key: string): boolean {
-  return /income|profit|expense|amount|total|price|deposit|fine|value/i.test(
+  if (
+    /times|count|qty|quantity|stock|days|hours|minutes|number|rate|percent|rented/i.test(
+      key
+    )
+  ) {
+    return false;
+  }
+  return /income|profit|expense|amount|total|price|deposit|fine|value|refund|due|owed/i.test(
     key
   );
 }
@@ -99,9 +209,9 @@ function extractReport(data: any): {
                 }
               });
             } else if (Array.isArray(v)) {
-              flat[k] = v.
-                map((x) => isPlainObject(x) ? JSON.stringify(x) : String(x)).
-                join(', ');
+              flat[k] = v
+                .map((x) => (isPlainObject(x) ? JSON.stringify(x) : String(x)))
+                .join(', ');
             } else {
               flat[k] = v;
             }
@@ -125,13 +235,17 @@ function extractReport(data: any): {
       const objectValues = entries.filter(([, v]) => isPlainObject(v));
       const arrayValues = entries.filter(([, v]) => Array.isArray(v));
       const scalarValues = entries.filter(
-        ([, v]) => typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean'
+        ([, v]) =>
+          typeof v === 'string' ||
+          typeof v === 'number' ||
+          typeof v === 'boolean'
       );
 
       if (
         entries.length > 0 &&
         objectValues.length === entries.length &&
-        entries.length > 1) {
+        entries.length > 1
+      ) {
         // Every value is an object → treat as a record dictionary
         const rows = entries.map(([k, v]) => {
           const flat: Record<string, any> = { name: k };
@@ -148,7 +262,11 @@ function extractReport(data: any): {
 
       // Mixed object: scalars become summary, arrays/objects recurse
       scalarValues.forEach(([k, v]) => {
-        if (k !== 'start_date' && k !== 'end_date' && k !== 'total closed bill profit') {
+        if (
+          k !== 'start_date' &&
+          k !== 'end_date' &&
+          k !== 'total closed bill profit'
+        ) {
           addSummary(k, v);
         }
       });
@@ -164,35 +282,88 @@ function extractReport(data: any): {
 
 export function ReportsPage() {
   const { loading, error, report, machineReport, fetchReport } = useReports();
-  const [reportType, setReportType] = useState<ReportType>('profit');
+  const [reportType, setReportType] = useState<ReportType>('financial');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  const meta = REPORTS.find((r) => r.value === reportType)!;
+  const meta = REPORTS.find((r) => r.value === reportType) ?? REPORTS[0];
+  const activeReportType =
+    ((report?.report_type as ReportType) || reportType);
+  const activeMeta =
+    REPORTS.find((r) => r.value === activeReportType) ?? meta;
+
+  const isDateOnly = !meta.hasStartDate && meta.hasEndDate;
 
   const handleGenerate = () => {
-    fetchReport(reportType, startDate || undefined, endDate || undefined);
+    fetchReport(
+      reportType,
+      meta.hasStartDate ? startDate || undefined : undefined,
+      meta.hasEndDate ? endDate || undefined : undefined
+    );
   };
 
   const handleDownloadPdf = () => {
     window.print();
   };
 
-  // Root-level scalar values (e.g. total_profit next to `data`)
-  const rootSummary: [string, any][] = report ?
-    Object.entries(report as Record<string, any>).filter(
-      ([k, v]) =>
-        k !== 'report_type' &&
-        k !== 'start_date' &&
-        k !== 'end_date' &&
-        k !== 'data' && (
-          typeof v === 'string' || typeof v === 'number')
-    ) :
-    [];
+  const handleExportExcel = () => {
+    if (machineReport && reportType === 'machines') {
+      exportMachineReportToExcel(machineReport);
+      return;
+    }
+    if (!report) return;
 
-  const extracted = report ?
-    extractReport(report.data) :
-    { tables: [], summary: [] as [string, any][] };
+    if (activeReportType === 'financial') {
+      exportFinancialReportToExcel(
+        report.data as any,
+        startDate || report.start_date,
+        endDate || report.end_date
+      );
+    } else if (activeReportType === 'opened_bills') {
+      exportOpenedBillsReportToExcel(
+        report.data as any,
+        endDate || report.end_date
+      );
+    } else if (activeReportType === 'unsettled_bills') {
+      exportUnsettledBillsReportToExcel(
+        report.data as any,
+        endDate || report.end_date
+      );
+    } else if (activeReportType === 'closed_bills') {
+      exportClosedBillsReportToExcel(
+        report.data as any,
+        startDate || report.start_date,
+        endDate || report.end_date
+      );
+    } else {
+      const dateStr = activeMeta.hasStartDate
+        ? `${startDate || report.start_date || 'all'}_to_${endDate || report.end_date || 'today'}`
+        : `${endDate || report.end_date || 'snapshot'}`;
+      exportGenericReportToExcel(
+        activeReportType,
+        activeMeta.label,
+        summaryEntries,
+        extracted.tables,
+        dateStr
+      );
+    }
+  };
+
+  // Root-level scalar values (e.g. total_profit next to `data`)
+  const rootSummary: [string, any][] = report
+    ? Object.entries(report as Record<string, any>).filter(
+        ([k, v]) =>
+          k !== 'report_type' &&
+          k !== 'start_date' &&
+          k !== 'end_date' &&
+          k !== 'data' &&
+          (typeof v === 'string' || typeof v === 'number')
+      )
+    : [];
+
+  const extracted = report
+    ? extractReport(report.data)
+    : { tables: [], summary: [] as [string, any][] };
 
   // Merge root + data summaries, de-duplicated
   const summaryMap = new Map<string, any>();
@@ -201,10 +372,21 @@ export function ReportsPage() {
   });
   const summaryEntries = Array.from(summaryMap.entries());
 
+  const customViews: ReportType[] = [
+    'financial',
+    'opened_bills',
+    'unsettled_bills',
+    'closed_bills'
+  ];
+
   return (
     <div>
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-6 no-print">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+        <div
+          className={`grid grid-cols-1 ${
+            isDateOnly ? 'md:grid-cols-3' : 'md:grid-cols-4'
+          } gap-4 items-end`}
+        >
           <div>
             <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
               Report
@@ -212,104 +394,146 @@ export function ReportsPage() {
             <select
               value={reportType}
               onChange={(e) => setReportType(e.target.value as ReportType)}
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f5a623] outline-none bg-white">
-
-              {REPORTS.map((r) =>
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f5a623] outline-none bg-white"
+            >
+              {REPORTS.map((r) => (
                 <option key={r.value} value={r.value}>
                   {r.label}
                 </option>
-              )}
+              ))}
             </select>
           </div>
-          <div>
-            <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
-              Start Date
-            </label>
-            <input
-              type="date"
-              value={startDate}
-              disabled={!meta.dated}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f5a623] outline-none disabled:bg-gray-100" />
 
-          </div>
+          {!isDateOnly && (
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
+                Start Date
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                disabled={!meta.hasStartDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f5a623] outline-none disabled:bg-gray-100"
+              />
+            </div>
+          )}
+
           <div>
             <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
-              End Date
+              {isDateOnly ? 'Date' : 'End Date'}
             </label>
             <input
               type="date"
               value={endDate}
-              disabled={!meta.dated}
+              disabled={!meta.hasEndDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f5a623] outline-none disabled:bg-gray-100" />
-
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f5a623] outline-none disabled:bg-gray-100"
+            />
           </div>
+
           <button
             onClick={handleGenerate}
             disabled={loading}
-            className="flex items-center justify-center gap-2 bg-[#2d4059] hover:bg-[#1a1a2e] disabled:opacity-60 text-white px-4 py-2.5 rounded-lg font-bold">
-
-            {loading ?
-              <Loader2 className="w-4 h-4 animate-spin" /> :
-
+            className="flex items-center justify-center gap-2 bg-[#2d4059] hover:bg-[#1a1a2e] disabled:opacity-60 text-white px-4 py-2.5 rounded-lg font-bold"
+          >
+            {loading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
               <BarChart3 className="w-4 h-4" />
-            }
+            )}
             Generate
           </button>
         </div>
       </div>
 
-      {error &&
+      {error && (
         <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2 text-sm text-red-700 no-print">
           <AlertTriangle className="w-4 h-4" /> {error}
         </div>
-      }
+      )}
 
-      {(report || machineReport) &&
-        <div id="print-area" className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      {(report || machineReport) && (
+        <div
+          id="print-area"
+          className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
+        >
           <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100">
             <div className="flex items-center gap-3">
               <FileText className="w-6 h-6 text-[#f5a623]" />
               <div>
                 <h2 className="text-xl font-bold text-[#1a1a2e]">
-                  {meta.label} Report
+                  {activeMeta.label.endsWith('Report')
+                    ? activeMeta.label
+                    : `${activeMeta.label} Report`}
                 </h2>
-                {(startDate || endDate) && meta.dated &&
+                {!activeMeta.hasStartDate && activeMeta.hasEndDate && (
                   <p className="text-xs text-gray-500">
-                    {startDate || '…'} → {endDate || '…'}
+                    {endDate || report?.end_date || 'Today'}
                   </p>
-                }
+                )}
+                {activeMeta.hasStartDate &&
+                  activeMeta.hasEndDate &&
+                  (startDate || endDate || report?.start_date || report?.end_date) && (
+                    <p className="text-xs text-gray-500">
+                      {startDate || report?.start_date || '…'} →{' '}
+                      {endDate || report?.end_date || '…'}
+                    </p>
+                  )}
               </div>
             </div>
-            <button
-              onClick={handleDownloadPdf}
-              className="flex items-center gap-2 bg-[#f5a623] hover:bg-[#d4901e] text-[#1a1a2e] px-4 py-2.5 rounded-lg font-bold no-print">
-
-              <Download className="w-4 h-4" /> Download PDF
-            </button>
+            <div className="flex items-center gap-2 no-print">
+              <button
+                onClick={handleExportExcel}
+                className="flex items-center gap-2 bg-[#2d4059] hover:bg-[#1a1a2e] text-white px-4 py-2.5 rounded-lg font-bold"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-[#f5a623]" /> Export Excel
+              </button>
+              <button
+                onClick={handleDownloadPdf}
+                className="flex items-center gap-2 bg-[#f5a623] hover:bg-[#d4901e] text-[#1a1a2e] px-4 py-2.5 rounded-lg font-bold"
+              >
+                <Download className="w-4 h-4" /> Download PDF
+              </button>
+            </div>
           </div>
 
-          {/* Closed Bills Report View */}
-          {report && reportType === 'closed_bills' && (
-            <ClosedBillsReportView
+          {/* Financial Report View */}
+          {report && activeReportType === 'financial' && (
+            <FinancialReportView
               data={report.data as any}
-              startDate={startDate}
-              endDate={endDate}
+              startDate={startDate || report.start_date}
+              endDate={endDate || report.end_date}
             />
           )}
 
-          {/* Financial Report View */}
-          {report && reportType === 'financial' && (
-            <FinancialReportView
+          {/* Opened Bills Report View */}
+          {report && activeReportType === 'opened_bills' && (
+            <OpenedBillsReportView
               data={report.data as any}
-              startDate={startDate}
-              endDate={endDate}
+              endDate={endDate || report.end_date}
+            />
+          )}
+
+          {/* Payment Unsettled Bills Report View */}
+          {report && activeReportType === 'unsettled_bills' && (
+            <UnsettledBillsReportView
+              data={report.data as any}
+              endDate={endDate || report.end_date}
+            />
+          )}
+
+          {/* Closed Bills Report View */}
+          {report && activeReportType === 'closed_bills' && (
+            <ClosedBillsReportView
+              data={report.data as any}
+              startDate={startDate || report.start_date}
+              endDate={endDate || report.end_date}
             />
           )}
 
           {/* Generic view for all other reports */}
-          {report && reportType !== 'closed_bills' && reportType !== 'financial' && (
+          {report && !customViews.includes(activeReportType) && (
             <>
               {/* Summary cards */}
               {summaryEntries.length > 0 && (
@@ -325,6 +549,9 @@ export function ReportsPage() {
                       <p className="text-lg font-bold text-[#2d4059]">
                         {isMoneyKey(k) && !isNaN(Number(v))
                           ? formatPrice(Number(v))
+                          : /times|count|qty|quantity/i.test(k) &&
+                            !isNaN(Number(v))
+                          ? String(Number(v))
                           : String(v)}
                       </p>
                     </div>
@@ -338,7 +565,7 @@ export function ReportsPage() {
                   key={`${t.title}-${idx}`}
                   title={t.title}
                   rows={t.rows}
-                  hiddenColumns={HIDDEN_COLUMNS[reportType]}
+                  hiddenColumns={HIDDEN_COLUMNS[activeReportType]}
                 />
               ))}
 
@@ -352,7 +579,7 @@ export function ReportsPage() {
 
           {/* Machine report */}
           {machineReport &&
-            machineReport.map((group, idx) =>
+            machineReport.map((group, idx) => (
               <div key={idx} className="mb-8">
                 <h3 className="font-bold text-[#1a1a2e] mb-2">
                   {group.product_name}{' '}
@@ -362,41 +589,41 @@ export function ReportsPage() {
                 </h3>
                 <ReportTable title="" rows={group.machines || []} />
               </div>
-            )}
+            ))}
 
-          {machineReport && machineReport.length === 0 &&
+          {machineReport && machineReport.length === 0 && (
             <p className="text-center py-8 text-gray-400">
               No machine data available.
             </p>
-          }
+          )}
         </div>
-      }
+      )}
 
-      {!report && !machineReport && !loading &&
+      {!report && !machineReport && !loading && (
         <div className="text-center py-16 text-gray-400">
           Select a report and click Generate.
         </div>
-      }
-    </div>);
-
+      )}
+    </div>
+  );
 }
 
 function ReportTable({
   title,
   rows,
   hiddenColumns
-
-
-
-
-}: { title: string; rows: Record<string, any>[]; hiddenColumns?: string[]; }) {
+}: {
+  title: string;
+  rows: Record<string, any>[];
+  hiddenColumns?: string[];
+}) {
   if (!rows || rows.length === 0) {
-    return title ?
+    return title ? (
       <div className="mb-6">
         <h3 className="font-bold text-[#1a1a2e] mb-2">{title}</h3>
         <p className="text-sm text-gray-400">No records.</p>
-      </div> :
-      null;
+      </div>
+    ) : null;
   }
 
   // Union of all keys across rows so no column is dropped
@@ -412,14 +639,20 @@ function ReportTable({
     rows.every(
       (row) =>
         row[col] == null ||
-        typeof row[col] !== 'boolean' && !isNaN(Number(row[col])) && String(row[col]).trim() !== ''
+        (typeof row[col] !== 'boolean' &&
+          !isNaN(Number(row[col])) &&
+          String(row[col]).trim() !== '')
     );
 
   const formatCell = (col: string, value: any): string => {
     if (value == null || value === '') return '-';
     if (typeof value === 'boolean') return value ? 'Yes' : 'No';
     if (typeof value === 'object') return JSON.stringify(value);
-    if (isMoneyKey(col) && !isNaN(Number(value))) return formatPrice(Number(value));
+    if (isMoneyKey(col) && !isNaN(Number(value)))
+      return formatPrice(Number(value));
+    if (/times|count|qty|quantity/i.test(col) && !isNaN(Number(value))) {
+      return String(Number(value));
+    }
     return String(value);
   };
 
@@ -438,42 +671,46 @@ function ReportTable({
               <th className="px-3 py-2.5 border-b border-gray-200 w-10 text-center">
                 #
               </th>
-              {columns.map((c) =>
+              {columns.map((c) => (
                 <th
                   key={c}
-                  className={`px-3 py-2.5 border-b border-gray-200 whitespace-nowrap ${isNumericColumn(c) ? 'text-right' : 'text-left'}`
-                  }>
-
+                  className={`px-3 py-2.5 border-b border-gray-200 whitespace-nowrap ${
+                    isNumericColumn(c) ? 'text-right' : 'text-left'
+                  }`}
+                >
                   {humanize(c)}
                 </th>
-              )}
+              ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {rows.map((row, i) =>
+            {rows.map((row, i) => (
               <tr
                 key={i}
-                className={`${i % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'} hover:bg-orange-50/40 transition-colors`}>
-
+                className={`${
+                  i % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'
+                } hover:bg-orange-50/40 transition-colors`}
+              >
                 <td className="px-3 py-2.5 text-center text-xs text-gray-400 font-mono">
                   {i + 1}
                 </td>
-                {columns.map((c) =>
+                {columns.map((c) => (
                   <td
                     key={c}
-                    className={`px-3 py-2.5 text-gray-700 whitespace-nowrap ${isNumericColumn(c) ?
-                      'text-right font-medium tabular-nums' :
-                      'text-left'}`
-                    }>
-
+                    className={`px-3 py-2.5 text-gray-700 whitespace-nowrap ${
+                      isNumericColumn(c)
+                        ? 'text-right font-medium tabular-nums'
+                        : 'text-left'
+                    }`}
+                  >
                     {formatCell(c, row[c])}
                   </td>
-                )}
+                ))}
               </tr>
-            )}
+            ))}
           </tbody>
         </table>
       </div>
-    </div>);
-
+    </div>
+  );
 }

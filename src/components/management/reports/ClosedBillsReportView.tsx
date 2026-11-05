@@ -4,6 +4,8 @@ import {
   TrendingUp,
   RotateCcw,
   Wallet,
+  Receipt,
+  AlertCircle,
   Search,
   ChevronDown,
   ChevronUp,
@@ -13,11 +15,19 @@ import {
 } from 'lucide-react';
 import { ClosedBillsReportData, ClosedBill } from '../../../types/reports';
 import { formatPrice } from '../../../utils/format';
+import { exportClosedBillsReportToExcel } from '../../../utils/excelExport';
 
 interface ClosedBillsReportViewProps {
   data: ClosedBillsReportData;
   startDate?: string;
   endDate?: string;
+}
+
+function parseRaw(rawVal: number | undefined, formattedVal: string | number | undefined): number {
+  if (typeof rawVal === 'number' && !isNaN(rawVal)) return rawVal;
+  if (typeof formattedVal === 'number' && !isNaN(formattedVal)) return formattedVal;
+  if (formattedVal == null || formattedVal === '') return 0;
+  return parseFloat(String(formattedVal).replace(/[^0-9.-]/g, '')) || 0;
 }
 
 export function ClosedBillsReportView({
@@ -77,149 +87,160 @@ export function ClosedBillsReportView({
   const filteredTotals = useMemo(() => {
     return filteredBills.reduce(
       (acc, b) => {
-        const fee = b.rental_fee_raw ?? (parseFloat(String(b.rental_fee || '0').replace(/[^0-9.-]/g, '')) || 0);
-        const fines = b.fines_raw ?? (parseFloat(String(b.fines || '0').replace(/[^0-9.-]/g, '')) || 0);
-        const inc = b.income_raw ?? (parseFloat(String(b.income || '0').replace(/[^0-9.-]/g, '')) || 0);
-        const ref = b.refunds_raw ?? (parseFloat(String(b.refunds || '0').replace(/[^0-9.-]/g, '')) || 0);
-        const prof = b.profit_raw ?? (parseFloat(String(b.profit || '0').replace(/[^0-9.-]/g, '')) || 0);
+        const fee = parseRaw(b.rental_fee_raw, b.rental_fee);
+        const fines = parseRaw(b.fines_raw, b.fines);
+        const inc = parseRaw(b.income_raw, b.income);
+        const ref = parseRaw(b.refunds_raw, b.refunds);
+        const closedProfit = parseRaw(
+          b.closed_bill_profit_raw ?? b.profit_raw,
+          b.closed_bill_profit ?? b.profit
+        );
         return {
           fee: acc.fee + fee,
           fines: acc.fines + fines,
           income: acc.income + inc,
           refunds: acc.refunds + ref,
-          profit: acc.profit + prof
+          closedProfit: acc.closedProfit + closedProfit
         };
       },
-      { fee: 0, fines: 0, income: 0, refunds: 0, profit: 0 }
+      { fee: 0, fines: 0, income: 0, refunds: 0, closedProfit: 0 }
     );
   }, [filteredBills]);
 
-  // Export CSV
-  const handleExportCsv = () => {
+  // Export to Excel
+  const handleExportExcel = () => {
     if (filteredBills.length === 0) return;
-    const headers = [
-      'Bill Number',
-      'Customer',
-      'NIC',
-      'Mobile',
-      'Created At',
-      'Closed At',
-      'Rental Fee',
-      'Fines',
-      'Deposit (Income)',
-      'Refund',
-      'Net Profit',
-      'Items Count'
-    ];
-    const rows = filteredBills.map((b) => [
-      `"${b.bill_number}"`,
-      `"${b.customer}"`,
-      `"${b.customer_nic || ''}"`,
-      `"${b.customer_mobile || ''}"`,
-      `"${b.created_at}"`,
-      `"${b.closed_at}"`,
-      b.rental_fee_raw ?? `"${b.rental_fee}"`,
-      b.fines_raw ?? `"${b.fines}"`,
-      b.income_raw ?? `"${b.income}"`,
-      b.refunds_raw ?? `"${b.refunds}"`,
-      b.profit_raw ?? `"${b.profit}"`,
-      b.items_count || b.items?.length || 0
-    ]);
-    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `closed_bills_report_${startDate || 'all'}_to_${endDate || 'today'}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    exportClosedBillsReportToExcel(
+      {
+        ...data,
+        bills: filteredBills
+      },
+      startDate,
+      endDate
+    );
   };
 
   const totalCount = data.closed_bills_count ?? bills.length;
-  const totalProfitFormatted =
+  const closedBillProfitRaw =
+    data.closed_bill_profit ?? data.total_closed_bill_profit ?? data.total_profit;
+  const totalClosedProfitNum = parseRaw(undefined, closedBillProfitRaw);
+  const totalClosedProfitFormatted =
+    data.closed_bill_profit_formatted ||
+    data.total_closed_bill_profit_formatted ||
     data.total_profit_formatted ||
-    (data.total_profit != null ? formatPrice(Number(data.total_profit)) : 'Rs. 0.00');
+    formatPrice(totalClosedProfitNum);
+
+  const totalRentalFeeNum = parseRaw(undefined, data.total_rental_fee);
+  const totalFinesNum = parseRaw(undefined, data.total_fines);
+
   const totalIncomeFormatted =
     data.total_income_formatted ||
-    (data.total_income != null ? formatPrice(Number(data.total_income)) : 'Rs. 0.00');
+    (data.total_income != null ? formatPrice(parseRaw(undefined, data.total_income)) : 'Rs. 0.00');
   const totalRefundsFormatted =
     data.total_refunds_formatted ||
-    (data.total_refunds != null ? formatPrice(Number(data.total_refunds)) : 'Rs. 0.00');
+    (data.total_refunds != null ? formatPrice(parseRaw(undefined, data.total_refunds)) : 'Rs. 0.00');
 
   return (
     <div className="space-y-6">
       {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Closed Bills Count */}
-        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm relative overflow-hidden">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        {/* 1. Closed Bills Count */}
+        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm relative overflow-hidden">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               Closed Bills
             </span>
-            <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-              <CheckCircle2 className="w-5 h-5" />
+            <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+              <CheckCircle2 className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-[#1a1a2e]">
+          <div className="text-xl font-black text-[#1a1a2e]">
             {totalCount.toLocaleString()}
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Rental bills closed strictly in range
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            Bills closed in range
           </p>
         </div>
 
-        {/* Total Income / Deposits */}
-        <div className="bg-white rounded-xl p-5 border border-emerald-200 shadow-sm relative overflow-hidden bg-gradient-to-br from-white to-emerald-50/30">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">
-              Total Deposits (Income)
+        {/* 2. Closed Bill Profit (Rental Fee + Fines) */}
+        <div className="bg-[#1a1a2e] rounded-xl p-4 border border-slate-700 text-white shadow-md relative overflow-hidden">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] font-bold text-[#f5a623] uppercase tracking-wider flex items-center gap-1">
+              <TrendingUp className="w-3.5 h-3.5 text-[#f5a623]" /> Closed Bill Profit
             </span>
-            <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg">
-              <Wallet className="w-5 h-5" />
-            </div>
+            <span className="text-[9px] bg-[#f5a623]/20 text-[#f5a623] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+              Fee + Fines
+            </span>
           </div>
-          <div className="text-2xl font-black text-emerald-700">
+          <div className="text-xl font-black text-white">
+            {totalClosedProfitFormatted}
+          </div>
+          <p className="text-[11px] text-slate-300 mt-0.5">
+            Profit from closed bills + fines
+          </p>
+        </div>
+
+        {/* 3. Total Rental Fee */}
+        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              Rental Fees
+            </span>
+            <Receipt className="w-4 h-4 text-slate-400" />
+          </div>
+          <div className="text-xl font-bold text-slate-800">
+            {formatPrice(totalRentalFeeNum > 0 ? totalRentalFeeNum : filteredTotals.fee)}
+          </div>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            Base rental charges realized
+          </p>
+        </div>
+
+        {/* 4. Total Fines */}
+        <div className="bg-white rounded-xl p-4 border border-purple-200 shadow-sm bg-gradient-to-br from-white to-purple-50/20">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] font-bold text-purple-700 uppercase tracking-wider">
+              Total Fines
+            </span>
+            <AlertCircle className="w-4 h-4 text-purple-500" />
+          </div>
+          <div className="text-xl font-bold text-purple-800">
+            {formatPrice(totalFinesNum > 0 ? totalFinesNum : filteredTotals.fines)}
+          </div>
+          <p className="text-[11px] text-purple-600/80 mt-0.5">
+            Damage fines collected on closure
+          </p>
+        </div>
+
+        {/* 5. Total Income / Deposits */}
+        <div className="bg-white rounded-xl p-4 border border-emerald-200 shadow-sm bg-gradient-to-br from-white to-emerald-50/30">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">
+              Deposits (Income)
+            </span>
+            <Wallet className="w-4 h-4 text-emerald-600" />
+          </div>
+          <div className="text-xl font-bold text-emerald-700">
             {totalIncomeFormatted}
           </div>
-          <p className="text-xs text-emerald-600/80 mt-1">
-            Customer deposits collected on these bills
+          <p className="text-[11px] text-emerald-600/80 mt-0.5">
+            Deposits taken for these bills
           </p>
         </div>
 
-        {/* Total Refunds */}
-        <div className="bg-white rounded-xl p-5 border border-amber-200 shadow-sm relative overflow-hidden bg-gradient-to-br from-white to-amber-50/30">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-amber-700 uppercase tracking-wider">
-              Total Security Refunds
+        {/* 6. Total Refunds */}
+        <div className="bg-white rounded-xl p-4 border border-amber-200 shadow-sm bg-gradient-to-br from-white to-amber-50/30">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">
+              Refunds Given
             </span>
-            <div className="p-2 bg-amber-100 text-amber-700 rounded-lg">
-              <RotateCcw className="w-5 h-5" />
-            </div>
+            <RotateCcw className="w-4 h-4 text-amber-600" />
           </div>
-          <div className="text-2xl font-black text-amber-700">
+          <div className="text-xl font-bold text-amber-700">
             {totalRefundsFormatted}
           </div>
-          <p className="text-xs text-amber-600/80 mt-1">
-            Returned to customers upon bill settlement
-          </p>
-        </div>
-
-        {/* Total Profit */}
-        <div className="bg-[#1a1a2e] rounded-xl p-5 border border-slate-700 text-white shadow-md relative overflow-hidden">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-[#f5a623] uppercase tracking-wider flex items-center gap-1.5">
-              <TrendingUp className="w-4 h-4 text-[#f5a623]" /> Total Realized Profit
-            </span>
-            <span className="text-[10px] bg-[#f5a623]/20 text-[#f5a623] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
-              Rental + Fines
-            </span>
-          </div>
-          <div className="text-2xl font-black text-white">
-            {totalProfitFormatted}
-          </div>
-          <p className="text-xs text-slate-300 mt-1">
-            Net profit realized upon closure
+          <p className="text-[11px] text-amber-600/80 mt-0.5">
+            Security deposits refunded
           </p>
         </div>
       </div>
@@ -249,12 +270,12 @@ export function ClosedBillsReportView({
 
           <button
             type="button"
-            onClick={handleExportCsv}
+            onClick={handleExportExcel}
             disabled={filteredBills.length === 0}
             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#1a1a2e] bg-[#f5a623]/20 hover:bg-[#f5a623]/30 border border-[#f5a623]/40 rounded-lg transition-colors disabled:opacity-50"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-[#1a1a2e]" />
-            Export CSV
+            Export Excel
           </button>
         </div>
       </div>
@@ -290,7 +311,7 @@ export function ClosedBillsReportView({
               <th className="py-3 px-3 text-right">Fines</th>
               <th className="py-3 px-3 text-right">Deposit</th>
               <th className="py-3 px-3 text-right">Refund</th>
-              <th className="py-3 px-3 text-right">Net Profit</th>
+              <th className="py-3 px-3 text-right">Closed Bill Profit</th>
               <th className="py-3 px-3 w-10 text-center no-print"></th>
             </tr>
           </thead>
@@ -338,7 +359,7 @@ export function ClosedBillsReportView({
                   {formatPrice(filteredTotals.refunds)}
                 </td>
                 <td className="py-3 px-3 text-right tabular-nums text-blue-900 font-black">
-                  {formatPrice(filteredTotals.profit)}
+                  {formatPrice(filteredTotals.closedProfit)}
                 </td>
                 <td className="no-print"></td>
               </tr>
@@ -362,7 +383,11 @@ function BillRowItem({
   onToggle: () => void;
 }) {
   const items = Array.isArray(bill.items) ? bill.items : [];
-  const fineAmt = bill.fines_raw ?? (parseFloat(String(bill.fines || '0').replace(/[^0-9.-]/g, '')) || 0);
+  const fineAmt = parseRaw(bill.fines_raw, bill.fines);
+  const closedProfit = parseRaw(
+    bill.closed_bill_profit_raw ?? bill.profit_raw,
+    bill.closed_bill_profit ?? bill.profit
+  );
 
   return (
     <>
@@ -427,7 +452,7 @@ function BillRowItem({
         </td>
 
         <td className="py-3 px-3 text-right font-black text-slate-900 whitespace-nowrap tabular-nums">
-          {bill.profit}
+          {formatPrice(closedProfit)}
         </td>
 
         <td className="py-3 px-3 text-center no-print">
@@ -446,7 +471,7 @@ function BillRowItem({
       </tr>
 
       {/* Expanded Line Items Detail Drawer */}
-      {(isExpanded || (typeof window !== 'undefined' && false)) && (
+      {isExpanded && (
         <tr className="bg-orange-50/20 border-b border-orange-100">
           <td colSpan={12} className="p-0">
             <div className="px-6 py-4 bg-gradient-to-r from-orange-50/30 to-amber-50/10 border-l-4 border-[#f5a623]">
