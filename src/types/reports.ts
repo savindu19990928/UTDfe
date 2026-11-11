@@ -251,3 +251,51 @@ export interface UnsettledBillsReportData {
   bills: UnsettledBill[];
   detailed_bills?: UnsettledBill[];
 }
+
+export interface RentedItem {
+  item_id: number;
+  bill_id: number;
+  bill_number: string;
+  product_name: string;
+  item_number: string;
+  machine_number: string;
+  price?: number;
+  price_per_day: number;
+  price_per_day_formatted?: string;
+  quantity: number;
+  customer_name: string;
+  customer_mobile: string;
+  customer_nic?: string;
+  customer_address?: string;
+  rental_start_date?: string;
+  rental_end_date?: string;
+  days_rented?: number;
+}
+
+export interface RentedItemsReportData {
+  target_date?: string;
+  end_date?: string;
+  total_rented_items: number;
+  items: RentedItem[];
+}
+
+export interface HeldDocumentCustomer {
+  customer_id: number;
+  customer_name: string;
+  mobile_number: string;
+  taken_id: string;
+  taken_id_types?: string[];
+  nic_number?: string;
+  bills?: string[];
+  bill_number?: string;
+}
+
+export interface HeldDocumentsReportData {
+  start_date?: string;
+  end_date?: string;
+  total_customers: number;
+  total_nic?: number;
+  total_passport?: number;
+  total_driving_licence?: number;
+  customers: HeldDocumentCustomer[];
+}

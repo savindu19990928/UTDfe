@@ -16,10 +16,16 @@ This document provides a comprehensive reference for all reporting API endpoints
    - [Damaged Products Report (`damaged`)](#36-damaged-products-report-report_typedamaged)
    - [Customer Reports (`customers`, `banned`)](#37-customer-reports-report_typecustomers-banned)
    - [Machine Usage Report (`machines`)](#38-machine-usage-report-report_typemachines)
+   - [Rented Items Report (`rented_items`)](#39-rented-items-report-report_typerented_items)
+   - [Customer Held Documents Report (`held_documents`)](#310-customer-held-documents-report-report_typeheld_documents)
 4. [Dedicated Machine Report Endpoint (`GET /api/machine-report/`)](#4-dedicated-machine-report-endpoint-get-apimachine-report)
 5. [Customer Phone Numbers Excel Export (`GET /api/customers/export-phone-numbers/`)](#5-customer-phone-numbers-excel-export-get-apicustomersexport-phone-numbers)
 6. [Django Admin PDF Reports (`/admin/reports/`)](#6-django-admin-pdf-reports-adminreports)
 7. [Calculation & Business Rules](#7-calculation--business-rules)
+   - [7.1. Daily Cutoff Time Calculation](#71-daily-cutoff-time-calculation-calculate_item_rental_days_to_date)
+   - [7.2. Rental Damage Fines](#72-rental-damage-fines)
+   - [7.3. Closed Bill Lifecycle](#73-closed-bill-lifecycle-closed_at)
+   - [7.4. Rented Items Evaluation Rules](#74-rented-items-evaluation-rules)
 8. [Error Handling](#8-error-handling)
 
 ---
@@ -794,6 +800,151 @@ GET /api/reports/?report_type=machines
 
 ---
 
+### 3.9. Rented Items Report (`report_type=rented_items`)
+
+#### Aliases
+`rented_items`, `rented_items_report`, `rented_products`
+
+#### Description
+Returns the list of items already rented out up to the specified date (`end_date` or `date`, defaults to today). Start date is omitted (evaluates all active rentals up to the target date).
+
+#### Table Columns / Fields
+1. **Rented Product (`product_name`, `item_number`):** Name of the rented equipment and product code.
+2. **Machine No / QTY (`machine_number`):** Unique serial/unit machine number assigned to the rental item (e.g. `'DH-01'`). For rental products without individual machine numbers, displays the rented quantity (e.g. `'2'`, `'5'`) if `quantity > 1`, or `'N/A'` if `quantity = 1`.
+3. **Price (Per Day) (`price_per_day`, `price_per_day_formatted`):** Per-day rental rate for the product formatted as `Rs. X,XXX.XX / day` under the table column **Price (Per Day)**.
+4. **Customer (`customer_name`, `customer_mobile`, `customer_nic`, `bill_number`):** Details of the customer who took the machine.
+
+#### Example Request
+```http
+GET /api/reports/?report_type=rented_items&end_date=2026-11-11
+Authorization: Bearer <JWT_ACCESS_TOKEN>
+```
+
+#### Example Response (`200 OK`)
+```json
+{
+  "report_type": "rented_items",
+  "start_date": "2000-01-01",
+  "end_date": "2026-11-11",
+  "data": {
+    "target_date": "2026-11-11",
+    "end_date": "2026-11-11",
+    "total_rented_items": 2,
+    "items": [
+      {
+        "item_id": 42,
+        "bill_id": 15,
+        "bill_number": "RENT-00015",
+        "product_name": "Demolition Hammer 15kg",
+        "item_number": "RENT-001",
+        "machine_number": "DH-01",
+        "price": 2500.0,
+        "price_per_day": 2500.0,
+        "price_per_day_formatted": "Rs. 2,500.00 / day",
+        "quantity": 1.0,
+        "customer_name": "Kasun Rajapakshe",
+        "customer_mobile": "0771234567",
+        "customer_nic": "199012345678",
+        "customer_address": "123 Main St, Colombo",
+        "rental_start_date": "2026-11-09",
+        "rental_end_date": "2026-11-14",
+        "days_rented": 3
+      },
+      {
+        "item_id": 43,
+        "bill_id": 16,
+        "bill_number": "RENT-00016",
+        "product_name": "Aluminum Extension Ladder 20ft",
+        "item_number": "RENT-008",
+        "machine_number": "N/A",
+        "price": 800.0,
+        "price_per_day": 800.0,
+        "price_per_day_formatted": "Rs. 800.00 / day",
+        "quantity": 2.0,
+        "customer_name": "Sunil Perera",
+        "customer_mobile": "0719876543",
+        "customer_nic": "198533344455",
+        "customer_address": "45 Temple Rd, Kandy",
+        "rental_start_date": "2026-11-10",
+        "rental_end_date": "2026-11-13",
+        "days_rented": 2
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 3.10. Customer Held Documents Report (`report_type=held_documents`)
+
+#### Aliases
+`held_documents`, `customer_held_documents`, `held_ids`, `taken_documents`
+
+#### Description
+Returns the list of customers who have given an identification document (`NIC`, `Passport`, or `Driving Licence`) for active/open rentals.
+
+#### Table Columns / Fields
+1. **Customer Name (`customer_name`):** Full name of the customer.
+2. **Mobile Number (`mobile_number`):** Contact mobile number of the customer.
+3. **Taken ID (`taken_id`):** The identification document held by the store (`NIC`, `Passport`, or `Driving Licence`).
+
+#### Example Request
+```http
+GET /api/reports/?report_type=held_documents
+Authorization: Bearer <JWT_ACCESS_TOKEN>
+```
+
+#### Example Response (`200 OK`)
+```json
+{
+  "report_type": "held_documents",
+  "start_date": "2000-01-01",
+  "end_date": "2026-11-11",
+  "data": {
+    "end_date": "2026-11-11",
+    "total_customers": 3,
+    "total_nic": 2,
+    "total_passport": 1,
+    "total_driving_licence": 0,
+    "customers": [
+      {
+        "customer_id": 5,
+        "customer_name": "Kasun Rajapakshe",
+        "mobile_number": "0771234567",
+        "taken_id": "NIC",
+        "taken_id_types": ["NIC"],
+        "nic_number": "199012345678",
+        "bills": ["RENT-00015"],
+        "bill_number": "RENT-00015"
+      },
+      {
+        "customer_id": 8,
+        "customer_name": "David Miller",
+        "mobile_number": "0704445566",
+        "taken_id": "Passport",
+        "taken_id_types": ["Passport"],
+        "nic_number": "",
+        "bills": ["RENT-00018"],
+        "bill_number": "RENT-00018"
+      },
+      {
+        "customer_id": 12,
+        "customer_name": "Sunil Perera",
+        "mobile_number": "0719876543",
+        "taken_id": "NIC",
+        "taken_id_types": ["NIC"],
+        "nic_number": "198533344455",
+        "bills": ["RENT-00016"],
+        "bill_number": "RENT-00016"
+      }
+    ]
+  }
+}
+```
+
+---
+
 ## 4. Dedicated Machine Report Endpoint (`GET /api/machine-report/`)
 
 A dedicated REST endpoint providing structured machine telemetry grouped by product.
@@ -925,6 +1076,22 @@ When calculating rental days for open or unsettled bills up to a specific `targe
   2. An admin triggers `POST /api/rentals/{id}/manual_close/`.
   3. A bill is saved with `status = 'closed'` and `closed_at` is empty.
 - Closed Bill Reports strictly filter on `closed_at__gte=start_dt, closed_at__lte=end_dt`.
+
+### 7.4. Rented Items Evaluation Rules
+- **Target Date Resolution:** Evaluates items as of `end_date` (or `date`), defaulting to today (`Asia/Colombo`). Start date is omitted.
+- **Active Filter Criteria:**
+  1. Bill is not cancelled (`is_cancelled = False`).
+  2. Item rental start date has already commenced (`rental_start_date <= target_date`).
+  3. Item was not returned on or before target date (`is_returned = False` OR `returned_date > target_date`).
+  4. Bill was created on or before the target date (`created_at <= target_end_datetime`).
+  5. Bill was not closed on or before target date.
+- **Physical Machine Resolution & Multiple Quantities:**
+  - If a rented item has physical machines assigned via `RentalBillItemMachine`, each physical machine is displayed as a distinct row with its specific `machine_number`.
+  - For rental products without individual machine numbers:
+    - If rented in multiple quantities (`quantity > 1` on the bill), instead of showing multiple rows, it is presented as a single row where `machine_number` displays the rented quantity (e.g. `"2"`, `"5"`).
+    - If single quantity (`quantity = 1`), `machine_number` displays `'N/A'`.
+- **Per-Day Price Display:**
+  - Explicitly presents the product's daily rental rate (`item.product.price` / `price_per_day`) formatted as `Rs. X,XXX.XX / day` under the table column **Price (Per Day)**.
 
 ---
 

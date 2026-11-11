@@ -14,7 +14,9 @@ export type ReportType =
   | 'damaged'
   | 'customers'
   | 'banned'
-  | 'machines';
+  | 'machines'
+  | 'rented_items'
+  | 'held_documents';
 
 export interface ReportResponse {
   report_type: string;
@@ -58,7 +60,9 @@ export function useReports() {
         if (
           startDate &&
           reportType !== 'opened_bills' &&
-          reportType !== 'unsettled_bills'
+          reportType !== 'unsettled_bills' &&
+          reportType !== 'rented_items' &&
+          reportType !== 'held_documents'
         ) {
           params.set('start_date', startDate);
         }

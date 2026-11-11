@@ -3,7 +3,9 @@ import {
   FinancialReportData,
   OpenedBillsReportData,
   UnsettledBillsReportData,
-  ClosedBillsReportData
+  ClosedBillsReportData,
+  RentedItemsReportData,
+  HeldDocumentsReportData
 } from '../types/reports';
 
 /**
@@ -602,5 +604,138 @@ export function exportMachineReportToExcel(groups: any[]): void {
   const ws = createSheetFromAoa(rows);
   XLSX.utils.book_append_sheet(wb, ws, 'Machines');
   downloadWorkbook(wb, `machine_usage_report_${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+
+// -------------------------------------------------------------
+// 7. RENTED ITEMS REPORT EXPORT
+// -------------------------------------------------------------
+export function exportRentedItemsReportToExcel(
+  data: RentedItemsReportData,
+  targetDate?: string
+): void {
+  const wb = XLSX.utils.book_new();
+  const dateStr = targetDate || data.target_date || data.end_date || new Date().toISOString().slice(0, 10);
+  const items = Array.isArray(data.items) ? data.items : [];
+
+  const totalItems = data.total_rented_items ?? items.reduce((s, i) => s + (Number(i.quantity) || 1), 0);
+  const totalValue = items.reduce((s, i) => s + (Number(i.price_per_day ?? i.price ?? 0) * (Number(i.quantity) || 1)), 0);
+
+  // Sheet 1: Summary
+  const summaryRows: any[][] = [
+    ['TOOL DEPOT POS - RENTED ITEMS REPORT'],
+    ['Target Date', dateStr],
+    ['Generated At', new Date().toLocaleString()],
+    [],
+    ['METRIC', 'VALUE'],
+    ['Total Rented Items', totalItems],
+    ['Total Tracked Machines', items.filter((i) => i.machine_number && i.machine_number !== 'N/A').length],
+    ['Total Daily Rental Rate Sum (LKR)', totalValue],
+    ['Unique Customers', new Set(items.map((i) => (i.customer_mobile || i.customer_name || '').trim())).size]
+  ];
+  const wsSummary = createSheetFromAoa(summaryRows);
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+  // Sheet 2: Items
+  const itemRows: any[][] = [
+    [
+      'Item ID',
+      'Product Name',
+      'Item Code',
+      'Machine No / QTY',
+      'Quantity',
+      'Price (Per Day) (LKR)',
+      'Customer Name',
+      'Customer Mobile',
+      'Customer NIC',
+      'Customer Address',
+      'Bill Number',
+      'Rental Start Date',
+      'Rental End Date',
+      'Days Rented'
+    ],
+    ...items.map((i) => {
+      const raw = (i.machine_number || '').trim();
+      const qty = Number(i.quantity) || 1;
+      let machineNoOrQty = raw || 'N/A';
+      if ((!raw || raw === 'N/A') && qty > 1) {
+        machineNoOrQty = String(qty);
+      }
+      return [
+        i.item_id,
+        i.product_name,
+        i.item_number,
+        machineNoOrQty,
+        qty,
+        Number(i.price_per_day ?? i.price ?? 0),
+        i.customer_name || '',
+        i.customer_mobile || '',
+        i.customer_nic || '',
+        i.customer_address || '',
+        i.bill_number || '',
+        i.rental_start_date || '',
+        i.rental_end_date || '',
+        i.days_rented ?? ''
+      ];
+    })
+  ];
+  const wsItems = createSheetFromAoa(itemRows);
+  XLSX.utils.book_append_sheet(wb, wsItems, 'Rented Items');
+
+  downloadWorkbook(wb, `rented_items_report_${dateStr}.xlsx`);
+}
+
+// -------------------------------------------------------------
+// 8. CUSTOMER HELD DOCUMENTS REPORT EXPORT
+// -------------------------------------------------------------
+export function exportHeldDocumentsReportToExcel(
+  data: HeldDocumentsReportData,
+  targetDate?: string
+): void {
+  const wb = XLSX.utils.book_new();
+  const dateStr = targetDate || data.end_date || new Date().toISOString().slice(0, 10);
+  const customers = Array.isArray(data.customers) ? data.customers : [];
+
+  const totalNic = data.total_nic ?? customers.filter((c) => c.taken_id?.toLowerCase().includes('nic')).length;
+  const totalPassport = data.total_passport ?? customers.filter((c) => c.taken_id?.toLowerCase().includes('passport')).length;
+  const totalDriving = data.total_driving_licence ?? customers.filter((c) => c.taken_id?.toLowerCase().includes('driving') || c.taken_id?.toLowerCase().includes('licence')).length;
+
+  // Sheet 1: Summary
+  const summaryRows: any[][] = [
+    ['TOOL DEPOT POS - CUSTOMER HELD DOCUMENTS REPORT'],
+    ['Target Date', dateStr],
+    ['Generated At', new Date().toLocaleString()],
+    [],
+    ['METRIC', 'COUNT'],
+    ['Total Customers with Held IDs', data.total_customers ?? customers.length],
+    ['Total NICs Held', totalNic],
+    ['Total Passports Held', totalPassport],
+    ['Total Driving Licences Held', totalDriving]
+  ];
+  const wsSummary = createSheetFromAoa(summaryRows);
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+  // Sheet 2: Customers
+  const customerRows: any[][] = [
+    [
+      'Customer ID',
+      'Customer Name',
+      'Mobile Number',
+      'Taken Document',
+      'NIC Number',
+      'Active Bill Numbers'
+    ],
+    ...customers.map((c) => [
+      c.customer_id,
+      c.customer_name,
+      c.mobile_number,
+      c.taken_id,
+      c.nic_number || '',
+      (c.bills || [c.bill_number]).filter(Boolean).join(', ')
+    ])
+  ];
+  const wsCustomers = createSheetFromAoa(customerRows);
+  XLSX.utils.book_append_sheet(wb, wsCustomers, 'Held Documents');
+
+  downloadWorkbook(wb, `customer_held_documents_report_${dateStr}.xlsx`);
 }
 

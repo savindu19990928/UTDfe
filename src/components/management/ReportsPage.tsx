@@ -13,13 +13,17 @@ import { ClosedBillsReportView } from './reports/ClosedBillsReportView';
 import { FinancialReportView } from './reports/FinancialReportView';
 import { OpenedBillsReportView } from './reports/OpenedBillsReportView';
 import { UnsettledBillsReportView } from './reports/UnsettledBillsReportView';
+import { RentedItemsReportView } from './reports/RentedItemsReportView';
+import { HeldDocumentsReportView } from './reports/HeldDocumentsReportView';
 import {
   exportFinancialReportToExcel,
   exportOpenedBillsReportToExcel,
   exportUnsettledBillsReportToExcel,
   exportClosedBillsReportToExcel,
   exportGenericReportToExcel,
-  exportMachineReportToExcel
+  exportMachineReportToExcel,
+  exportRentedItemsReportToExcel,
+  exportHeldDocumentsReportToExcel
 } from '../../utils/excelExport';
 
 const REPORTS: {
@@ -51,6 +55,18 @@ const REPORTS: {
     label: 'Closed Bills Report',
     hasStartDate: true,
     hasEndDate: true
+  },
+  {
+    value: 'rented_items',
+    label: 'Rented Items Report',
+    hasStartDate: false,
+    hasEndDate: true
+  },
+  {
+    value: 'held_documents',
+    label: 'Customer Held Documents Report',
+    hasStartDate: false,
+    hasEndDate: false
   },
   {
     value: 'stock_all',
@@ -335,6 +351,16 @@ export function ReportsPage() {
         startDate || report.start_date,
         endDate || report.end_date
       );
+    } else if (activeReportType === 'rented_items') {
+      exportRentedItemsReportToExcel(
+        report.data as any,
+        endDate || report.end_date
+      );
+    } else if (activeReportType === 'held_documents') {
+      exportHeldDocumentsReportToExcel(
+        report.data as any,
+        endDate || report.end_date
+      );
     } else {
       const dateStr = activeMeta.hasStartDate
         ? `${startDate || report.start_date || 'all'}_to_${endDate || report.end_date || 'today'}`
@@ -376,7 +402,9 @@ export function ReportsPage() {
     'financial',
     'opened_bills',
     'unsettled_bills',
-    'closed_bills'
+    'closed_bills',
+    'rented_items',
+    'held_documents'
   ];
 
   return (
@@ -528,6 +556,22 @@ export function ReportsPage() {
             <ClosedBillsReportView
               data={report.data as any}
               startDate={startDate || report.start_date}
+              endDate={endDate || report.end_date}
+            />
+          )}
+
+          {/* Rented Items Report View */}
+          {report && activeReportType === 'rented_items' && (
+            <RentedItemsReportView
+              data={report.data as any}
+              endDate={endDate || report.end_date}
+            />
+          )}
+
+          {/* Customer Held Documents Report View */}
+          {report && activeReportType === 'held_documents' && (
+            <HeldDocumentsReportView
+              data={report.data as any}
               endDate={endDate || report.end_date}
             />
           )}
