@@ -358,7 +358,8 @@ export function QuickRental({ onGenerateBill, onCancel }: QuickRentalProps) {
         }
         return apiItem;
       }),
-      payment_method: paymentMethod,
+      payment_method:
+        paymentMethod === 'transfer' ? 'bank_transfer' : (paymentMethod || 'cash'),
       discount: 0
     };
     // Only send bill_number if user entered one

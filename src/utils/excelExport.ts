@@ -92,9 +92,53 @@ export function exportFinancialReportToExcel(
   if (data.rental_income != null) {
     summaryRows.push(['Rental Income', parseNum(data.rental_income)]);
   }
+  if (data.total_closed_bill_profit != null || data['total closed bill profit'] != null) {
+    summaryRows.push(['Closed Bill Profit', parseNum(data.total_closed_bill_profit ?? data['total closed bill profit'])]);
+  }
+  if (data.total_money != null) {
+    summaryRows.push(['Cash Register Total Money', parseNum(data.total_money)]);
+  }
+
+  const totalCash = parseNum(data.total_cash ?? data.payment_methods?.cash?.total_in ?? data.payment_methods?.cash?.total_amount);
+  const totalCard = parseNum(data.total_card ?? data.payment_methods?.card?.total_in ?? data.payment_methods?.card?.total_amount);
+  const totalBank = parseNum(data.total_bank_transfer ?? data.payment_methods?.bank_transfer?.total_in ?? data.payment_methods?.bank_transfer?.total_amount);
+
+  if (totalCash > 0 || totalCard > 0 || totalBank > 0) {
+    summaryRows.push([]);
+    summaryRows.push(['PAYMENT METHOD TOTALS', 'INFLOW (LKR)']);
+    summaryRows.push(['Total Cash', totalCash]);
+    summaryRows.push(['Total Card', totalCard]);
+    summaryRows.push(['Total Bank Transfer', totalBank]);
+  }
 
   const wsSummary = createSheetFromAoa(summaryRows);
   XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+  // Sheet: Payment Methods Breakdown
+  const pmList =
+    Array.isArray(data.payment_methods_breakdown) && data.payment_methods_breakdown.length > 0
+      ? data.payment_methods_breakdown
+      : data.payment_methods && typeof data.payment_methods === 'object'
+      ? ['cash', 'card', 'bank_transfer']
+          .map((k) => data.payment_methods![k])
+          .filter(Boolean)
+      : [];
+
+  if (pmList.length > 0) {
+    const pmRows: any[][] = [
+      ['Payment Method', 'Sales In', 'Deposits In', 'Total Money In', 'Refunds Out', 'Net Flow'],
+      ...pmList.map((pm: any) => {
+        const s = parseNum(pm.sales);
+        const d = parseNum(pm.deposits);
+        const tIn = parseNum(pm.total_in ?? pm.total_amount);
+        const rOut = parseNum(pm.refunds ?? pm.total_out);
+        const net = parseNum(pm.net ?? tIn - rOut);
+        return [pm.name, s, d, tIn, rOut, net];
+      })
+    ];
+    const wsPaymentMethods = createSheetFromAoa(pmRows);
+    XLSX.utils.book_append_sheet(wb, wsPaymentMethods, 'Payment Methods');
+  }
 
   // Sheet 2: Breakdown by Source
   if (Array.isArray(data.breakdown) && data.breakdown.length > 0) {

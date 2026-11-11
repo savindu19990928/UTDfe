@@ -144,7 +144,8 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
             }
             return apiItem;
           }),
-        payment_method: rentalPaymentMethod,
+        payment_method:
+          rentalPaymentMethod === 'transfer' ? 'bank_transfer' : (rentalPaymentMethod || 'cash'),
         // The API stores the discount as an amount, not a percentage.
         discount: discountAmount.toFixed(2)
       };
@@ -262,7 +263,8 @@ export function Cart({ onGenerateBill, onContinueShopping }: CartProps) {
             quantity: item.quantity,
             product: parseInt(item.product.id)
           })),
-        payment_method: paymentMethod
+        payment_method:
+          paymentMethod === 'transfer' ? 'bank_transfer' : (paymentMethod || 'cash')
       };
       try {
         const res = await fetch(`${API_URL}sales/`, {

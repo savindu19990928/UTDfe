@@ -102,6 +102,8 @@ export function RentalBillTemplate({ bill }: {bill: Bill;}) {
   bill.paymentMethod === 'transfer' ||
   bill.paymentMethod === 'bank_transfer' ?
   'BANK TRANSFER' :
+  bill.paymentMethod === 'mixed' ?
+  'MIXED' :
   'CASH';
   // Helper to split a number into rupees and cents
   const splitPrice = (amount: number) => {
@@ -469,8 +471,10 @@ export function SaleBillTemplate({ bill }: {bill: Bill;}) {
   const paymentLabel =
   bill.paymentMethod === 'card' ?
   'Card' :
-  bill.paymentMethod === 'bank_transfer' ?
+  bill.paymentMethod === 'bank_transfer' || bill.paymentMethod === 'transfer' ?
   'Bank Transfer' :
+  bill.paymentMethod === 'mixed' ?
+  'Mixed' :
   'Cash';
   // Return state is derived from how much of each line item came back
   const totalQty = bill.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);

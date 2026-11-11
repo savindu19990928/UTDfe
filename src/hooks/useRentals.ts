@@ -91,11 +91,14 @@ function mapRentalItem(raw: any): CartItem {
 }
 
 function mapDepositTransaction(raw: any): DepositEntry & {type?: string;} {
+  const pm = raw.payment_method || 'cash';
   return {
     amount: parseFloat(raw.amount ?? 0),
     date: raw.transaction_date || '',
     note:
-    raw.notes || (raw.transaction_type === 'deposit' ? 'Deposit' : 'Refund')
+    raw.notes || (raw.transaction_type === 'deposit' ? 'Deposit' : 'Refund'),
+    paymentMethod: pm,
+    payment_method: pm
   };
 }
 
@@ -116,6 +119,22 @@ function mapApiRental(raw: any): Bill {
   map(mapDepositTransaction);
 
   const fines = (raw.fines || []).map(mapRentalFine);
+
+  const depositMethods = new Set(
+    deposits
+      .map((d: any) => d.paymentMethod || d.payment_method)
+      .filter(Boolean)
+  );
+
+  let billPaymentMethod: Bill['paymentMethod'] = raw.payment_method as Bill['paymentMethod'];
+  if (raw.payment_method === 'mixed' || depositMethods.size > 1) {
+    billPaymentMethod = 'mixed';
+  } else if (!billPaymentMethod && depositMethods.size === 1) {
+    billPaymentMethod = Array.from(depositMethods)[0] as Bill['paymentMethod'];
+  }
+  if (!billPaymentMethod) {
+    billPaymentMethod = 'cash';
+  }
 
   const totalDeposit = parseFloat(raw.total_deposit ?? 0);
   const totalRentalFee = parseFloat(raw.total_rental_fee ?? 0);
@@ -156,7 +175,7 @@ function mapApiRental(raw: any): Bill {
     tax: 0,
     total: totalRentalFee,
     type: 'invoice',
-    paymentMethod: raw.payment_method as Bill['paymentMethod'] || 'cash',
+    paymentMethod: billPaymentMethod,
     deposit: totalDeposit,
     depositHistory: deposits,
     fines,
@@ -350,7 +369,6 @@ export function useRentals(options?: UseRentalsOptions): UseRentalsReturn {
   const refreshRental = useCallback(
     async (apiId?: number | null): Promise<Bill | null> => {
       if (!apiId) return null;
-      beginRefresh();
       try {
         const res = await fetch(`${API_URL}rentals/${apiId}/`, {
           headers: {
@@ -360,18 +378,54 @@ export function useRentals(options?: UseRentalsOptions): UseRentalsReturn {
         });
         if (!res.ok) throw new Error(`Failed to refresh bill (${res.status})`);
         const mapped = mapApiRental(await res.json());
-        setRentals((prev) =>
-        prev.map((b) => b.apiId === apiId || b.id === mapped.id ? mapped : b)
-        );
+        setRentals((prev) => {
+          const oldBill = prev.find((b) => b.apiId === apiId || b.id === mapped.id);
+          const next = prev.map((b) => b.apiId === apiId || b.id === mapped.id ? mapped : b);
+
+          if (oldBill && oldBill.rentalStatus !== mapped.rentalStatus) {
+            setStats((prevStats) => {
+              const updatedStats = { ...prevStats };
+              if (oldBill.rentalStatus === 'open' && updatedStats.open != null) {
+                updatedStats.open = Math.max(0, updatedStats.open - 1);
+              }
+              if (mapped.rentalStatus === 'closed') {
+                updatedStats.closed = (updatedStats.closed != null ? updatedStats.closed : 0) + 1;
+              } else if (mapped.rentalStatus === 'partially_closed') {
+                updatedStats.returned = (updatedStats.returned != null ? updatedStats.returned : 0) + 1;
+              }
+              return updatedStats;
+            });
+          }
+
+          let baseUrl = `${API_URL}rentals/`;
+          const params = new URLSearchParams();
+          params.append('page', currentPage.toString());
+          params.append('page_size', pageSize.toString());
+          if (debouncedSearch && debouncedSearch.trim()) {
+            params.append('search', debouncedSearch.trim());
+          }
+          if (status && status !== 'all') {
+            params.append('status', status);
+          }
+          baseUrl += `?${params.toString()}`;
+          const cacheKey = `rentals:${baseUrl}`;
+          const cached = getCached<any>(cacheKey);
+          if (cached) {
+            setCache(cacheKey, {
+              ...cached,
+              rentals: next
+            });
+          }
+
+          return next;
+        });
         return mapped;
       } catch (err) {
         console.error('Rental refresh error:', err);
         return null;
-      } finally {
-        endRefresh();
       }
     },
-    [beginRefresh, endRefresh]
+    [currentPage, pageSize, debouncedSearch, status]
   );
 
   useEffect(() => {

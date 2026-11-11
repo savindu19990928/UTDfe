@@ -95,8 +95,11 @@ Provides a complete financial audit within the given date range (`start_date 00:
 8. **Itemized Expenses (`expenses` / `detailed_expenses`):** Full list of expenses with description, amount, timestamp, created by staff username, and cash register ID.
 9. **Total Closed Bill Profit (`total_closed_bill_profit`):** Sum of net profit (`rental_fee + fines`) from all rental bills closed on or before `end_date`.
 10. **Cash Register Total Money (`total_money`):** Current net balance in the active cash register (`opening_balance + total_cash_in - total_cash_out`).
-11. **Breakdown (`breakdown`):** Aggregation grouped by transaction source (e.g., Sale, Sale Refund, Rental Deposit, Rental Refund, Expense, etc.).
-12. **Transactions (`transactions`):** Full list of individual cash transactions with timestamps, sources, amounts, notes, and staff usernames.
+11. **Payment Methods Breakdown (`payment_methods`):** Complete breakdown by payment method (`cash`, `card`, `bank_transfer`), detailing `sales`, `deposits`, `refunds`, `total_amount` (`total_in`), `total_out`, `net`, and formatted values.
+12. **Payment Method Inflow Totals (`total_cash`, `total_card`, `total_bank_transfer`):** Total amount received (`sales + deposits`) per payment method within the date range.
+13. **Payment Methods List (`payment_methods_breakdown`):** Array format of payment method summaries for tables and client-side iterations.
+14. **Breakdown (`breakdown`):** Aggregation grouped by transaction source (e.g., Sale, Sale Refund, Rental Deposit, Rental Refund, Expense, etc.).
+15. **Transactions (`transactions`):** Full list of individual cash transactions with timestamps, sources, amounts, notes, and staff usernames.
 
 #### Example Request
 ```http
@@ -139,6 +142,112 @@ Authorization: Bearer <JWT_ACCESS_TOKEN>
     "total_refund_given_formatted": "284,512.00",
     "total_fines_collected_formatted": "2,500.00",
     "total_money": 450000.00,
+    "total_cash": 450000.00,
+    "total_card": 125000.00,
+    "total_bank_transfer": 97046.00,
+    "total_cash_formatted": "450,000.00",
+    "total_card_formatted": "125,000.00",
+    "total_bank_transfer_formatted": "97,046.00",
+    "payment_methods": {
+      "cash": {
+        "name": "Cash",
+        "sales": 35000.00,
+        "deposits": 415000.00,
+        "refunds": 240000.00,
+        "total_amount": 450000.00,
+        "total_in": 450000.00,
+        "total_out": 240000.00,
+        "net": 210000.00,
+        "sales_formatted": "35,000.00",
+        "deposits_formatted": "415,000.00",
+        "refunds_formatted": "240,000.00",
+        "total_amount_formatted": "450,000.00",
+        "total_in_formatted": "450,000.00",
+        "net_formatted": "210,000.00"
+      },
+      "card": {
+        "name": "Card",
+        "sales": 10000.00,
+        "deposits": 115000.00,
+        "refunds": 44512.00,
+        "total_amount": 125000.00,
+        "total_in": 125000.00,
+        "total_out": 44512.00,
+        "net": 80488.00,
+        "sales_formatted": "10,000.00",
+        "deposits_formatted": "115,000.00",
+        "refunds_formatted": "44,512.00",
+        "total_amount_formatted": "125,000.00",
+        "total_in_formatted": "125,000.00",
+        "net_formatted": "80,488.00"
+      },
+      "bank_transfer": {
+        "name": "Bank Transfer",
+        "sales": 0.00,
+        "deposits": 97046.00,
+        "refunds": 0.00,
+        "total_amount": 97046.00,
+        "total_in": 97046.00,
+        "total_out": 0.00,
+        "net": 97046.00,
+        "sales_formatted": "0.00",
+        "deposits_formatted": "97,046.00",
+        "refunds_formatted": "0.00",
+        "total_amount_formatted": "97,046.00",
+        "total_in_formatted": "97,046.00",
+        "net_formatted": "97,046.00"
+      }
+    },
+    "payment_methods_breakdown": [
+      {
+        "name": "Cash",
+        "sales": 35000.00,
+        "deposits": 415000.00,
+        "refunds": 240000.00,
+        "total_amount": 450000.00,
+        "total_in": 450000.00,
+        "total_out": 240000.00,
+        "net": 210000.00,
+        "sales_formatted": "35,000.00",
+        "deposits_formatted": "415,000.00",
+        "refunds_formatted": "240,000.00",
+        "total_amount_formatted": "450,000.00",
+        "total_in_formatted": "450,000.00",
+        "net_formatted": "210,000.00"
+      },
+      {
+        "name": "Card",
+        "sales": 10000.00,
+        "deposits": 115000.00,
+        "refunds": 44512.00,
+        "total_amount": 125000.00,
+        "total_in": 125000.00,
+        "total_out": 44512.00,
+        "net": 80488.00,
+        "sales_formatted": "10,000.00",
+        "deposits_formatted": "115,000.00",
+        "refunds_formatted": "44,512.00",
+        "total_amount_formatted": "125,000.00",
+        "total_in_formatted": "125,000.00",
+        "net_formatted": "80,488.00"
+      },
+      {
+        "name": "Bank Transfer",
+        "sales": 0.00,
+        "deposits": 97046.00,
+        "refunds": 0.00,
+        "total_amount": 97046.00,
+        "total_in": 97046.00,
+        "total_out": 0.00,
+        "net": 97046.00,
+        "sales_formatted": "0.00",
+        "deposits_formatted": "97,046.00",
+        "refunds_formatted": "0.00",
+        "total_amount_formatted": "97,046.00",
+        "total_in_formatted": "97,046.00",
+        "net_formatted": "97,046.00"
+      }
+    ],
     "total_closed_bill_profit": 1089160.00,
     "total closed bill profit": 1089160.00,
     "sale_income": 45000.00,

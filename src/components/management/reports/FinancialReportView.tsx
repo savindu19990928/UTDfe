@@ -8,12 +8,16 @@ import {
   Wallet,
   AlertCircle,
   Receipt,
-  Search
+  Search,
+  CreditCard,
+  Landmark,
+  CircleDollarSign
 } from 'lucide-react';
 import {
   FinancialReportData,
   FinancialBreakdownItem,
-  FinancialExpenseItem
+  FinancialExpenseItem,
+  PaymentMethodBreakdownItem
 } from '../../../types/reports';
 import { formatPrice } from '../../../utils/format';
 
@@ -27,6 +31,17 @@ function parseAmount(val: any): number {
   if (typeof val === 'number') return isNaN(val) ? 0 : val;
   if (val == null || val === '') return 0;
   return parseFloat(String(val).replace(/[^0-9.-]/g, '')) || 0;
+}
+
+function getPaymentMethodIcon(name: string) {
+  const lower = name.toLowerCase();
+  if (lower.includes('card')) {
+    return <CreditCard className="w-4 h-4 text-blue-600" />;
+  }
+  if (lower.includes('bank') || lower.includes('transfer')) {
+    return <Landmark className="w-4 h-4 text-indigo-600" />;
+  }
+  return <Banknote className="w-4 h-4 text-emerald-600" />;
 }
 
 export function FinancialReportView({
@@ -115,6 +130,127 @@ export function FinancialReportView({
       );
     });
   }, [transactions, txnSearch]);
+
+  // Payment Methods Data
+  const paymentMethodsBreakdown: PaymentMethodBreakdownItem[] = useMemo(() => {
+    if (
+      Array.isArray(data?.payment_methods_breakdown) &&
+      data.payment_methods_breakdown.length > 0
+    ) {
+      return data.payment_methods_breakdown;
+    }
+    if (data?.payment_methods && typeof data.payment_methods === 'object') {
+      const pm = data.payment_methods;
+      const list: PaymentMethodBreakdownItem[] = [];
+      const order = ['cash', 'card', 'bank_transfer'];
+      for (const k of order) {
+        if (pm[k]) {
+          list.push(pm[k]!);
+        }
+      }
+      for (const [k, v] of Object.entries(pm)) {
+        if (!order.includes(k) && v) {
+          list.push(v);
+        }
+      }
+      if (list.length > 0) return list;
+    }
+
+    // Synthesize from total_cash, total_card, total_bank_transfer if present
+    const cashVal = parseAmount(data?.total_cash);
+    const cardVal = parseAmount(data?.total_card);
+    const bankVal = parseAmount(data?.total_bank_transfer);
+    if (cashVal > 0 || cardVal > 0 || bankVal > 0) {
+      return [
+        {
+          name: 'Cash',
+          sales: 0,
+          deposits: 0,
+          refunds: 0,
+          total_amount: cashVal,
+          total_in: cashVal,
+          total_out: 0,
+          net: cashVal
+        },
+        {
+          name: 'Card',
+          sales: 0,
+          deposits: 0,
+          refunds: 0,
+          total_amount: cardVal,
+          total_in: cardVal,
+          total_out: 0,
+          net: cardVal
+        },
+        {
+          name: 'Bank Transfer',
+          sales: 0,
+          deposits: 0,
+          refunds: 0,
+          total_amount: bankVal,
+          total_in: bankVal,
+          total_out: 0,
+          net: bankVal
+        }
+      ];
+    }
+    return [];
+  }, [data]);
+
+  const cashItem = useMemo(() => {
+    return (
+      data?.payment_methods?.cash ||
+      paymentMethodsBreakdown.find((m) => m.name.toLowerCase() === 'cash')
+    );
+  }, [data, paymentMethodsBreakdown]);
+
+  const cardItem = useMemo(() => {
+    return (
+      data?.payment_methods?.card ||
+      paymentMethodsBreakdown.find((m) => m.name.toLowerCase() === 'card')
+    );
+  }, [data, paymentMethodsBreakdown]);
+
+  const bankItem = useMemo(() => {
+    return (
+      data?.payment_methods?.bank_transfer ||
+      paymentMethodsBreakdown.find(
+        (m) =>
+          m.name.toLowerCase().includes('bank') ||
+          m.name.toLowerCase().includes('transfer')
+      )
+    );
+  }, [data, paymentMethodsBreakdown]);
+
+  const totalCashNum = parseAmount(
+    data?.total_cash ?? cashItem?.total_in ?? cashItem?.total_amount
+  );
+  const totalCardNum = parseAmount(
+    data?.total_card ?? cardItem?.total_in ?? cardItem?.total_amount
+  );
+  const totalBankNum = parseAmount(
+    data?.total_bank_transfer ?? bankItem?.total_in ?? bankItem?.total_amount
+  );
+
+  const pmTableTotals = useMemo(() => {
+    return paymentMethodsBreakdown.reduce(
+      (acc, item) => {
+        const sales = parseAmount(item.sales);
+        const deposits = parseAmount(item.deposits);
+        const totalIn = parseAmount(item.total_in ?? item.total_amount);
+        const refunds = parseAmount(item.refunds ?? item.total_out);
+        const net = parseAmount(item.net ?? (totalIn - refunds));
+        return {
+          sales: acc.sales + sales,
+          deposits: acc.deposits + deposits,
+          totalIn: acc.totalIn + totalIn,
+          refunds: acc.refunds + refunds,
+          net: acc.net + net
+        };
+      },
+      { sales: 0, deposits: 0, totalIn: 0, refunds: 0, net: 0 }
+    );
+  }, [paymentMethodsBreakdown]);
 
   const dateRangeLabel =
     startDate || endDate || data?.start_date || data?.end_date
@@ -256,6 +392,345 @@ export function FinancialReportView({
             {expensesCount} expense{expensesCount !== 1 ? 's' : ''} paid within date range
           </p>
         </div>
+      </div>
+
+      {/* Optional KPIs: Closed Bill Profit & Cash Register Total Money */}
+      {(data?.total_closed_bill_profit != null ||
+        data?.['total closed bill profit'] != null ||
+        data?.total_money != null) && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {(data?.total_closed_bill_profit != null ||
+              data?.['total closed bill profit'] != null) && (
+                <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                      Total Closed Bill Profit
+                    </span>
+                    <div className="text-xl font-black text-slate-800 mt-0.5">
+                      {formatPrice(
+                        parseAmount(
+                          data.total_closed_bill_profit ??
+                          data['total closed bill profit']
+                        )
+                      )}
+                    </div>
+                    <p className="text-[11px] text-gray-400">
+                      Rental fees + fines profit from bills closed on or before end date
+                    </p>
+                  </div>
+                  <div className="p-2.5 bg-slate-100 text-slate-700 rounded-lg">
+                    <CircleDollarSign className="w-5 h-5 text-emerald-600" />
+                  </div>
+                </div>
+              )}
+            {data?.total_money != null && (
+              <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                    Cash Register Total Money
+                  </span>
+                  <div className="text-xl font-black text-emerald-700 mt-0.5">
+                    {formatPrice(parseAmount(data.total_money))}
+                  </div>
+                  <p className="text-[11px] text-gray-400">
+                    Current net balance in active cash register
+                  </p>
+                </div>
+                <div className="p-2.5 bg-emerald-50 text-emerald-700 rounded-lg">
+                  <Wallet className="w-5 h-5 text-emerald-600" />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+      {/* Row 3: Payment Methods Overview (Cash, Card, Bank Transfer) */}
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-[#f5a623]" />
+              Payment Methods Breakdown
+            </h3>
+          </div>
+          {(totalCashNum > 0 || totalCardNum > 0 || totalBankNum > 0) && totalInNum > 0 && (
+            <div className="flex items-center gap-2 text-xs font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full self-start sm:self-auto">
+              <span>Share:</span>
+              <span className="text-emerald-700 font-bold">
+                Cash {Math.round((totalCashNum / totalInNum) * 100)}%
+              </span>
+              <span>·</span>
+              <span className="text-blue-700 font-bold">
+                Card {Math.round((totalCardNum / totalInNum) * 100)}%
+              </span>
+              <span>·</span>
+              <span className="text-indigo-700 font-bold">
+                Bank {Math.round((totalBankNum / totalInNum) * 100)}%
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* 3 Channel Cards: Cash, Card, Bank Transfer */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* 1. Cash Card */}
+          <div className="bg-white rounded-xl p-5 border border-emerald-200 shadow-sm relative overflow-hidden bg-gradient-to-br from-white to-emerald-50/30">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Banknote className="w-4 h-4 text-emerald-600" />
+                Cash
+              </span>
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                Inflow: {formatPrice(totalCashNum)}
+              </span>
+            </div>
+            <div className="text-2xl font-black text-emerald-700">
+              {formatPrice(totalCashNum)}
+            </div>
+            <p className="text-xs text-emerald-600/80 mt-1 mb-3">
+              Total Cash Inflow (Sales + Deposits)
+            </p>
+            <div className="border-t border-emerald-100 pt-2.5 space-y-1 text-xs">
+              <div className="flex justify-between text-gray-600">
+                <span>Sales:</span>
+                <span className="font-semibold text-gray-800">
+                  {formatPrice(parseAmount(cashItem?.sales))}
+                </span>
+              </div>
+              <div className="flex justify-between text-gray-600">
+                <span>Deposits:</span>
+                <span className="font-semibold text-gray-800">
+                  {formatPrice(parseAmount(cashItem?.deposits))}
+                </span>
+              </div>
+              <div className="flex justify-between text-gray-600">
+                <span>Refunds Given:</span>
+                <span className="font-semibold text-rose-600">
+                  {formatPrice(
+                    parseAmount(cashItem?.refunds ?? cashItem?.total_out)
+                  )}
+                </span>
+              </div>
+              <div className="flex justify-between font-bold border-t border-emerald-100/60 pt-1 text-emerald-900">
+                <span>Net Cash:</span>
+                <span>
+                  {formatPrice(
+                    parseAmount(
+                      cashItem?.net ??
+                      totalCashNum - parseAmount(cashItem?.refunds)
+                    )
+                  )}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Card Card */}
+          <div className="bg-white rounded-xl p-5 border border-blue-200 shadow-sm relative overflow-hidden bg-gradient-to-br from-white to-blue-50/30">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-blue-800 uppercase tracking-wider flex items-center gap-1.5">
+                <CreditCard className="w-4 h-4 text-blue-600" />
+                Card
+              </span>
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                Inflow: {formatPrice(totalCardNum)}
+              </span>
+            </div>
+            <div className="text-2xl font-black text-blue-700">
+              {formatPrice(totalCardNum)}
+            </div>
+            <p className="text-xs text-blue-600/80 mt-1 mb-3">
+              Total Card Inflow (Sales + Deposits)
+            </p>
+            <div className="border-t border-blue-100 pt-2.5 space-y-1 text-xs">
+              <div className="flex justify-between text-gray-600">
+                <span>Sales:</span>
+                <span className="font-semibold text-gray-800">
+                  {formatPrice(parseAmount(cardItem?.sales))}
+                </span>
+              </div>
+              <div className="flex justify-between text-gray-600">
+                <span>Deposits:</span>
+                <span className="font-semibold text-gray-800">
+                  {formatPrice(parseAmount(cardItem?.deposits))}
+                </span>
+              </div>
+              <div className="flex justify-between text-gray-600">
+                <span>Refunds Given:</span>
+                <span className="font-semibold text-rose-600">
+                  {formatPrice(
+                    parseAmount(cardItem?.refunds ?? cardItem?.total_out)
+                  )}
+                </span>
+              </div>
+              <div className="flex justify-between font-bold border-t border-blue-100/60 pt-1 text-blue-900">
+                <span>Net Card:</span>
+                <span>
+                  {formatPrice(
+                    parseAmount(
+                      cardItem?.net ??
+                      totalCardNum - parseAmount(cardItem?.refunds)
+                    )
+                  )}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 3. Bank Transfer Card */}
+          <div className="bg-white rounded-xl p-5 border border-indigo-200 shadow-sm relative overflow-hidden bg-gradient-to-br from-white to-indigo-50/30">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-indigo-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Landmark className="w-4 h-4 text-indigo-600" />
+                Bank Transfer
+              </span>
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
+                Inflow: {formatPrice(totalBankNum)}
+              </span>
+            </div>
+            <div className="text-2xl font-black text-indigo-700">
+              {formatPrice(totalBankNum)}
+            </div>
+            <p className="text-xs text-indigo-600/80 mt-1 mb-3">
+              Total Bank Inflow (Sales + Deposits)
+            </p>
+            <div className="border-t border-indigo-100 pt-2.5 space-y-1 text-xs">
+              <div className="flex justify-between text-gray-600">
+                <span>Sales:</span>
+                <span className="font-semibold text-gray-800">
+                  {formatPrice(parseAmount(bankItem?.sales))}
+                </span>
+              </div>
+              <div className="flex justify-between text-gray-600">
+                <span>Deposits:</span>
+                <span className="font-semibold text-gray-800">
+                  {formatPrice(parseAmount(bankItem?.deposits))}
+                </span>
+              </div>
+              <div className="flex justify-between text-gray-600">
+                <span>Refunds Given:</span>
+                <span className="font-semibold text-rose-600">
+                  {formatPrice(
+                    parseAmount(bankItem?.refunds ?? bankItem?.total_out)
+                  )}
+                </span>
+              </div>
+              <div className="flex justify-between font-bold border-t border-indigo-100/60 pt-1 text-indigo-900">
+                <span>Net Transfer:</span>
+                <span>
+                  {formatPrice(
+                    parseAmount(
+                      bankItem?.net ??
+                      totalBankNum - parseAmount(bankItem?.refunds)
+                    )
+                  )}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Detailed Payment Methods Breakdown Table */}
+        {paymentMethodsBreakdown.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-3.5 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-[#f5a623]" />
+                Payment Methods Table
+              </h3>
+              <span className="text-xs text-gray-500 font-medium">
+                {paymentMethodsBreakdown.length} channels recorded
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50/50 text-[11px] font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                    <th className="py-2.5 px-4 w-10 text-center">#</th>
+                    <th className="py-2.5 px-4">Payment Method</th>
+                    <th className="py-2.5 px-4 text-right">Sales</th>
+                    <th className="py-2.5 px-4 text-right">Deposits</th>
+                    <th className="py-2.5 px-4 text-right">Total Money In</th>
+                    <th className="py-2.5 px-4 text-right">Refunds (Out)</th>
+                    <th className="py-2.5 px-4 text-right">Net Flow</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {paymentMethodsBreakdown.map((item, idx) => {
+                    const sales = parseAmount(item.sales);
+                    const deposits = parseAmount(item.deposits);
+                    const totalIn = parseAmount(
+                      item.total_in ?? item.total_amount
+                    );
+                    const refunds = parseAmount(item.refunds ?? item.total_out);
+                    const net = parseAmount(item.net ?? totalIn - refunds);
+
+                    return (
+                      <tr
+                        key={idx}
+                        className={`${idx % 2 === 1 ? 'bg-gray-50/40' : 'bg-white'
+                          } hover:bg-orange-50/30 transition-colors`}>
+                        <td className="py-2.5 px-4 text-center text-xs text-gray-400 font-mono">
+                          {idx + 1}
+                        </td>
+                        <td className="py-2.5 px-4 font-semibold text-slate-800 flex items-center gap-2">
+                          {getPaymentMethodIcon(item.name)}
+                          <span>{item.name}</span>
+                        </td>
+                        <td className="py-2.5 px-4 text-right font-medium text-slate-700 tabular-nums">
+                          {sales > 0 ? formatPrice(sales) : '-'}
+                        </td>
+                        <td className="py-2.5 px-4 text-right font-medium text-blue-700 tabular-nums">
+                          {deposits > 0 ? formatPrice(deposits) : '-'}
+                        </td>
+                        <td className="py-2.5 px-4 text-right font-bold text-emerald-700 tabular-nums">
+                          {totalIn > 0 ? formatPrice(totalIn) : '-'}
+                        </td>
+                        <td className="py-2.5 px-4 text-right font-medium text-rose-700 tabular-nums">
+                          {refunds > 0 ? formatPrice(refunds) : '-'}
+                        </td>
+                        <td
+                          className={`py-2.5 px-4 text-right font-black tabular-nums ${net >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                            }`}>
+                          {formatPrice(net)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-slate-50 font-bold text-slate-800 border-t-2 border-gray-200 text-xs">
+                    <td
+                      colSpan={2}
+                      className="py-3 px-4 text-right uppercase tracking-wider text-slate-600">
+                      Total Across Payment Methods:
+                    </td>
+                    <td className="py-3 px-4 text-right text-slate-700 tabular-nums">
+                      {formatPrice(pmTableTotals.sales)}
+                    </td>
+                    <td className="py-3 px-4 text-right text-blue-700 tabular-nums">
+                      {formatPrice(pmTableTotals.deposits)}
+                    </td>
+                    <td className="py-3 px-4 text-right text-emerald-700 tabular-nums">
+                      {formatPrice(pmTableTotals.totalIn)}
+                    </td>
+                    <td className="py-3 px-4 text-right text-rose-700 tabular-nums">
+                      {formatPrice(pmTableTotals.refunds)}
+                    </td>
+                    <td
+                      className={`py-3 px-4 text-right font-black tabular-nums ${pmTableTotals.net >= 0
+                          ? 'text-slate-900'
+                          : 'text-rose-700'
+                        }`}>
+                      {formatPrice(pmTableTotals.net)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Cash Flow Breakdown Table */}

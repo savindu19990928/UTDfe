@@ -54,6 +54,30 @@ export interface ClosedBillsReportData {
   detailed_bills?: ClosedBill[];
 }
 
+export interface PaymentMethodBreakdownItem {
+  name: string;
+  sales: string | number;
+  deposits: string | number;
+  refunds: string | number;
+  total_amount: string | number;
+  total_in?: string | number;
+  total_out?: string | number;
+  net: string | number;
+  sales_formatted?: string;
+  deposits_formatted?: string;
+  refunds_formatted?: string;
+  total_amount_formatted?: string;
+  total_in_formatted?: string;
+  net_formatted?: string;
+}
+
+export interface PaymentMethodsMap {
+  cash?: PaymentMethodBreakdownItem;
+  card?: PaymentMethodBreakdownItem;
+  bank_transfer?: PaymentMethodBreakdownItem;
+  [key: string]: PaymentMethodBreakdownItem | undefined;
+}
+
 export interface FinancialBreakdownItem {
   source: string;
   in: string | number;
@@ -101,6 +125,14 @@ export interface FinancialReportData {
   total_refund_given_formatted?: string;
   total_fines_collected_formatted?: string;
   total_money?: string | number;
+  total_cash?: string | number;
+  total_card?: string | number;
+  total_bank_transfer?: string | number;
+  total_cash_formatted?: string;
+  total_card_formatted?: string;
+  total_bank_transfer_formatted?: string;
+  payment_methods?: PaymentMethodsMap;
+  payment_methods_breakdown?: PaymentMethodBreakdownItem[];
   sale_income?: string | number;
   rental_income?: string | number;
   rental_deposit_non_closed?: string | number;

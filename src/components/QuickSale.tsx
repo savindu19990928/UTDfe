@@ -217,7 +217,8 @@ export function QuickSale({ onGenerateBill, onCancel }: QuickSaleProps) {
       })),
       total_amount: subtotal.toFixed(2),
       final_amount: total.toFixed(2),
-      payment_method: paymentMethod,
+      payment_method:
+        paymentMethod === 'transfer' ? 'bank_transfer' : (paymentMethod || 'cash'),
       // The API stores the discount as an amount, not a percentage.
       discount: discountAmount.toFixed(2),
       customer_name: customerName.trim() || undefined

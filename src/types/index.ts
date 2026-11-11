@@ -119,10 +119,19 @@ export type Expense = {
   created_by_name?: string;
 };
 
+export type PaymentMethod =
+  | 'cash'
+  | 'card'
+  | 'bank_transfer'
+  | 'transfer'
+  | 'mixed';
+
 export type DepositEntry = {
   amount: number;
   date: string;
   note?: string;
+  paymentMethod?: PaymentMethod;
+  payment_method?: string;
 };
 
 export type RentalFine = {
@@ -163,7 +172,7 @@ export type Bill = {
   tax: number;
   total: number;
   type: 'invoice';
-  paymentMethod?: 'cash' | 'card' | 'bank_transfer' | 'transfer';
+  paymentMethod?: PaymentMethod;
   deposit?: number;
   depositHistory?: DepositEntry[];
   fines?: RentalFine[];

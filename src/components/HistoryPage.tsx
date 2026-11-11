@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import {
   ShoppingCart,
   Clock,
@@ -6,7 +6,6 @@ import {
   CheckCircle,
   Calendar,
   Search,
-  Edit,
   Eye,
   Plus,
   X,
@@ -16,22 +15,20 @@ import {
   AlertCircle,
   RefreshCw,
   Undo2,
-  Ban,
   Wrench,
   Trash2
-} from
-  'lucide-react';
-import { Bill, CartItem, Product, CashTransaction } from '../types';
+} from 'lucide-react';
+import { Bill, Product, CashTransaction } from '../types';
 import { useProducts } from '../hooks/useProducts';
 import { useRentals } from '../hooks/useRentals';
 import { useSales } from '../hooks/useSales';
-import { formatPrice, toDiscountPercent, formatQuantity } from '../utils/format';
+import { formatPrice, formatQuantity } from '../utils/format';
 import { API_URL } from '../utils/config';
 import { getAuthHeaders } from '../utils/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clearCache } from '../utils/apiCache';
 import { Pagination } from './Pagination';
-import { BillPrintLayer } from './BillPrintLayer';
+import { RentalBillCard } from './RentalBillCard';
 // Remembers which bill was last touched — and exactly where it sat in the
 // list — so the page can jump straight back to it after the data refreshes
 // or after a full browser refresh.
@@ -133,19 +130,8 @@ export function HistoryPage({
       fine: string;
     }[];
   } | null>(null);
-  const [returnDatePickerKey, setReturnDatePickerKey] = useState<string | null>(
-    null
-  );
-  const [returnDateValue, setReturnDateValue] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  // Optimistic local updates for returned items
-  const [localReturnedItems, setLocalReturnedItems] = useState<Set<string>>(
-    new Set()
-  );
-  const [localReturnedBills, setLocalReturnedBills] = useState<Set<string>>(
-    new Set()
-  );
   // Rental return flow state
   const [returnAllConfirmBill, setReturnAllConfirmBill] = useState<Bill | null>(
     null
@@ -180,54 +166,15 @@ export function HistoryPage({
   const [rentalFilter, setRentalFilter] = useState<RentalFilter>(
     initialFocus?.type === 'rental' ? initialFocus.filter : 'all'
   );
-  // Scroll-back + auto-print for the bill that was just changed
+  // Scroll-back on initial mount if restored from previous session
   const billRefs = useRef<Record<string, HTMLElement | null>>({});
   const [focusBillId, setFocusBillId] = useState<string | null>(
     initialFocus?.id ?? null
   );
-  // Bumped every time a bill should be scrolled into view; the scroll effect
-  // retries until that bill's row actually exists, then marks it served.
-  const [scrollRequest, setScrollRequest] = useState(initialFocus ? 1 : 0);
+  const [scrollRequest] = useState(initialFocus ? 1 : 0);
   const servedScrollRef = useRef(0);
   const [highlightBillId, setHighlightBillId] = useState<string | null>(null);
-  const [pendingPrint, setPendingPrint] = useState<{
-    id: string;
-    type: 'rental' | 'sale';
-    requestedAt: number;
-    fallback: Bill;
-  } | null>(null);
-  const [printBill, setPrintBill] = useState<Bill | null>(null);
-  const handlePrintDone = useCallback(() => setPrintBill(null), []);
-  // Called after every successful change to a bill: remember where it sits in
-  // the list for scroll-back, and (unless suppressed) queue its receipt for
-  // printing once fresh data lands. Returns and fines skip the receipt.
-  const markBillChanged = (
-    bill: Bill,
-    type: 'rental' | 'sale',
-    options?: { print?: boolean; }) => {
-    setFocusBillId(bill.id);
-    setScrollRequest((n) => n + 1);
-    try {
-      const record: FocusRecord = {
-        id: bill.id,
-        type,
-        page: type === 'rental' ? rentalPage : salePage,
-        search: searchQuery,
-        filter: rentalFilter
-      };
-      sessionStorage.setItem(FOCUS_BILL_KEY, JSON.stringify(record));
-    } catch {
 
-      /* storage unavailable — scrolling still works this session */
-    }
-    if (type === 'sale' || options?.print === false) return;
-    setPendingPrint({
-      id: bill.id,
-      type,
-      requestedAt: Date.now(),
-      fallback: bill
-    });
-  };
   // Fetch products from API only when modal is open
   const { products: rentProducts } = useProducts({
     categoryType: 'rent',
@@ -273,14 +220,40 @@ export function HistoryPage({
     enabled: activeTab === 'sales',
     page: initialFocus?.type === 'sale' ? initialFocus.page : undefined
   });
-  // After an edit: pull fresh data for everything in the background, but only
-  // swap in the one bill that changed so the list never reflows or jumps.
+
+  const markBillChanged = useCallback((bill: Bill, type: 'rental' | 'sale') => {
+    setFocusBillId(bill.id);
+    try {
+      const record: FocusRecord = {
+        id: bill.id,
+        type,
+        page: type === 'rental' ? rentalPage : salePage,
+        search: searchQuery,
+        filter: rentalFilter
+      };
+      sessionStorage.setItem(FOCUS_BILL_KEY, JSON.stringify(record));
+    } catch {
+      /* storage unavailable — scrolling still works this session */
+    }
+  }, [rentalPage, salePage, searchQuery, rentalFilter]);
+
+  const [refreshingRentalId, setRefreshingRentalId] = useState<string | null>(null);
+
+  // After an edit: pull fresh data for this bill only and swap it in place
   const refreshChangedRental = useCallback(
     async (bill: Bill) => {
-      clearCache('rentals:');
-      return await refreshRental(bill.apiId);
+      setRefreshingRentalId(bill.id);
+      try {
+        const updated = await refreshRental(bill.apiId);
+        if (updated) {
+          onUpdateBill(updated);
+        }
+        return updated;
+      } finally {
+        setRefreshingRentalId(null);
+      }
     },
-    [refreshRental]
+    [refreshRental, onUpdateBill]
   );
   const refreshChangedSale = useCallback(
     async (bill: Bill) => {
@@ -297,64 +270,7 @@ export function HistoryPage({
       modalSearchRef.current.focus();
     }
   }, [addItemModalBillId, selectedProductForAdd]);
-  // Apply optimistic updates to rental bills
-  const patchedRentalBills = useMemo(() => {
-    if (localReturnedItems.size === 0 && localReturnedBills.size === 0)
-      return apiRentalBills;
-    return apiRentalBills.map((bill) => {
-      const hasLocalUpdates =
-        bill.items.some((_, idx) =>
-          localReturnedItems.has(`${bill.id}-${idx}`)
-        ) || localReturnedBills.has(bill.id);
-      if (!hasLocalUpdates) return bill;
-      const updatedItems = bill.items.map((item, idx) => {
-        if (
-          localReturnedItems.has(`${bill.id}-${idx}`) ||
-          localReturnedBills.has(bill.id) && item.status === 'active') {
-          const now = new Date();
-          return {
-            ...item,
-            status: 'returned' as const,
-            actualReturnDate:
-              item.actualReturnDate || now.toISOString().split('T')[0],
-            actualReturnTime:
-              item.actualReturnTime || now.toTimeString().slice(0, 5)
-          };
-        }
-        return item;
-      });
-      const returnedCount = updatedItems.filter(
-        (i) => i.status === 'returned'
-      ).length;
-      const allReturned = returnedCount === updatedItems.length;
-      // Never auto-close — closing must be done manually
-      let rentalStatus: Bill['rentalStatus'] = bill.rentalStatus || 'open';
-      if (rentalStatus !== 'closed') {
-        if (allReturned || returnedCount > 0) {
-          rentalStatus = 'partially_closed';
-        } else {
-          rentalStatus = 'open';
-        }
-      }
-      return {
-        ...bill,
-        items: updatedItems,
-        rentalStatus
-      };
-    });
-  }, [apiRentalBills, localReturnedItems, localReturnedBills]);
-  // Clear local patches when API data refreshes (the API data will have the real status)
-  useEffect(() => {
-    if (
-      !rentalsLoading && (
-        localReturnedItems.size > 0 || localReturnedBills.size > 0)) {
-      setLocalReturnedItems(new Set());
-      setLocalReturnedBills(new Set());
-    }
-  }, [apiRentalBills]);
-  // Scroll back to the last changed bill once its row is on screen.
-  // Only the active tab's loading matters — the other list's hook stays
-  // "loading" for as long as it is disabled.
+  // Scroll back to the last changed bill on initial mount if restored from session
   useEffect(() => {
     if (!focusBillId || scrollRequest === 0) return;
     if (servedScrollRef.current === scrollRequest) return;
@@ -383,50 +299,46 @@ export function HistoryPage({
     scrollRequest,
     rentalsLoading,
     salesLoading,
-    apiRentalBills,
-    apiSaleBills,
     activeTab]
-  );
-  // Send the changed bill to the printer once fresh data has come back
-  useEffect(() => {
-    if (!pendingPrint) return;
-    const isRental = pendingPrint.type === 'rental';
-    const list = isRental ? apiRentalBills : apiSaleBills;
-    const loading = isRental ?
-      rentalsLoading || rentalsRefreshing :
-      salesLoading || salesRefreshing;
-    const elapsed = Date.now() - pendingPrint.requestedAt;
-    // Give the refetch a moment to start before trusting the current list
-    if ((loading || elapsed < 700) && elapsed < 6000) {
-      const retry = window.setTimeout(
-        () => setPendingPrint((prev) => prev ? { ...prev } : prev),
-        300
-      );
-      return () => window.clearTimeout(retry);
-    }
-    // Fall back to the bill as we knew it if the refreshed page no longer
-    // contains it (e.g. a filter moved it out of view).
-    const found =
-      list.find((b) => b.id === pendingPrint.id) || pendingPrint.fallback;
-    setPendingPrint(null);
-    setPrintBill(found);
-  }, [
-    pendingPrint,
-    apiRentalBills,
-    apiSaleBills,
-    rentalsLoading,
-    salesLoading,
-    rentalsRefreshing,
-    salesRefreshing]
   );
   // Separate bills by type
   const saleBills = apiSaleBills;
-  const rentalBills = patchedRentalBills;
+  const rentalBills = apiRentalBills;
   const filteredRentalBills = rentalBills;
   // Status filtering is performed by the paginated rentals API.
   const displayedRentalBills = filteredRentalBills;
+  // Card-level callbacks for RentalBillCard
+  const handleToggleEdit = useCallback((billId: string) => {
+    setEditingBillId((prev) => (prev === billId ? null : billId));
+    setAddItemModalBillId(null);
+  }, []);
+
+  const handleOpenReturnAll = useCallback((bill: Bill) => {
+    setReturnAllConfirmBill(bill);
+    setReturnPaymentAmount('');
+    setReturnFines([]);
+    setActionError(null);
+  }, []);
+
+  const handleOpenReturnSingle = useCallback((bill: Bill, itemIndex: number) => {
+    const now = new Date();
+    setReturnSingleItemModal({
+      bill,
+      itemIndex,
+      returnDate: now.toISOString().split('T')[0],
+      returnTime: now.toTimeString().slice(0, 5),
+      fines: []
+    });
+    setActionError(null);
+  }, []);
+
+  const handleOpenAddItem = useCallback((bill: Bill) => {
+    setAddItemModalBillId(bill.id);
+    setProductSearch('');
+  }, []);
+
   // Edit handlers
-  const handleReturnItem = async (
+  const handleReturnItem = useCallback(async (
     bill: Bill,
     itemIndex: number,
     returnDate: string,
@@ -502,23 +414,19 @@ export function HistoryPage({
           billId: bill.id
         });
       }
-      // Optimistic local update
-      setLocalReturnedItems((prev) =>
-        new Set(prev).add(`${bill.id}-${itemIndex}`)
-      );
-      // Refresh only this bill on screen; everything else reloads silently
+      // Refresh only this bill on screen
       await refreshChangedRental(bill);
-      // Returns (and any fines added with them) don't print a receipt.
-      markBillChanged(bill, 'rental', { print: false });
+      markBillChanged(bill, 'rental');
     } catch (err: any) {
       setActionError(err.message || 'Failed to return item');
       console.error('Return item error:', err);
     } finally {
       setActionLoading(null);
     }
-  };
+  }, [refreshChangedRental, markBillChanged]);
+
   // Return ALL active items for a rental bill
-  const handleReturnAllItems = async (bill: Bill) => {
+  const handleReturnAllItems = useCallback(async (bill: Bill) => {
     if (!bill.apiId) return;
     const activeItems = bill.items.filter(
       (i) => i.status === 'active' && i.apiItemId
@@ -583,30 +491,33 @@ export function HistoryPage({
           data.all_items_returned ?? data.all_items_being_returned ?? false,
         billId: bill.id
       });
-      // Optimistic local update — mark entire bill as returned
-      setLocalReturnedBills((prev) => new Set(prev).add(bill.id));
-      setEditingBillId(null);
+      setEditingBillId((prev) => (prev === bill.id ? null : prev));
       setReturnAllConfirmBill(null);
       setReturnPaymentAmount('');
       setReturnFines([]);
-      // Refresh only this bill on screen; everything else reloads silently
+      // Refresh only this bill on screen
       await refreshChangedRental(bill);
-      // Returns (and any fines added with them) don't print a receipt.
-      markBillChanged(bill, 'rental', { print: false });
+      markBillChanged(bill, 'rental');
     } catch (err: any) {
       setActionError(err.message || 'Failed to return items');
       console.error('Return all items error:', err);
     } finally {
       setActionLoading(null);
     }
-  };
-  const handleAddDeposit = async (bill: Bill) => {
-    const amount = parseFloat(newDepositAmount);
+  }, [returnPaymentAmount, returnFines, refreshChangedRental, markBillChanged]);
+
+  const handleAddDeposit = useCallback(async (
+    bill: Bill,
+    depositAmount?: number,
+    paymentMethod: string = 'cash'
+  ) => {
+    const amount = depositAmount !== undefined ? depositAmount : parseFloat(newDepositAmount);
     if (isNaN(amount) || amount <= 0 || !bill.apiId) return;
     setActionLoading(`deposit-${bill.id}`);
     setActionError(null);
-    const today = new Date().toISOString().split('T')[0];
     try {
+      const normalizedPm =
+        paymentMethod === 'transfer' ? 'bank_transfer' : (paymentMethod || 'cash');
       const res = await fetch(`${API_URL}rentals/${bill.apiId}/add_deposit/`, {
         method: 'POST',
         headers: {
@@ -615,7 +526,8 @@ export function HistoryPage({
         },
         body: JSON.stringify({
           amount: amount.toFixed(2),
-          notes: 'Additional Deposit'
+          notes: 'Additional Deposit',
+          payment_method: normalizedPm
         })
       });
       if (!res.ok) {
@@ -628,18 +540,19 @@ export function HistoryPage({
         throw new Error(msg);
       }
       setNewDepositAmount('');
-      // Refresh only this bill on screen; everything else reloads silently
+      // Refresh only this bill on screen
       const updatedBill = await refreshChangedRental(bill);
-      markBillChanged(updatedBill || bill, 'rental', { print: false });
+      markBillChanged(updatedBill || bill, 'rental');
     } catch (err: any) {
       setActionError(err.message || 'Failed to add deposit');
       console.error('Add deposit error:', err);
     } finally {
       setActionLoading(null);
     }
-  };
+  }, [newDepositAmount, refreshChangedRental, markBillChanged]);
+
   // Manually close a rental bill (no auto-close)
-  const handleManualClose = async (bill: Bill) => {
+  const handleManualClose = useCallback(async (bill: Bill) => {
     if (!bill.apiId) return;
     setActionLoading(`close-${bill.id}`);
     setActionError(null);
@@ -663,7 +576,8 @@ export function HistoryPage({
           `Failed to close bill (${res.status})`;
         throw new Error(msg);
       }
-      // Refresh only this bill on screen; everything else reloads silently
+      setEditingBillId((prev) => (prev === bill.id ? null : prev));
+      // Refresh only this bill on screen
       const updatedBill = await refreshChangedRental(bill);
       markBillChanged(
         updatedBill || {
@@ -678,7 +592,7 @@ export function HistoryPage({
     } finally {
       setActionLoading(null);
     }
-  };
+  }, [refreshChangedRental, markBillChanged]);
   // Reset the add-item modal back to a clean state
   const resetAddItemModal = () => {
     setAddItemModalBillId(null);
@@ -821,7 +735,7 @@ export function HistoryPage({
       }
       // Refresh only this bill on screen; everything else reloads silently
       const updatedBill = await refreshChangedRental(bill);
-      markBillChanged(updatedBill || bill, 'rental', { print: false });
+      markBillChanged(updatedBill || bill, 'rental');
       resetAddItemModal();
     } catch (err: any) {
       setAddItemError(err.message || 'Failed to add item');
@@ -830,158 +744,7 @@ export function HistoryPage({
       setAddItemLoading(false);
     }
   };
-  const handleCashTransaction = () => {
-    const amount = parseFloat(cashAmount);
-    if (!isNaN(amount) && amount > 0 && showCashModal) {
-      onAddCashTransaction({
-        id: `CT-${Date.now()}`,
-        type: showCashModal,
-        amount,
-        note:
-          cashNote || (showCashModal === 'cash_in' ? 'Cash In' : 'Cash Out'),
-        date: new Date().toLocaleDateString()
-      });
-      setCashAmount('');
-      setCashNote('');
-      setShowCashModal(null);
-    }
-  };
-  const recalcAndUpdate = (
-    bill: Bill,
-    items: CartItem[],
-    depositHistory: Bill['depositHistory']) => {
-    let newSubtotal = 0;
-    let allReturned = true;
-    let anyReturned = false;
-    items.forEach((item) => {
-      if (item.type === 'rent') {
-        const price = item.product.rentPricePerDay || 0;
-        const days = item.rentalDays || 1;
-        newSubtotal +=
-          item.rentalFee !== undefined ?
-            item.rentalFee :
-            price * days * item.quantity;
-        if (item.status === 'active') allReturned = false;
-        if (item.status === 'returned') anyReturned = true;
-      } else {
-        newSubtotal += item.product.salePrice * item.quantity;
-      }
-    });
-    // The discount is stored as a fixed amount; the percentage is derived.
-    const discountAmount = Math.min(bill.discountAmount || 0, newSubtotal);
-    const afterDiscount = newSubtotal - discountAmount;
-    const taxAmount = afterDiscount * 0.08;
-    const newTotal = afterDiscount + taxAmount;
-    const totalDeposit =
-      depositHistory?.reduce((sum, entry) => sum + entry.amount, 0) || 0;
-    // Never auto-close — closing must be done manually
-    let newStatus: Bill['rentalStatus'] = bill.rentalStatus || 'open';
-    if (newStatus !== 'closed') {
-      if (allReturned && items.length > 0) newStatus = 'partially_closed'; else
-        if (anyReturned) newStatus = 'partially_closed'; else
-          newStatus = 'open';
-    }
-    onUpdateBill({
-      ...bill,
-      items,
-      subtotal: newSubtotal,
-      discount: toDiscountPercent(discountAmount, newSubtotal),
-      discountAmount,
-      tax: taxAmount,
-      total: newTotal,
-      deposit: totalDeposit,
-      depositHistory,
-      rentalStatus: newStatus
-    });
-  };
   const filteredProducts = rentProducts;
-  const getStatusBadge = (status?: string, bill?: Bill) => {
-    if (status === 'active') {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
-          <Clock className="w-3 h-3 mr-1" /> Open
-        </span>);
-
-    }
-    if (status === 'returned') {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
-          <RotateCcw className="w-3 h-3 mr-1" /> Returned
-        </span>);
-
-    }
-    if (status === 'overdue') {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
-          <AlertTriangle className="w-3 h-3 mr-1" /> Overdue
-        </span>);
-
-    }
-    if (status === 'unpaid') {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800">
-          <Ban className="w-3 h-3 mr-1" /> Unpaid
-        </span>);
-
-    }
-    // Check special states for partially_closed bills.
-    if (bill && status === 'partially_closed') {
-      const returnedCount = bill.items.filter(
-        (i) => i.status === 'returned'
-      ).length;
-      const allReturned =
-        returnedCount === bill.items.length && bill.items.length > 0;
-      const totalDeposit =
-        bill.depositHistory?.reduce((s, d) => s + d.amount, 0) ||
-        bill.deposit ||
-        0;
-      const totalFines =
-        bill.fines?.reduce((s, f) => s + Number(f.fine), 0) || 0;
-      const netOwed = bill.total + totalFines;
-      const owes = netOwed > totalDeposit;
-      if (allReturned && owes) {
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800">
-            <Ban className="w-3 h-3 mr-1" />
-            Unpaid
-          </span>);
-
-      }
-      if (allReturned && !owes) {
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
-            <CheckCircle className="w-3 h-3 mr-1" />
-            Ready to Close
-          </span>);
-
-      }
-    }
-    switch (status) {
-      case 'open':
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
-            <Clock className="w-3 h-3 mr-1" />
-            Open
-          </span>);
-
-      case 'partially_closed':
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
-            <AlertTriangle className="w-3 h-3 mr-1" />
-            Partial
-          </span>);
-
-      case 'closed':
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800">
-            <CheckCircle className="w-3 h-3 mr-1" />
-            Closed
-          </span>);
-
-      default:
-        return null;
-    }
-  };
   // Get the bill for the modal
   const modalBill = addItemModalBillId ?
     rentalBills.find((b) => b.id === addItemModalBillId) :
@@ -1028,7 +791,7 @@ export function HistoryPage({
       });
       // Refresh only this bill on screen; everything else reloads silently
       const updatedBill = await refreshChangedSale(returnModalBill);
-      markBillChanged(updatedBill || returnModalBill, 'sale', { print: false });
+      markBillChanged(updatedBill || returnModalBill, 'sale');
     } catch (err: any) {
       setReturnError(err.message || 'Failed to return items');
       console.error('Sale return error:', err);
@@ -1240,426 +1003,23 @@ export function HistoryPage({
                     </button>
                   </div> :
 
-                  displayedRentalBills.map((bill) => {
-                    const isEditing = editingBillId === bill.id;
-                    const returnedCount = bill.items.filter(
-                      (i) => i.status === 'returned'
-                    ).length;
-                    const totalDeposit =
-                      bill.depositHistory?.reduce((s, d) => s + d.amount, 0) ||
-                      bill.deposit ||
-                      0;
-                    const totalFines =
-                      bill.fines?.reduce((s, f) => s + Number(f.fine), 0) || 0;
-                    const allItemsReturned =
-                      returnedCount === bill.items.length &&
-                      bill.items.length > 0;
-                    const netOwed = bill.total + totalFines;
-                    const balance = totalDeposit - netOwed;
-                    const hasOutstandingBalance = balance < 0;
-                    const needsPayment =
-                      allItemsReturned && hasOutstandingBalance;
-                    return (
-                      <div
-                        key={bill.id}
-                        data-bill-id={bill.id}
-                        ref={(el) => {
-                          billRefs.current[bill.id] = el;
-                        }}
-                        className={`bg-white rounded-xl shadow-sm border scroll-mt-24 transition-shadow duration-200 ${isEditing ? 'border-blue-300 ring-2 ring-blue-100' : needsPayment ? 'border-red-200 ring-1 ring-red-100' : 'border-gray-200'} ${highlightBillId === bill.id ? 'ring-2 ring-[#f5a623] ring-offset-2' : ''}`}>
-
-                        {/* Bill Header */}
-                        <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-mono font-bold text-[#1a1a2e]">
-                                {bill.id}
-                              </span>
-                              {getStatusBadge(
-                                bill.apiStatus || bill.rentalStatus,
-                                bill
-                              )}
-                              {needsPayment &&
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">
-                                  <Banknote className="w-3 h-3 mr-1" />
-                                  {formatPrice(Math.abs(balance))} due
-                                </span>
-                              }
-                            </div>
-                            <p className="text-sm text-gray-600">
-                              {bill.customer.name} · {bill.customer.phone}
-                            </p>
-                            <p className="text-xs text-gray-400 mt-0.5">
-                              {bill.date} · {returnedCount}/{bill.items.length}{' '}
-                              items returned
-                              {(bill.nicTaken !== undefined || bill.isPassportTaken !== undefined || bill.isDrivingLicenceTaken !== undefined) &&
-                                <span
-                                  className={`ml-2 px-1.5 py-0.5 rounded ${bill.nicTaken || bill.isPassportTaken || bill.isDrivingLicenceTaken ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600'}`}>
-
-                                  Taken ID: {bill.nicTaken ? 'NIC' : bill.isPassportTaken ? 'Passport' : bill.isDrivingLicenceTaken ? 'Driving Licence' : 'None'}
-                                </span>
-                              }
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <div className="text-right mr-2">
-                              <p className="text-xs text-gray-500">Subtotal</p>
-                              <p className="font-bold text-[#1a1a2e]">
-                                {formatPrice(bill.total)}
-                              </p>
-                            </div>
-                            {totalFines > 0 &&
-                              <div className="text-right mr-2">
-                                <p className="text-xs text-gray-500">Fines</p>
-                                <p className="font-bold text-red-600">
-                                  {formatPrice(totalFines)}
-                                </p>
-                              </div>
-                            }
-                            <div className="text-right mr-2">
-                              <p className="text-xs text-gray-500">Deposit</p>
-                              <p className="font-bold text-blue-600">
-                                {formatPrice(totalDeposit)}
-                              </p>
-                            </div>
-                            <div className="text-right mr-4">
-                              <p className="text-xs text-gray-500">Balance</p>
-                              <p
-                                className={`font-bold ${balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-
-                                {balance >= 0 ?
-                                  formatPrice(balance) :
-                                  `-${formatPrice(Math.abs(balance))}`}
-                              </p>
-                            </div>
-                            {bill.rentalStatus !== 'closed' &&
-                              bill.items.some(
-                                (i) => i.status === 'active' && i.apiItemId
-                              ) &&
-                              <button
-                                onClick={() => {
-                                  setReturnAllConfirmBill(bill);
-                                  setReturnPaymentAmount('');
-                                  setActionError(null);
-                                }}
-                                disabled={
-                                  actionLoading === `return-all-${bill.id}`
-                                }
-                                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold bg-amber-500 text-white hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
-
-                                {actionLoading === `return-all-${bill.id}` ?
-                                  <>
-                                    <Loader2 className="w-4 h-4 animate-spin" />{' '}
-                                    Returning...
-                                  </> :
-
-                                  <>
-                                    <RotateCcw className="w-4 h-4" /> Return
-                                    All
-                                  </>
-                                }
-                              </button>
-                            }
-                            {bill.rentalStatus !== 'closed' &&
-                              allItemsReturned &&
-                              <button
-                                onClick={() => handleManualClose(bill)}
-                                disabled={
-                                  actionLoading === `close-${bill.id}`
-                                }
-                                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
-
-                                {actionLoading === `close-${bill.id}` ?
-                                  <>
-                                    <Loader2 className="w-4 h-4 animate-spin" />{' '}
-                                    Closing...
-                                  </> :
-
-                                  <>
-                                    <CheckCircle className="w-4 h-4" /> Close
-                                    Bill
-                                  </>
-                                }
-                              </button>
-                            }
-                            <button
-                              onClick={() => {
-                                setEditingBillId(isEditing ? null : bill.id);
-                                setAddItemModalBillId(null);
-                              }}
-                              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold transition-colors ${isEditing ? 'bg-gray-200 text-gray-700' : needsPayment ? 'bg-red-600 text-white hover:bg-red-700' : bill.rentalStatus === 'closed' ? 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
-
-                              {isEditing ?
-                                <>
-                                  <X className="w-4 h-4" /> Close
-                                </> :
-                                needsPayment ?
-                                  <>
-                                    <Banknote className="w-4 h-4" /> Settle
-                                  </> :
-
-                                  <>
-                                    <Edit className="w-4 h-4" /> Edit
-                                  </>
-                              }
-                            </button>
-                            <button
-                              onClick={() => onViewBill(bill)}
-                              className="flex items-center gap-1.5 px-3 py-2 bg-[#1a1a2e] text-white rounded-lg text-sm font-bold hover:bg-[#2d4059] transition-colors">
-
-                              <Eye className="w-4 h-4" />
-                              Invoice
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Items Table */}
-                        <div className="border-t border-gray-100 overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead className="bg-gray-50 text-gray-500 text-xs font-medium">
-                              <tr>
-                                <th className="px-4 py-2 text-left">Item</th>
-                                <th className="px-4 py-2 text-center">Start</th>
-                                <th className="px-4 py-2 text-center">
-                                  Return
-                                </th>
-                                <th className="px-4 py-2 text-center">Days</th>
-                                <th className="px-4 py-2 text-center">Qty</th>
-                                <th className="px-4 py-2 text-right">
-                                  Rate/Day
-                                </th>
-                                <th className="px-4 py-2 text-right">Total</th>
-                                <th className="px-4 py-2 text-center">
-                                  Status
-                                </th>
-                                {isEditing &&
-                                  <th className="px-4 py-2 text-center">
-                                    Action
-                                  </th>
-                                }
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-50">
-                              {bill.items.map((item, idx) => {
-                                const unitPrice =
-                                  item.product.rentPricePerDay || 0;
-                                const days = item.rentalDays || 1;
-                                const lineTotal =
-                                  item.rentalFee !== undefined ?
-                                    item.rentalFee :
-                                    unitPrice * item.quantity * days;
-                                return (
-                                  <tr
-                                    key={idx}
-                                    className={
-                                      item.status === 'returned' ?
-                                        'bg-green-50/50' :
-                                        ''
-                                    }>
-
-                                    <td className="px-4 py-2.5">
-                                      <div className="flex items-center gap-2">
-                                        <span
-                                          className={`w-2 h-2 rounded-full flex-shrink-0 ${item.status === 'returned' ? 'bg-green-500' : 'bg-blue-500'}`} />
-
-                                        <span className="font-medium text-[#1a1a2e]">
-                                          {item.product.name}
-                                        </span>
-                                        <span className="text-[10px] font-mono text-gray-400">
-                                          {item.product.itemCode ||
-                                            item.product.barcode ||
-                                            ''}
-                                        </span>
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-2.5 text-center text-xs text-gray-600">
-                                      {item.borrowedDate || bill.date}
-                                    </td>
-                                    <td className="px-4 py-2.5 text-center text-xs">
-                                      {item.status === 'returned' ?
-                                        <span className="text-green-600 font-medium">
-                                          {item.actualReturnDate}
-                                        </span> :
-
-                                        <span className="text-gray-500">
-                                          {item.expectedReturnDate || '-'}
-                                        </span>
-                                      }
-                                    </td>
-                                    <td className="px-4 py-2.5 text-center font-medium">
-                                      {days}
-                                    </td>
-                                    <td className="px-4 py-2.5 text-center font-medium">
-                                      {formatQuantity(item.quantity, item.product.unit)}
-                                    </td>
-                                    <td className="px-4 py-2.5 text-right text-gray-600">
-                                      {formatPrice(unitPrice)}
-                                    </td>
-                                    <td className="px-4 py-2.5 text-right font-bold text-[#1a1a2e]">
-                                      {formatPrice(lineTotal)}
-                                    </td>
-                                    <td className="px-4 py-2.5 text-center text-xs">
-                                      {item.status === 'returned' ?
-                                        <span className="text-green-600 font-medium">
-                                          Returned
-                                        </span> :
-
-                                        <span className="text-blue-600 font-medium">
-                                          Open
-                                        </span>
-                                      }
-                                    </td>
-                                    {isEditing &&
-                                      <td className="px-4 py-2.5 text-center">
-                                        {item.status === 'active' &&
-                                          <button
-                                            onClick={() => {
-                                              const now = new Date();
-                                              setReturnSingleItemModal({
-                                                bill,
-                                                itemIndex: idx,
-                                                returnDate: now.
-                                                  toISOString().
-                                                  split('T')[0],
-                                                returnTime: now.
-                                                  toTimeString().
-                                                  slice(0, 5),
-                                                fines: []
-                                              });
-                                              setActionError(null);
-                                            }}
-                                            className="px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-md hover:bg-blue-200 transition-colors">
-
-                                            <RotateCcw className="w-3 h-3 inline mr-1" />
-                                            Return
-                                          </button>
-                                        }
-                                      </td>
-                                    }
-                                  </tr>);
-
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-
-                        {/* Edit Controls */}
-                        <AnimatePresence>
-                          {isEditing &&
-                            <motion.div
-                              initial={{
-                                height: 0,
-                                opacity: 0
-                              }}
-                              animate={{
-                                height: 'auto',
-                                opacity: 1
-                              }}
-                              exit={{
-                                height: 0,
-                                opacity: 0
-                              }}
-                              className="overflow-hidden">
-
-                              <div className="p-4 border-t border-blue-100 bg-blue-50/30">
-                                {bill.rentalStatus !== 'closed' ?
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {/* Add Deposit */}
-                                    <div className="bg-white p-3 rounded-lg border border-gray-200">
-                                      <h4 className="font-bold text-xs text-gray-700 mb-2 flex items-center gap-1.5">
-                                        <Banknote className="w-4 h-4 text-green-600" />
-                                        Add Deposit
-                                      </h4>
-                                      {actionError &&
-                                        editingBillId === bill.id &&
-                                        <div className="mb-2 bg-red-50 border border-red-200 rounded p-2 flex items-start gap-1.5 text-xs text-red-700">
-                                          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                                          <span>{actionError}</span>
-                                        </div>
-                                      }
-                                      <div className="flex gap-2">
-                                        <input
-                                          type="number"
-                                          value={newDepositAmount}
-                                          onChange={(e) =>
-                                            setNewDepositAmount(e.target.value)
-                                          }
-                                          placeholder="Amount"
-                                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-[#f5a623] outline-none" />
-
-                                        <button
-                                          onClick={() => handleAddDeposit(bill)}
-                                          disabled={
-                                            actionLoading ===
-                                            `deposit-${bill.id}`
-                                          }
-                                          className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-bold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5">
-
-                                          {actionLoading ===
-                                            `deposit-${bill.id}` &&
-                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                          }
-                                          {actionLoading ===
-                                            `deposit-${bill.id}` ?
-                                            'Adding...' :
-                                            'Add'}
-                                        </button>
-                                      </div>
-                                      {bill.depositHistory &&
-                                        bill.depositHistory.length > 0 &&
-                                        <div className="mt-2 space-y-1">
-                                          {bill.depositHistory.map((d, i) =>
-                                            <div
-                                              key={i}
-                                              className="flex justify-between text-xs text-gray-500">
-
-                                              <span>
-                                                {d.date}{' '}
-                                                {d.note && `· ${d.note}`}
-                                              </span>
-                                              <span className="font-mono font-medium">
-                                                {formatPrice(d.amount)}
-                                              </span>
-                                            </div>
-                                          )}
-                                        </div>
-                                      }
-                                    </div>
-
-                                    {/* Add Item - opens modal */}
-                                    <div className="bg-white p-3 rounded-lg border border-gray-200">
-                                      <h4 className="font-bold text-xs text-gray-700 mb-2 flex items-center gap-1.5">
-                                        <Plus className="w-4 h-4 text-blue-600" />
-                                        Add Rental Item
-                                      </h4>
-                                      <button
-                                        onClick={() => {
-                                          setAddItemModalBillId(bill.id);
-                                          setProductSearch('');
-                                        }}
-                                        className="w-full px-3 py-2 bg-blue-600 text-white rounded-md text-sm font-bold hover:bg-blue-700 flex items-center justify-center gap-2 transition-colors">
-
-                                        <Plus className="w-4 h-4" />
-                                        Select Product
-                                      </button>
-                                    </div>
-                                  </div> :
-
-                                  <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
-                                    <p className="text-sm text-gray-500 font-medium flex items-center justify-center gap-2">
-                                      <CheckCircle className="w-4 h-4 text-green-500" />
-                                      This bill is closed. You cannot add
-                                      deposits or rental items.
-                                    </p>
-                                  </div>
-                                }
-                              </div>
-                            </motion.div>
-                          }
-                        </AnimatePresence>
-                      </div>);
-
-                  })
+                  displayedRentalBills.map((bill) => (
+                    <RentalBillCard
+                      key={bill.id}
+                      bill={bill}
+                      isEditing={editingBillId === bill.id}
+                      onToggleEdit={handleToggleEdit}
+                      onViewBill={onViewBill}
+                      onManualClose={handleManualClose}
+                      onOpenReturnAll={handleOpenReturnAll}
+                      onOpenReturnSingle={handleOpenReturnSingle}
+                      onAddDeposit={handleAddDeposit}
+                      onOpenAddItem={handleOpenAddItem}
+                      actionLoading={actionLoading}
+                      actionError={editingBillId === bill.id ? actionError : null}
+                      isCardRefreshing={refreshingRentalId === bill.id}
+                    />
+                  ))
                 }
               </div>
 
@@ -1785,6 +1145,8 @@ export function HistoryPage({
                                   bill.paymentMethod === 'bank_transfer' ||
                                     bill.paymentMethod === 'transfer' ?
                                     'Bank Transfer' :
+                                    bill.paymentMethod === 'mixed' ?
+                                    'Mixed' :
                                     'Cash'}
                               </span>
                             </td>
@@ -3341,9 +2703,6 @@ export function HistoryPage({
           </motion.div>
         }
       </AnimatePresence>
-
-      {/* Auto-print the receipt after any change to a bill */}
-      <BillPrintLayer bill={printBill} onDone={handlePrintDone} />
     </div>);
 
 }
