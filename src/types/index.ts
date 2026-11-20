@@ -2,6 +2,10 @@ export type ApiCategory = {
   id: number | string;
   name: string;
   category_type?: 'sell' | 'rent';
+  description?: string;
+  product_count?: number;
+  created_at?: string;
+  updated_at?: string;
 };
 
 export type Machine = {
@@ -183,6 +187,7 @@ export type Bill = {
   isDrivingLicenceTaken?: boolean;
   rentalStatus?: RentalBillStatus;
   apiStatus?: ApiRentalStatus;
+  hasRefunded?: boolean;
 };
 
 export type CashTransaction = {

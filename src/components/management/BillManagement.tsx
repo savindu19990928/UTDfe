@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   ShoppingCart,
   Clock,
@@ -56,7 +56,6 @@ export function BillManagement({
   const [search, setSearch] = useState('');
   const [rentalFilter, setRentalFilter] = useState<RentalFilter>('all');
   const {
-    cancelSaleBill,
     cancelRentalBill,
     submitting,
     error: actionError
@@ -93,19 +92,14 @@ export function BillManagement({
   });
 
   const handleCancel = async () => {
-    if (!confirmBill || !confirmBill.apiId) return;
+    if (!confirmBill || !confirmBill.apiId || tab === 'sales') return;
     try {
-      if (tab === 'sales') {
-        await cancelSaleBill(confirmBill.apiId);
-        refetchSales();
-      } else {
-        await cancelRentalBill(confirmBill.apiId);
-        refetchRentals();
-      }
+      await cancelRentalBill(confirmBill.apiId);
+      refetchRentals();
       setConfirmBill(null);
     } catch {
-
-      /* handled */}
+      /* handled */
+    }
   };
 
   const bills = tab === 'sales' ? sales : rentals;
@@ -257,13 +251,14 @@ export function BillManagement({
                     
                         <Eye className="w-4 h-4" />
                       </button>
-                      <button
-                    onClick={() => setConfirmBill(b)}
-                    className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                    title="Cancel bill">
-                    
-                        <Ban className="w-4 h-4" />
-                      </button>
+                      {tab === 'rentals' && (
+                        <button
+                          onClick={() => setConfirmBill(b)}
+                          className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                          title="Cancel bill">
+                          <Ban className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

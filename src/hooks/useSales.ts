@@ -48,6 +48,13 @@ function mapSaleItem(raw: any): CartItem {
   };
 }
 
+export function isSaleBillRefunded(bill: Bill): boolean {
+  return (
+    Boolean(bill.hasRefunded) ||
+    bill.items.some((item) => (item.returnedQuantity || 0) > 0)
+  );
+}
+
 function mapApiSale(raw: any): Bill {
   const items: CartItem[] = (raw.items || []).map(mapSaleItem);
   const totalAmount = parseFloat(raw.total_amount ?? 0);
@@ -55,6 +62,17 @@ function mapApiSale(raw: any): Bill {
   const discountAmount = parseFloat(raw.discount ?? 0) || 0;
   const discount = toDiscountPercent(discountAmount, totalAmount);
   const finalAmount = parseFloat(raw.final_amount ?? 0);
+
+  const hasRefunded =
+    Boolean(
+      raw.is_refunded ||
+      raw.has_refund ||
+      raw.has_returns ||
+      raw.refunded ||
+      parseFloat(
+        raw.refund_amount ?? raw.total_refunded ?? raw.refunded_amount ?? 0
+      ) > 0
+    ) || items.some((item) => (item.returnedQuantity || 0) > 0);
 
   const customer: Customer = {
     name: raw.customer_name || 'Walk-in Customer',
@@ -75,7 +93,8 @@ function mapApiSale(raw: any): Bill {
     tax: 0,
     total: finalAmount,
     type: 'invoice',
-    paymentMethod: raw.payment_method as any || 'cash'
+    paymentMethod: raw.payment_method as any || 'cash',
+    hasRefunded
   };
 }
 

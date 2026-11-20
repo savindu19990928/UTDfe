@@ -28,17 +28,16 @@ export function useMachines() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  const fetchExceeded = useCallback(async (productId?: number | string, page: number = 1, pageSize: number = 20) => {
+  const fetchExceeded = useCallback(async (productId?: number | string) => {
     setLoading(true);
     setError(null);
-    setCurrentPage(page);
+    setCurrentPage(1);
     try {
       const params = new URLSearchParams();
       if (productId) params.append('product', String(productId));
-      params.append('page', String(page));
-      params.append('page_size', String(pageSize));
 
-      const res = await fetch(`${API_URL}machines/exceeded_max_use/?${params.toString()}`, {
+      const qs = params.toString();
+      const res = await fetch(`${API_URL}machines/exceeded_max_use/${qs ? `?${qs}` : ''}`, {
         headers: {
           ...getAuthHeaders(),
           'Content-Type': 'application/json'
@@ -49,15 +48,10 @@ export function useMachines() {
       }
       const data = await res.json();
 
-      if (Array.isArray(data)) {
-        setMachines(data);
-        setTotalCount(data.length);
-        setTotalPages(1);
-      } else {
-        setMachines(data.results || []);
-        setTotalCount(data.count || data.results?.length || 0);
-        setTotalPages(data.total_pages || Math.ceil((data.count || 0) / pageSize) || 1);
-      }
+      const list = Array.isArray(data) ? data : (data.results || []);
+      setMachines(list);
+      setTotalCount(list.length);
+      setTotalPages(1);
     } catch (err: any) {
       setError(err.message || 'Failed to load machines');
     } finally {

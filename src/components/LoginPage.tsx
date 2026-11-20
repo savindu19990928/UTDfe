@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Lock, User, AlertCircle } from 'lucide-react';
 import { loginRequest } from '../utils/auth';
+import { ForgotPasswordModal } from './ForgotPasswordModal';
 
 const LOGO_URL = "./WhatsApp_Image_2025-12-13_at_2.34.53_PM.jpg";
 
@@ -12,6 +13,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showForgotModal, setShowForgotModal] = useState(false);
   const submittingRef = useRef(false);
 
 
@@ -91,12 +93,20 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             </div>
 
             <div className="space-y-2">
-              <label
-                htmlFor="login-password"
-                className="text-sm font-bold text-gray-700 block">
-                
-                Password
-              </label>
+              <div className="flex items-center justify-between">
+                <label
+                  htmlFor="login-password"
+                  className="text-sm font-bold text-gray-700 block">
+                  
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowForgotModal(true)}
+                  className="text-xs font-semibold text-[#2d4059] hover:text-[#f5a623] transition-colors">
+                  Forgot password?
+                </button>
+              </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
@@ -135,6 +145,12 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           </div>
         </div>
       </div>
+
+      <ForgotPasswordModal
+        isOpen={showForgotModal}
+        initialUsername={username}
+        onClose={() => setShowForgotModal(false)}
+      />
     </div>);
 
 }

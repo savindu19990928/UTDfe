@@ -1,8 +1,10 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Bill } from '../types';
 import { Printer, ArrowLeft, CheckCircle } from 'lucide-react';
 import { formatPercent, formatPrice, formatQuantity } from '../utils/format';
 import { useRentalConditions } from '../hooks/useRentalConditions';
+import { triggerSilentPrint } from '../utils/print';
+import { PrintErrorModal } from './PrintErrorModal';
 const LOGO_URL = "./WhatsApp_Image_2025-12-13_at_2.34.53_PM.jpg";
 
 interface BillPreviewProps {
@@ -10,33 +12,43 @@ interface BillPreviewProps {
   onBack: () => void;
   onNewOrder: () => void;
   autoPrint?: boolean;
+  onAutoPrintDone?: () => void;
 }
 export function BillPreview({
   bill,
   onBack,
   onNewOrder,
-  autoPrint
+  autoPrint,
+  onAutoPrintDone
 }: BillPreviewProps) {
-  const handlePrint = () => {
-    // @ts-ignore
-    if (window.electronAPI && window.electronAPI.printSilent) {
-      // @ts-ignore
-      window.electronAPI.printSilent();
-    } else {
-      window.print();
+  const [printError, setPrintError] = useState<string | null>(null);
+  const autoPrintedBillIdRef = useRef<string | null>(null);
+  const onAutoPrintDoneRef = useRef(onAutoPrintDone);
+  onAutoPrintDoneRef.current = onAutoPrintDone;
+
+  const handlePrint = useCallback(async () => {
+    setPrintError(null);
+    const result = await triggerSilentPrint();
+    if (!result.success) {
+      setPrintError(
+        result.error ||
+          'Failed to print the bill. Please check your printer connection.'
+      );
     }
-  };
+  }, []);
 
   const isRental = bill.items.some((item) => item.type === 'rent');
 
   useEffect(() => {
-    if (autoPrint && isRental) {
+    if (autoPrint && isRental && autoPrintedBillIdRef.current !== bill.id) {
       const printTimer = setTimeout(() => {
+        autoPrintedBillIdRef.current = bill.id;
+        onAutoPrintDoneRef.current?.();
         handlePrint();
       }, 500);
       return () => clearTimeout(printTimer);
     }
-  }, [autoPrint, isRental]);
+  }, [autoPrint, isRental, bill.id, handlePrint]);
   return (
     <div className="min-h-screen bg-gray-100 py-8 print:py-0 print:bg-white px-4 sm:px-6 lg:px-8">
       <div className="max-w-[8.5in] mx-auto mb-6 flex justify-between items-center no-print">
@@ -75,6 +87,12 @@ export function BillPreview({
         <SaleBillTemplate bill={bill} />
         }
       </div>
+
+      <PrintErrorModal
+        error={printError}
+        onClose={() => setPrintError(null)}
+        onRetry={handlePrint}
+      />
     </div>);
 
 }

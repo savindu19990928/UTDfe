@@ -16,12 +16,14 @@ import {
   RefreshCw,
   Undo2,
   Wrench,
-  Trash2
+  Trash2,
+  Ban
 } from 'lucide-react';
 import { Bill, Product, CashTransaction } from '../types';
 import { useProducts } from '../hooks/useProducts';
 import { useRentals } from '../hooks/useRentals';
 import { useSales } from '../hooks/useSales';
+import { useBillAdmin } from '../hooks/useBillAdmin';
 import { formatPrice, formatQuantity } from '../utils/format';
 import { API_URL } from '../utils/config';
 import { getAuthHeaders } from '../utils/auth';
@@ -29,6 +31,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { clearCache } from '../utils/apiCache';
 import { Pagination } from './Pagination';
 import { RentalBillCard } from './RentalBillCard';
+import { BillPrintLayer } from './BillPrintLayer';
+import { PrintErrorModal } from './PrintErrorModal';
 // Remembers which bill was last touched — and exactly where it sat in the
 // list — so the page can jump straight back to it after the data refreshes
 // or after a full browser refresh.
@@ -81,13 +85,15 @@ interface HistoryPageProps {
   onUpdateBill: (bill: Bill) => void;
   onViewBill: (bill: Bill) => void;
   onAddCashTransaction: (transaction: CashTransaction) => void;
+  isSuperUser?: boolean;
 }
 export function HistoryPage({
   bills,
   cashTransactions,
   onUpdateBill,
   onViewBill,
-  onAddCashTransaction
+  onAddCashTransaction,
+  isSuperUser = false
 }: HistoryPageProps) {
   // Read once per mount: the last edited bill plus the exact list position
   // (tab, page, search, filter) it was in, so a refresh lands back on it.
@@ -174,6 +180,24 @@ export function HistoryPage({
   const [scrollRequest] = useState(initialFocus ? 1 : 0);
   const servedScrollRef = useRef(0);
   const [highlightBillId, setHighlightBillId] = useState<string | null>(null);
+  const [printBill, setPrintBill] = useState<Bill | null>(null);
+  const [lastPrintBill, setLastPrintBill] = useState<Bill | null>(null);
+  const [printError, setPrintError] = useState<string | null>(null);
+  const handlePrintDone = useCallback(() => setPrintBill(null), []);
+  const handlePrintError = useCallback((errMsg: string) => {
+    setPrintError(errMsg);
+  }, []);
+
+  const {
+    cancelRentalBill,
+    submitting: cancelSubmitting,
+    error: cancelError,
+    setError: setCancelError
+  } = useBillAdmin();
+  const [cancelConfirm, setCancelConfirm] = useState<{
+    bill: Bill;
+    type: 'rental' | 'sale';
+  } | null>(null);
 
   // Fetch products from API only when modal is open
   const { products: rentProducts } = useProducts({
@@ -336,6 +360,32 @@ export function HistoryPage({
     setAddItemModalBillId(bill.id);
     setProductSearch('');
   }, []);
+
+  const handleOpenCancelRental = useCallback(
+    (bill: Bill) => {
+      setCancelError(null);
+      setCancelConfirm({ bill, type: 'rental' });
+    },
+    [setCancelError]
+  );
+
+  const handleConfirmCancel = useCallback(async () => {
+    const apiId = cancelConfirm?.bill.apiId;
+    if (!cancelConfirm || !apiId) return;
+    const { bill, type } = cancelConfirm;
+    if (type !== 'rental') {
+      setCancelError('Sale bills cannot be cancelled.');
+      return;
+    }
+    try {
+      await cancelRentalBill(apiId);
+      setEditingBillId((prev) => (prev === bill.id ? null : prev));
+      await refetchRentals();
+      setCancelConfirm(null);
+    } catch {
+      /* handled by useBillAdmin error state */
+    }
+  }, [cancelConfirm, cancelRentalBill, refetchRentals, setCancelError]);
 
   // Edit handlers
   const handleReturnItem = useCallback(async (
@@ -579,13 +629,13 @@ export function HistoryPage({
       setEditingBillId((prev) => (prev === bill.id ? null : prev));
       // Refresh only this bill on screen
       const updatedBill = await refreshChangedRental(bill);
-      markBillChanged(
-        updatedBill || {
-          ...bill,
-          rentalStatus: 'closed'
-        },
-        'rental'
-      );
+      const closedBill: Bill = updatedBill
+        ? { ...updatedBill, rentalStatus: 'closed' }
+        : { ...bill, rentalStatus: 'closed' };
+      markBillChanged(closedBill, 'rental');
+      setPrintError(null);
+      setLastPrintBill(closedBill);
+      setPrintBill(closedBill);
     } catch (err: any) {
       setActionError(err.message || 'Failed to close bill');
       console.error('Manual close error:', err);
@@ -1018,6 +1068,8 @@ export function HistoryPage({
                       actionLoading={actionLoading}
                       actionError={editingBillId === bill.id ? actionError : null}
                       isCardRefreshing={refreshingRentalId === bill.id}
+                      isSuperUser={isSuperUser}
+                      onCancelBill={isSuperUser ? handleOpenCancelRental : undefined}
                     />
                   ))
                 }
@@ -1146,8 +1198,8 @@ export function HistoryPage({
                                     bill.paymentMethod === 'transfer' ?
                                     'Bank Transfer' :
                                     bill.paymentMethod === 'mixed' ?
-                                    'Mixed' :
-                                    'Cash'}
+                                      'Mixed' :
+                                      'Cash'}
                               </span>
                             </td>
                             <td className="px-6 py-4 text-right font-bold text-[#1a1a2e]">
@@ -2367,7 +2419,7 @@ export function HistoryPage({
                     </span>
                   </div>
 
-                  {rentalReturnResult.totalFines > 0 &&
+                  {/* {rentalReturnResult.totalFines > 0 &&
                     <div className="bg-orange-50 border border-orange-100 rounded-lg p-2.5 text-xs text-orange-700 text-left">
                       <p className="font-bold mb-0.5">⚠ Fines are separate</p>
                       <p className="text-orange-600">
@@ -2375,7 +2427,7 @@ export function HistoryPage({
                         damage fines directly from the customer.
                       </p>
                     </div>
-                  }
+                  } */}
                 </div>
 
                 {rentalReturnResult.allReturned &&
@@ -2703,6 +2755,76 @@ export function HistoryPage({
           </motion.div>
         }
       </AnimatePresence>
+
+      {/* Auto silent print ONLY when closing a rental bill */}
+      <BillPrintLayer
+        bill={printBill}
+        onDone={handlePrintDone}
+        onError={handlePrintError}
+      />
+
+      <PrintErrorModal
+        error={printError}
+        onClose={() => setPrintError(null)}
+        onRetry={
+          lastPrintBill
+            ? () => {
+              setPrintError(null);
+              setPrintBill({ ...lastPrintBill });
+            }
+            : undefined
+        }
+      />
+
+      {/* Superuser-only Cancel Bill Confirmation Modal */}
+      {isSuperUser && cancelConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => !cancelSubmitting && setCancelConfirm(null)}>
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6"
+            onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-red-100 p-2.5 rounded-full">
+                <Ban className="w-5 h-5 text-red-600" />
+              </div>
+              <h3 className="text-lg font-bold text-[#1a1a2e]">Cancel Bill</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              Cancel bill <span className="font-bold">{cancelConfirm.bill.id}</span>?
+              This reverts stock movements, cash transactions
+              {cancelConfirm.type === 'rental' ? ', deposits and fines' : ''}. This cannot be
+              undone.
+            </p>
+            {cancelError && (
+              <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-2.5 flex items-start gap-2 text-xs text-red-700">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <span>{cancelError}</span>
+              </div>
+            )}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                disabled={!!cancelSubmitting}
+                onClick={() => setCancelConfirm(null)}
+                className="flex-1 py-2.5 border border-gray-300 rounded-lg font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-60">
+                Keep Bill
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCancel}
+                disabled={!!cancelSubmitting}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white rounded-lg font-bold flex items-center justify-center gap-2">
+                {cancelSubmitting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  'Cancel Bill'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>);
 
 }

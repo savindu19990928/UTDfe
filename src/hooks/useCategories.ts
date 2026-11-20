@@ -6,8 +6,9 @@ import {
   getCached,
   setCache,
   isFresh,
-  sharedRequest } from
-'../utils/apiCache';
+  sharedRequest,
+  clearCache
+} from '../utils/apiCache';
 
 interface UseCategoriesReturn {
   categories: ApiCategory[];
@@ -25,7 +26,11 @@ function mapApiCategories(data: any): ApiCategory[] {
   map((c: any) => ({
     id: String(c.id ?? c.pk),
     name: c.name || c.category_name || '',
-    category_type: c.category_type || undefined
+    category_type: c.category_type || undefined,
+    description: c.description || '',
+    product_count: typeof c.product_count === 'number' ? c.product_count : undefined,
+    created_at: c.created_at,
+    updated_at: c.updated_at
   }));
 }
 
@@ -97,5 +102,10 @@ categoryType?: 'sell' | 'rent')
     return allCategories.filter((c) => c.category_type === categoryType);
   }, [allCategories, categoryType]);
 
-  return { categories, loading, error, refetch: fetchCategories };
+  const refetch = useCallback(() => {
+    clearCache(CACHE_KEY);
+    fetchCategories();
+  }, [fetchCategories]);
+
+  return { categories, loading, error, refetch };
 }

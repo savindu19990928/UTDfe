@@ -27,7 +27,7 @@ export function useBulkSms() {
       if (!res.ok) {
         if (res.status === 401 || res.status === 403) {
           throw new Error(
-            'Super user access is required to send a bulk message.'
+            'Admin access is required to send a bulk message.'
           );
         }
 

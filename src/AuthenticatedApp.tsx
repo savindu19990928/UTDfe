@@ -74,6 +74,7 @@ function MainContent({ superUser, onLogoutProp }: { superUser: boolean; onLogout
 
   const handleNewOrder = () => {
     clearCart();
+    setAutoPrintBillId(null);
     setCurrentBill(null);
     setCurrentPage('catalog');
   };
@@ -106,9 +107,13 @@ function MainContent({ superUser, onLogoutProp }: { superUser: boolean; onLogout
       <Suspense fallback={<PageFallback />}>
         <BillPreview
           bill={currentBill}
-          onBack={() => setCurrentPage('history')}
+          onBack={() => {
+            setAutoPrintBillId(null);
+            setCurrentPage('history');
+          }}
           onNewOrder={handleNewOrder}
           autoPrint={autoPrintBillId === currentBill.id}
+          onAutoPrintDone={() => setAutoPrintBillId(null)}
         />
       </Suspense>
     );
@@ -157,7 +162,6 @@ function MainContent({ superUser, onLogoutProp }: { superUser: boolean; onLogout
               section={adminSection}
               onSectionChange={setAdminSection}
               onExit={() => setManagementMode(false)}
-              onViewBill={handleViewBill}
               damages={damages}
               onAddDamage={handleAddDamage}
             />
@@ -173,6 +177,7 @@ function MainContent({ superUser, onLogoutProp }: { superUser: boolean; onLogout
                   onUpdateBill={handleUpdateBill}
                   onViewBill={handleViewBill}
                   onAddCashTransaction={handleAddCashTransaction}
+                  isSuperUser={superUser}
                 />
               )}
               {currentPage === 'cart' && <Cart onGenerateBill={handleGenerateBill} onContinueShopping={() => handleNavigate('catalog')} />}

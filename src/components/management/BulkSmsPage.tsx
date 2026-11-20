@@ -59,7 +59,7 @@ export function BulkSmsPage() {
 
       if (!res.ok) {
         if (res.status === 401 || res.status === 403) {
-          throw new Error('Super user or staff access is required to download customer phone numbers.');
+          throw new Error('Admin or staff access is required to download customer phone numbers.');
         }
         let detail = `Failed to download customer numbers (${res.status}).`;
         try {

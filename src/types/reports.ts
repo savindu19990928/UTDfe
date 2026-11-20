@@ -299,3 +299,306 @@ export interface HeldDocumentsReportData {
   total_driving_licence?: number;
   customers: HeldDocumentCustomer[];
 }
+
+// -------------------------------------------------------------
+// 3.11. EXPENSES REPORT TYPES
+// -------------------------------------------------------------
+export interface ExpensesByUserItem {
+  created_by: string;
+  count: number;
+  total_amount: string | number;
+  total_amount_raw?: number;
+  total_amount_formatted?: string;
+}
+
+export interface ExpensesByRegisterItem {
+  cash_register_id: number;
+  opened_at: string;
+  status: string;
+  count: number;
+  total_amount: string | number;
+  total_amount_raw?: number;
+  total_amount_formatted?: string;
+}
+
+export interface ExpenseReportItem {
+  id: number;
+  description: string;
+  amount: string | number;
+  amount_raw?: number;
+  amount_formatted?: string;
+  date?: string;
+  time?: string;
+  created_at: string;
+  created_by?: string;
+  created_by_id?: number;
+  cash_register_id?: number;
+  cash_register_status?: string;
+  cash_transaction_id?: number;
+  reference?: string;
+  notes?: string;
+  is_cancelled?: boolean;
+}
+
+export interface ExpensesReportData {
+  start_date?: string;
+  end_date?: string;
+  expenses_count?: number;
+  total_expenses?: string | number;
+  total_expense?: string | number;
+  expenses_total?: string | number;
+  total_expenses_formatted?: string;
+  average_expense?: string | number;
+  average_expense_raw?: number;
+  average_expense_formatted?: string;
+  highest_expense?: string | number;
+  highest_expense_raw?: number;
+  highest_expense_formatted?: string;
+  lowest_expense?: string | number;
+  lowest_expense_raw?: number;
+  lowest_expense_formatted?: string;
+  expenses_by_user?: ExpensesByUserItem[];
+  expenses_by_register?: ExpensesByRegisterItem[];
+  expenses?: ExpenseReportItem[];
+  detailed_expenses?: ExpenseReportItem[];
+}
+
+// -------------------------------------------------------------
+// 3.12. SINGLE MACHINE HISTORY REPORT TYPES
+// -------------------------------------------------------------
+export interface SingleMachineDetails {
+  machine_id: number;
+  machine_number: string;
+  product_id?: number;
+  product_name: string;
+  item_number?: string;
+  category_name?: string;
+  price_per_day?: number;
+  price_per_day_formatted?: string;
+  max_use_count: number;
+  used_count: number;
+  total_used_count: number;
+  needs_reset?: boolean;
+  last_reset_date?: string | null;
+  is_active?: boolean;
+  is_damaged?: boolean;
+  is_currently_rented?: boolean;
+  created_at?: string;
+}
+
+export interface MachineCurrentRental {
+  bill_id: number;
+  bill_number: string;
+  bill_status?: string;
+  status?: string;
+  bill_created_at?: string;
+  item_id?: number;
+  rental_start_date?: string;
+  rental_end_date?: string;
+  is_overdue?: boolean;
+  customer_id?: number;
+  customer_name: string;
+  customer_nic?: string;
+  customer_mobile?: string;
+  customer_address?: string;
+}
+
+export interface MachineHistoryRentalBill {
+  bill_id: number;
+  bill_number: string;
+  status?: string;
+  bill_status?: string;
+  created_at?: string;
+  closed_at?: string | null;
+  customer_id?: number;
+  customer?: string;
+  customer_name?: string;
+  customer_nic?: string;
+  customer_mobile?: string;
+  customer_address?: string;
+  item_id?: number;
+  product_id?: number;
+  product_name?: string;
+  item_number?: string;
+  rental_start_date?: string;
+  rental_end_date?: string;
+  is_returned?: boolean;
+  returned_date?: string | null;
+  returned_time?: string | null;
+  rental_days?: number;
+  rental_fee?: string | number;
+  rental_fee_raw?: number;
+  is_currently_rented?: boolean;
+}
+
+export interface MachineResetHistoryItem {
+  id: number;
+  reset_at?: string;
+  reset_date?: string;
+  reset_time?: string;
+  previous_used_count: number;
+  total_used_count_at_reset?: number;
+  reset_by?: string;
+  notes?: string;
+}
+
+export interface SingleMachineHistoryReportData {
+  start_date?: string;
+  end_date?: string;
+  machine?: SingleMachineDetails;
+  machine_id?: number;
+  machine_number?: string;
+  product_name?: string;
+  is_currently_rented?: boolean;
+  current_bill_number?: string | null;
+  current_customer_name?: string | null;
+  current_rental?: MachineCurrentRental | null;
+  rental_bills_count?: number;
+  distinct_bills_count?: number;
+  rental_bills?: MachineHistoryRentalBill[];
+  bills?: MachineHistoryRentalBill[];
+  reset_count?: number;
+  total_reset_count?: number;
+  reset_history?: MachineResetHistoryItem[];
+  resets?: MachineResetHistoryItem[];
+}
+
+export interface StockMovementReportItem {
+  id: number;
+  product: number;
+  product_name: string;
+  product_item_number?: string;
+  product_unit?: string;
+  product_category_name?: string;
+  movement_type: 'in' | 'out';
+  quantity: string | number;
+  reference?: string;
+  notes?: string;
+  created_by?: number;
+  created_by_name?: string;
+  current_stock?: number;
+  created_at: string;
+}
+
+export interface StockMovementProductBreakdown {
+  product_id: number;
+  product_name: string;
+  item_number: string;
+  category_name: string;
+  unit: string;
+  movements_count: number;
+  stock_in: number;
+  stock_out: number;
+  net_change: number;
+  current_stock: number | null;
+}
+
+export interface StockMovementsReportData {
+  start_date?: string;
+  end_date?: string;
+  product_id?: number | string;
+  product_label?: string;
+  movement_type?: '' | 'in' | 'out';
+  search?: string;
+  total_movements: number;
+  total_stock_in: number;
+  total_stock_out: number;
+  net_movement: number;
+  total_count?: number;
+  is_truncated?: boolean;
+  movements: StockMovementReportItem[];
+}
+
+export interface UserActivityAction {
+  id: string | number;
+  source?: string;
+  user_id?: number;
+  username?: string;
+  category: string;
+  category_display?: string;
+  action: string;
+  method?: string;
+  path?: string;
+  target_model?: string;
+  target_id?: string;
+  description: string;
+  metadata?: Record<string, any>;
+  date?: string;
+  time?: string;
+  created_at: string;
+}
+
+export interface UserActionCategorySummary {
+  category: string;
+  category_display: string;
+  count: number;
+}
+
+export interface UserActionUserDetails {
+  user_id?: number;
+  id?: number;
+  username: string;
+  email?: string;
+  first_name?: string;
+  last_name?: string;
+  full_name?: string;
+  phone_number?: string;
+  is_superuser: boolean;
+  is_staff?: boolean;
+  is_active?: boolean;
+  role?: string;
+  date_joined?: string;
+  last_login?: string | null;
+}
+
+export interface SingleUserHistoryReportData {
+  start_date?: string;
+  end_date?: string;
+  user?: UserActionUserDetails;
+  user_id?: number;
+  username?: string;
+  total_actions: number;
+  actions_by_category?: UserActionCategorySummary[];
+  actions: UserActivityAction[];
+}
+
+export interface AllUsersSummaryItem {
+  user_id: number;
+  username: string;
+  full_name?: string;
+  role?: string;
+  is_superuser?: boolean;
+  is_active?: boolean;
+  phone_number?: string;
+  total_actions: number;
+  last_action_at?: string | null;
+  category_counts?: Record<string, number>;
+}
+
+export interface ActionsByUserGroup {
+  user: {
+    user_id: number;
+    username: string;
+    role?: string;
+  };
+  total_actions: number;
+  last_action_at?: string | null;
+  actions: UserActivityAction[];
+}
+
+export interface AllUsersHistoryReportData {
+  start_date?: string;
+  end_date?: string;
+  total_users_count?: number;
+  active_users_count?: number;
+  total_actions: number;
+  users_summary?: AllUsersSummaryItem[];
+  actions_by_category?: UserActionCategorySummary[];
+  actions_by_user?: ActionsByUserGroup[];
+  actions: UserActivityAction[];
+}
+
+export type AuditLogReportData = SingleUserHistoryReportData & AllUsersHistoryReportData;
+
+
+

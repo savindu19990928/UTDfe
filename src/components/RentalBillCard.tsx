@@ -130,6 +130,8 @@ export interface RentalBillCardProps {
   actionLoading: string | null;
   actionError: string | null;
   isCardRefreshing?: boolean;
+  isSuperUser?: boolean;
+  onCancelBill?: (bill: Bill) => void;
 }
 
 export const RentalBillCard = memo(function RentalBillCard({
@@ -144,7 +146,9 @@ export const RentalBillCard = memo(function RentalBillCard({
   onOpenAddItem,
   actionLoading,
   actionError,
-  isCardRefreshing = false
+  isCardRefreshing = false,
+  isSuperUser = false,
+  onCancelBill
 }: RentalBillCardProps) {
   const [localDepositAmount, setLocalDepositAmount] = useState('');
   const [depositPaymentMethod, setDepositPaymentMethod] = useState<
@@ -179,13 +183,12 @@ export const RentalBillCard = memo(function RentalBillCard({
   return (
     <div
       data-bill-id={bill.id}
-      className={`bg-white rounded-xl shadow-sm border transition-shadow duration-200 ${
-        isEditing
+      className={`bg-white rounded-xl shadow-sm border transition-shadow duration-200 ${isEditing
           ? 'border-blue-300 ring-2 ring-blue-100'
           : needsPayment
-          ? 'border-red-200 ring-1 ring-red-100'
-          : 'border-gray-200'
-      }`}>
+            ? 'border-red-200 ring-1 ring-red-100'
+            : 'border-gray-200'
+        }`}>
       {/* Bill Header */}
       <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
@@ -213,22 +216,21 @@ export const RentalBillCard = memo(function RentalBillCard({
             {(bill.nicTaken !== undefined ||
               bill.isPassportTaken !== undefined ||
               bill.isDrivingLicenceTaken !== undefined) && (
-              <span
-                className={`ml-2 px-1.5 py-0.5 rounded ${
-                  bill.nicTaken || bill.isPassportTaken || bill.isDrivingLicenceTaken
-                    ? 'bg-amber-100 text-amber-800'
-                    : 'bg-gray-100 text-gray-600'
-                }`}>
-                Taken ID:{' '}
-                {bill.nicTaken
-                  ? 'NIC'
-                  : bill.isPassportTaken
-                  ? 'Passport'
-                  : bill.isDrivingLicenceTaken
-                  ? 'Driving Licence'
-                  : 'None'}
-              </span>
-            )}
+                <span
+                  className={`ml-2 px-1.5 py-0.5 rounded ${bill.nicTaken || bill.isPassportTaken || bill.isDrivingLicenceTaken
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-gray-100 text-gray-600'
+                    }`}>
+                  Taken ID:{' '}
+                  {bill.nicTaken
+                    ? 'NIC'
+                    : bill.isPassportTaken
+                      ? 'Passport'
+                      : bill.isDrivingLicenceTaken
+                        ? 'Driving Licence'
+                        : 'None'}
+                </span>
+              )}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -251,9 +253,8 @@ export const RentalBillCard = memo(function RentalBillCard({
           <div className="text-right mr-4">
             <p className="text-xs text-gray-500">Balance</p>
             <p
-              className={`font-bold ${
-                balance >= 0 ? 'text-green-600' : 'text-red-600'
-              }`}>
+              className={`font-bold ${balance >= 0 ? 'text-green-600' : 'text-red-600'
+                }`}>
               {balance >= 0
                 ? formatPrice(balance)
                 : `-${formatPrice(Math.abs(balance))}`}
@@ -298,15 +299,14 @@ export const RentalBillCard = memo(function RentalBillCard({
 
           <button
             onClick={() => onToggleEdit(bill.id)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold transition-colors ${
-              isEditing
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold transition-colors ${isEditing
                 ? 'bg-gray-200 text-gray-700'
                 : needsPayment
-                ? 'bg-red-600 text-white hover:bg-red-700'
-                : bill.rentalStatus === 'closed'
-                ? 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
-                : 'bg-blue-600 text-white hover:bg-blue-700'
-            }`}>
+                  ? 'bg-red-600 text-white hover:bg-red-700'
+                  : bill.rentalStatus === 'closed'
+                    ? 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}>
             {isEditing ? (
               <>
                 <X className="w-4 h-4" /> Close
@@ -328,6 +328,16 @@ export const RentalBillCard = memo(function RentalBillCard({
             <Eye className="w-4 h-4" />
             Invoice
           </button>
+
+          {isSuperUser && onCancelBill && bill.apiId && (
+            <button
+              onClick={() => onCancelBill(bill)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors"
+              title="Cancel bill">
+              <Ban className="w-4 h-4" />
+              Cancel
+            </button>
+          )}
         </div>
       </div>
 
@@ -366,11 +376,10 @@ export const RentalBillCard = memo(function RentalBillCard({
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-2">
                       <span
-                        className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                          item.status === 'returned'
+                        className={`w-2 h-2 rounded-full flex-shrink-0 ${item.status === 'returned'
                             ? 'bg-green-500'
                             : 'bg-blue-500'
-                        }`}
+                          }`}
                       />
                       <span className="font-medium text-[#1a1a2e]">
                         {item.product.name}
@@ -470,31 +479,28 @@ export const RentalBillCard = memo(function RentalBillCard({
                         <button
                           type="button"
                           onClick={() => setDepositPaymentMethod('cash')}
-                          className={`py-1 text-xs font-bold rounded-md transition-colors ${
-                            depositPaymentMethod === 'cash'
+                          className={`py-1 text-xs font-bold rounded-md transition-colors ${depositPaymentMethod === 'cash'
                               ? 'bg-white text-gray-900 shadow-sm'
                               : 'text-gray-600 hover:text-gray-900'
-                          }`}>
+                            }`}>
                           Cash
                         </button>
                         <button
                           type="button"
                           onClick={() => setDepositPaymentMethod('card')}
-                          className={`py-1 text-xs font-bold rounded-md transition-colors ${
-                            depositPaymentMethod === 'card'
+                          className={`py-1 text-xs font-bold rounded-md transition-colors ${depositPaymentMethod === 'card'
                               ? 'bg-white text-gray-900 shadow-sm'
                               : 'text-gray-600 hover:text-gray-900'
-                          }`}>
+                            }`}>
                           Card
                         </button>
                         <button
                           type="button"
                           onClick={() => setDepositPaymentMethod('bank_transfer')}
-                          className={`py-1 text-xs font-bold rounded-md transition-colors ${
-                            depositPaymentMethod === 'bank_transfer'
+                          className={`py-1 text-xs font-bold rounded-md transition-colors ${depositPaymentMethod === 'bank_transfer'
                               ? 'bg-white text-gray-900 shadow-sm'
                               : 'text-gray-600 hover:text-gray-900'
-                          }`}>
+                            }`}>
                           Bank Transfer
                         </button>
                       </div>

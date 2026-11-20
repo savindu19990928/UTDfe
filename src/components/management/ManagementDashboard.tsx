@@ -1,28 +1,18 @@
 
 
-import React, { lazy, Suspense } from 'react';
+import { lazy, Suspense } from 'react';
 import { ArrowLeft } from 'lucide-react';
-import { Bill, DamageRecord } from '../../types';
+import { DamageRecord } from '../../types';
 import { ProductManagement } from './ProductManagement';
 import { ReportsPage } from './ReportsPage';
-import { BillManagement } from './BillManagement';
-import { MachineResetPage } from './MachineResetPage';
 import { BulkSmsPage } from './BulkSmsPage';
-import { ADMIN_SECTIONS, AdminSection } from './adminSections';
+import { StockMovementsPage } from './StockMovementsPage';
+import { UserManagementPage } from './UserManagementPage';
+import { AdminSection } from './adminSections';
 
 const CashManagementPage = lazy(() =>
 import('./CashManagementPage').then((m) => ({
   default: m.CashManagementPage
-}))
-);
-const DamageTracker = lazy(() =>
-import('../DamageTracker').then((m) => ({
-  default: m.DamageTracker
-}))
-);
-const CustomerManager = lazy(() =>
-import('../CustomerManager').then((m) => ({
-  default: m.CustomerManager
 }))
 );
 
@@ -30,9 +20,8 @@ interface ManagementDashboardProps {
   section: AdminSection;
   onSectionChange: (section: AdminSection) => void;
   onExit: () => void;
-  onViewBill: (bill: Bill) => void;
-  damages: DamageRecord[];
-  onAddDamage: (damage: DamageRecord) => void;
+  damages?: DamageRecord[];
+  onAddDamage?: (damage: DamageRecord) => void;
 }
 
 const SectionFallback = () =>
@@ -43,11 +32,7 @@ const SectionFallback = () =>
 
 export function ManagementDashboard({
   section,
-  onSectionChange,
-  onExit,
-  onViewBill,
-  damages,
-  onAddDamage
+  onExit
 }: ManagementDashboardProps) {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -73,19 +58,9 @@ export function ManagementDashboard({
       {/* Section switcher */}
 
       {section === 'products' && <ProductManagement />}
-      {section === 'bills' && <BillManagement onViewBill={onViewBill} />}
-      {section === 'customers' &&
-      <Suspense fallback={<SectionFallback />}>
-          <CustomerManager isAdmin />
-        </Suspense>
-      }
+      {section === 'stock_movements' && <StockMovementsPage />}
+      {section === 'users' && <UserManagementPage />}
       {section === 'sms' && <BulkSmsPage />}
-      {section === 'damages' &&
-      <Suspense fallback={<SectionFallback />}>
-          <DamageTracker damages={damages} onAddDamage={onAddDamage} />
-        </Suspense>
-      }
-      {section === 'machines' && <MachineResetPage />}
       {section === 'cash' &&
       <Suspense fallback={<SectionFallback />}>
           <CashManagementPage />

@@ -1,22 +1,30 @@
-import React, { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Bill } from '../types';
-import { RentalBillTemplate, SaleBillTemplate } from './BillPreview';
+import { RentalBillTemplate } from './BillPreview';
+import { triggerSilentPrint } from '../utils/print';
+
 interface BillPrintLayerProps {
   bill: Bill | null;
   onDone: () => void;
+  onError?: (error: string) => void;
 }
 /**
- * Renders a bill off-screen and sends it straight to the printer.
- * Used for automatic receipt printing after a bill is changed or closed,
+ * Renders a rental bill off-screen and sends it straight to the printer.
+ * Used for automatic silent receipt printing when a rental bill is closed,
  * so the cashier never has to leave the page they're working on.
  */
-export function BillPrintLayer({ bill, onDone }: BillPrintLayerProps) {
+export function BillPrintLayer({ bill, onDone, onError }: BillPrintLayerProps) {
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+
   useEffect(() => {
     if (!bill) return;
     const isRental = bill.items.some((item) => item.type === 'rent');
     if (!isRental) {
-      onDone();
+      onDoneRef.current();
       return;
     }
     let finished = false;
@@ -26,29 +34,28 @@ export function BillPrintLayer({ bill, onDone }: BillPrintLayerProps) {
       finished = true;
       document.body.classList.remove('printing-bill');
       window.removeEventListener('afterprint', finish);
-      onDone();
+      onDoneRef.current();
     };
     window.addEventListener('afterprint', finish);
     // Give the template a frame to lay out (and the logo a chance to load)
-    const printTimer = window.setTimeout(() => {
-      // @ts-ignore
-      if (window.electronAPI && window.electronAPI.printSilent) {
-        // @ts-ignore
-        window.electronAPI.printSilent();
-      } else {
-        window.print();
+    const printTimer = window.setTimeout(async () => {
+      const result = await triggerSilentPrint();
+      if (!result.success) {
+        onErrorRef.current?.(
+          result.error ||
+            'Failed to print the rental bill. Please check your printer connection.'
+        );
       }
-      // Fallback for browsers that don't fire `afterprint`
-      window.setTimeout(finish, 500);
+      window.setTimeout(finish, 300);
     }, 350);
-    const guard = window.setTimeout(finish, 10000);
+    const guard = window.setTimeout(finish, 18000);
     return () => {
       window.clearTimeout(printTimer);
       window.clearTimeout(guard);
       window.removeEventListener('afterprint', finish);
       document.body.classList.remove('printing-bill');
     };
-  }, [bill, onDone]);
+  }, [bill]);
   if (!bill) return null;
   const isRental = bill.items.some((item) => item.type === 'rent');
   if (!isRental) return null;
