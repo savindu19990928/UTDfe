@@ -207,18 +207,6 @@ export function UserManagementPage() {
         /* handled by hook actionError */
       }
     } else if (formModal?.mode === 'edit' && formModal.user) {
-      const canChangePassword = isEditingSelf;
-      if (canChangePassword && (formPassword || formConfirmPassword)) {
-        if (formPassword.length < 6) {
-          setFormLocalError('New password must be at least 6 characters.');
-          return;
-        }
-        if (formPassword !== formConfirmPassword) {
-          setFormLocalError('Password and Confirm Password do not match.');
-          return;
-        }
-      }
-
       try {
         await updateUser(formModal.user.id, {
           username: trimmedUsername,
@@ -229,13 +217,7 @@ export function UserManagementPage() {
           is_superuser: isEditingSelf
             ? formModal.user.is_superuser
             : formIsSuperuser,
-          is_active: isEditingSelf ? formModal.user.is_active : formIsActive,
-          ...(canChangePassword && formPassword
-            ? {
-              password: formPassword,
-              confirm_password: formConfirmPassword
-            }
-            : {})
+          is_active: isEditingSelf ? formModal.user.is_active : formIsActive
         });
         setFormModal(null);
       } catch {
@@ -321,8 +303,8 @@ export function UserManagementPage() {
                   setPage(1);
                 }}
                 className={`px-3.5 py-1.5 rounded-md text-xs font-bold transition-colors ${roleFilter === val
-                    ? 'bg-[#2d4059] text-white shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                  ? 'bg-[#2d4059] text-white shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
                   }`}>
                 {label}
               </button>
@@ -528,8 +510,8 @@ export function UserManagementPage() {
                               setDeleteTarget(u);
                             }}
                             className={`p-2 rounded-lg transition-colors ${isSelf
-                                ? 'text-gray-300 cursor-not-allowed'
-                                : 'text-gray-500 hover:text-red-600 hover:bg-red-50'
+                              ? 'text-gray-300 cursor-not-allowed'
+                              : 'text-gray-500 hover:text-red-600 hover:bg-red-50'
                               }`}
                             title={
                               isSelf
@@ -581,7 +563,7 @@ export function UserManagementPage() {
                   <p className="text-xs text-gray-500">
                     {formModal.mode === 'create'
                       ? 'Set account credentials and choose Cashier or Admin.'
-                      : 'Update profile, role, active state, or reset password.'}
+                      : 'Update profile, role, or active state.'}
                   </p>
                 </div>
               </div>
@@ -687,8 +669,8 @@ export function UserManagementPage() {
                     disabled={isEditingSelf}
                     onClick={() => setFormIsSuperuser(false)}
                     className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-bold text-sm border-2 transition-all ${!formIsSuperuser
-                        ? 'border-[#2d4059] bg-slate-50 text-[#1a1a2e]'
-                        : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                      ? 'border-[#2d4059] bg-slate-50 text-[#1a1a2e]'
+                      : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
                       } ${isEditingSelf ? 'opacity-60 cursor-not-allowed' : ''}`}>
                     <User className="w-4 h-4" />
                     Cashier
@@ -698,8 +680,8 @@ export function UserManagementPage() {
                     disabled={isEditingSelf}
                     onClick={() => setFormIsSuperuser(true)}
                     className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-bold text-sm border-2 transition-all ${formIsSuperuser
-                        ? 'border-purple-600 bg-purple-50 text-purple-900'
-                        : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                      ? 'border-purple-600 bg-purple-50 text-purple-900'
+                      : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
                       } ${isEditingSelf ? 'opacity-60 cursor-not-allowed' : ''}`}>
                     <ShieldCheck className="w-4 h-4" />
                     Admin
@@ -735,8 +717,8 @@ export function UserManagementPage() {
                 </p>
               </div>
 
-              {/* Password & Confirm Password */}
-              {formModal.mode === 'create' ? (
+              {/* Password & Confirm Password (Create only) */}
+              {formModal.mode === 'create' && (
                 <div className="border-t border-gray-100 pt-3 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-gray-500 uppercase">
@@ -777,51 +759,6 @@ export function UserManagementPage() {
                     />
                   </div>
                 </div>
-              ) : isEditingSelf ? (
-                <div className="border-t border-gray-100 pt-3 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-gray-500 uppercase">
-                      Change Your Password (Optional)
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((prev) => !prev)}
-                      className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1 font-medium">
-                      {showPassword ? (
-                        <>
-                          <EyeOff className="w-3.5 h-3.5" /> Hide
-                        </>
-                      ) : (
-                        <>
-                          <Eye className="w-3.5 h-3.5" /> Show
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={formPassword}
-                      onChange={(e) => setFormPassword(e.target.value)}
-                      placeholder="Leave blank to keep current"
-                      className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f5a623] outline-none"
-                    />
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={formConfirmPassword}
-                      onChange={(e) => setFormConfirmPassword(e.target.value)}
-                      placeholder="Confirm password"
-                      className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f5a623] outline-none"
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="border-t border-gray-100 pt-3">
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-600 leading-relaxed">
-                    Passwords cannot be changed for other users. Each user can reset their own password using &ldquo;Forgot Password&rdquo; on the login screen or change it from their Profile menu.
-                  </div>
-                </div>
               )}
 
               <div className="pt-2 flex gap-3">
@@ -857,8 +794,8 @@ export function UserManagementPage() {
               <div className="flex items-center gap-2.5">
                 <div
                   className={`p-2 rounded-lg ${viewUser.is_superuser
-                      ? 'bg-purple-100 text-purple-700'
-                      : 'bg-slate-100 text-slate-700'
+                    ? 'bg-purple-100 text-purple-700'
+                    : 'bg-slate-100 text-slate-700'
                     }`}>
                   {viewUser.is_superuser ? (
                     <ShieldCheck className="w-5 h-5" />
